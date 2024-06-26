@@ -278,7 +278,7 @@ class StateManager(ABC, Generic[ConfType]):
                 if tool_validation_handler:
                     self.logger.debug(f"Calling {tool.__name__}.on_validation_error")
 
-                    all_extras['validation_error'] = e
+                    all_extras["validation_error"] = e
 
                     handled = tool_validation_handler(tc["id"], arguments, self, all_extras, out)
 
@@ -350,58 +350,89 @@ class StateManager(ABC, Generic[ConfType]):
 
         return tools_called, tools_not_called
 
-    def _process_tools_called(self, message: Message, tools_called: List[dict]) -> bool:
+    def _process_tools_called(self, message: Message, tools_called: List[dict], tools_not_called: List[dict]) -> bool:  # noqa: C901
         complete = True
 
-        if len(tools_called):
-            extension = MessageList(
-                [],
-                self.messages.tokenizer,
-                logger=self.logger.getChild(MessageList.__name__),
+        extension = MessageList(
+            [],
+            self.messages.tokenizer,
+            logger=self.logger.getChild(MessageList.__name__),
+        )
+
+        for tc in tools_called:
+            tool = tc["tool"]
+            tool_call = tc["call"]
+            tool_call_id = tc["id"]
+
+            run = tool_call["run"]
+            # pre_run = tool_call["pre_run_hook"]
+            post_run = tool_call["post_run_hook"]
+
+            if isinstance(run, bool) and not run:
+                self.logger.debug(f"Tool run {tool.__class__.__name__} returned False. Stoping loop over tool calls.")
+                complete = False
+
+            if isinstance(post_run, bool) and not post_run:
+                self.logger.debug(
+                    f"""Tool post_run_hook {tool.__class__.__name__} returned False.
+                    Stoping loop over tool calls."""
+                )
+                complete = False
+
+            # We add exactly one tool message for each tool call, mandatory
+            extension.append(
+                Message.TOOL(
+                    content=(run.content if isinstance(run, Message) else str(run)),
+                    tool_call_id=tool_call_id,
+                    logger=self.logger.getChild(Message.__name__),
+                )
             )
 
-            for tc in tools_called:
-                tool = tc["tool"]
-                tool_call = tc["call"]
-                tool_call_id = tc["id"]
+            self.logger.debug(f"Tool run {tool_call_id} of {tool.__class__.__name__} appended to extension.")
 
-                run = tool_call["run"]
-                # pre_run = tool_call["pre_run_hook"]
-                post_run = tool_call["post_run_hook"]
-
-                if isinstance(run, bool) and not run:
-                    self.logger.debug(f"Tool run {tool.__class__.__name__} returned False. Stoping loop over tool calls.")
-                    complete = False
-
-                if isinstance(post_run, bool) and not post_run:
-                    self.logger.debug(
-                        f"""Tool post_run_hook {tool.__class__.__name__} returned False.
-                        Stoping loop over tool calls."""
-                    )
-                    complete = False
-
-                # We add exactly one tool message for each tool call, mandatory
-                extension.append(
-                    Message.TOOL(
-                        content=(run.content if isinstance(run, Message) else str(run)),
-                        tool_call_id=tool_call_id,
-                        logger=self.logger.getChild(Message.__name__),
-                    )
+            if run is None and complete:
+                t_name = tool.__class__.__name__
+                self.logger.warning(
+                    f"""Tool {t_name} returned None.
+                    \nIn the mean time, the completion loop is supposed to continue.
+                    \nThat means that next iteration will try to LLM.complete()
+                        with a ToolMessage(content=None).
+                    \nIts highly advised to return False in {t_name}.run() or {t_name}.post_run_hook().
+                    \nYou should also make sure {t_name} correctly
+                        updated the frontend messages along wth the context."""
                 )
 
-                self.logger.debug(f"Tool run {tool_call_id} of {tool.__class__.__name__} appended to extension.")
+        for tc in tools_not_called:
+            tool = tc["tool"]  # not an instance of the tool
+            handled = tc["handled"]
+            tool_call_id = tc["id"]
 
-                if run is None and complete:
-                    t_name = tool.__class__.__name__
-                    self.logger.warning(
-                        f"""Tool {t_name} returned None.
-                        \nIn the mean time, the completion loop is supposed to continue.
-                        \nThat means that next iteration will try to LLM.complete()
-                            with a ToolMessage(content=None).
-                        \nIts highly advised to return False in {t_name}.run() or {t_name}.post_run_hook().
-                        \nYou should also make sure {t_name} correctly
-                            updated the frontend messages along wth the context."""
-                    )
+            if isinstance(handled, bool) and not handled:
+                self.logger.debug(f"Tool {tool.__name__} on_validation_error returned False. Stoping loop over tool calls.")
+                complete = False
+
+            # We add exactly one tool message for each tool call, mandatory
+            extension.append(
+                Message.TOOL(
+                    content=(handled.content if isinstance(handled, Message) else str(handled)),
+                    tool_call_id=tool_call_id,
+                    logger=self.logger.getChild(Message.__name__),
+                )
+            )
+
+            self.logger.debug(f"Tool handling {tool_call_id} of {tool.__name__} appended to extension.")
+
+            if handled is None and complete:
+                t_name = tool.__name__
+                self.logger.warning(
+                    f"""Tool {t_name} on_validation_error returned None.
+                    \nIn the mean time, the completion loop is supposed to continue.
+                    \nThat means that next iteration will try to LLM.complete()
+                        with a ToolMessage(content=None).
+                    \nIts highly advised to return False in {t_name}.on_validation_error().
+                    \nYou should also make sure {t_name} correctly
+                        updated the frontend messages along wth the context."""
+                )
 
             debug_store = self.messages.filter(lambda x: x.role == Role.USER and bool(x._remote)).last()
 
@@ -453,7 +484,7 @@ class StateManager(ABC, Generic[ConfType]):
     ) -> Tuple[List[dict], List[dict], bool]:
         tools_called, tools_not_called = self._call_tools(message=message, extra=extra, out=out, raise_on_missing_tool=raise_on_missing_tool)
 
-        complete = self._process_tools_called(message=message, tools_called=tools_called)
+        complete = self._process_tools_called(message=message, tools_called=tools_called, tools_not_called=tools_not_called)
 
         self.logger.debug(f"Finished running {len(tools_called)} tools.")
 
