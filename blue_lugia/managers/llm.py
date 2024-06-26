@@ -28,7 +28,7 @@ class LanguageModelManager(Manager):
         "AZURE_GPT_35_TURBO_16K": 16_385,
         "AZURE_GPT_35_TURBO_0613": 4_096,
         "AZURE_GPT_4o_2024_0513": 128_000,
-        "gpt-4": 128_000,
+        "gpt-4": 8_192,
         "gpt-4o": 128_000,
         "gpt-4-turbo-2024-04-09": 128_000,
         "gpt-35-turbo": 16_385,
