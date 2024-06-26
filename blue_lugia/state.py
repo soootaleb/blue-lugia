@@ -3,6 +3,7 @@ from abc import ABC
 from typing import Any, Generic, List, Tuple
 
 from pydantic import BaseModel
+from pydantic_core import ValidationError
 
 from blue_lugia.config import ConfType
 from blue_lugia.enums import Role
@@ -82,10 +83,7 @@ class StateManager(ABC, Generic[ConfType]):
 
         # we filter empty messages notably the ASSISTANT empty message created by the API
         self._ctx = (
-            self.messages.all()
-            .fork()
-            .filter(lambda x: bool(x.content) or bool(x.tool_calls))
-            .expand(self._key if hasattr(self, "_key") else "state_manager_tool_calls")  # type: ignore
+            self.messages.all().fork().filter(lambda x: bool(x.content) or bool(x.tool_calls)).expand(self._key if hasattr(self, "_key") else "state_manager_tool_calls")  # type: ignore
         )
         self._extra = {}
         # ======= CIP =======
@@ -207,11 +205,7 @@ class StateManager(ABC, Generic[ConfType]):
             self.logger.debug(f"Adding {len(_ctx)} messages to the context")
             self.ctx.extend(_ctx)
         elif prepend:
-            sent_user_message = (
-                self.ctx.filter(lambda x: bool(x._remote))
-                .filter(lambda x: bool(x._remote) and x._remote._id == self.event.payload.user_message.id)
-                .first()
-            )
+            sent_user_message = self.ctx.filter(lambda x: bool(x._remote)).filter(lambda x: bool(x._remote) and x._remote._id == self.event.payload.user_message.id).first()
             if sent_user_message:
                 self.logger.debug(f"Inserting {len(_ctx)} messages to the context")
                 sent_user_message_index = self.ctx.index(sent_user_message)
@@ -226,7 +220,6 @@ class StateManager(ABC, Generic[ConfType]):
         return self
 
     def register(self, tools: type[BaseModel] | List[type[BaseModel]]) -> "StateManager":
-
         tools_as_list = tools if isinstance(tools, List) else [tools]
 
         for tool in tools_as_list:
@@ -238,8 +231,9 @@ class StateManager(ABC, Generic[ConfType]):
 
         return self
 
-    def _call_tools(self, message: Message, extra: dict = {}, out: Message | None = None, raise_on_missing_tool: bool = False) -> List[dict]:
+    def _call_tools(self, message: Message, extra: dict = {}, out: Message | None = None, raise_on_missing_tool: bool = False) -> Tuple[List[dict], List[dict]]:
         tools_called = []
+        tools_not_called = []
 
         tools_routes = {tool.__name__: tool for tool in self.tools}
 
@@ -262,9 +256,7 @@ class StateManager(ABC, Generic[ConfType]):
                 else:
                     continue
 
-            tool_call = tools_routes[tc["function"]["name"]](**tc["function"]["arguments"])
-
-            self.logger.debug(f"Tool {tc['function']['name']} is {tool_call}")
+            tool = tools_routes[tc["function"]["name"]]
 
             all_extras = {
                 **self._extra,
@@ -274,67 +266,91 @@ class StateManager(ABC, Generic[ConfType]):
 
             self.logger.debug(f"Extra contains {', '.join(all_extras.keys())}")
 
-            pre = (
-                tool_call.pre_run_hook(  # type: ignore
-                    tc["id"],
-                    self,
-                    all_extras,
-                    out,
-                )
-                if hasattr(tool_call, "pre_run_hook")
-                else None
-            )
+            try:
+                tool_call = tool(**tc["function"]["arguments"])
+            except ValidationError as e:
+                self.logger.error(f"Tool {tc['function']['name']} failed to validate.")
 
-            self.logger.debug(f"Pre run hook is {pre}")
+                arguments = tc["function"]["arguments"]
 
-            if isinstance(pre, bool) and not pre:
-                run = None
-                self.logger.debug("Pre run hook returned False, skipping run.")
+                tool_validation_handler = getattr(tool, "on_validation_error", None)
+
+                if tool_validation_handler:
+                    self.logger.debug(f"Calling {tool.__name__}.on_validation_error")
+
+                    all_extras['validation_error'] = e
+
+                    handled = tool_validation_handler(tc["id"], arguments, self, all_extras, out)
+
+                else:
+                    self.logger.debug(f"No on_validation_error handler for {tool.__name__}.")
+                    handled = None
+
+                tools_not_called.append({"id": tc["id"], "tool": tool, "arguments": arguments, "handled": handled, "error": e})
+
             else:
-                run = (
-                    tool_call.run(  # type: ignore
+                self.logger.debug(f"Tool {tc['function']['name']} is {tool_call}")
+
+                pre = (
+                    tool_call.pre_run_hook(  # type: ignore
                         tc["id"],
                         self,
                         all_extras,
                         out,
                     )
-                    if hasattr(tool_call, "run")
+                    if hasattr(tool_call, "pre_run_hook")
                     else None
                 )
 
-                self.logger.debug(f"Run is {run}")
+                self.logger.debug(f"Pre run hook is {pre}")
 
-            post = (
-                tool_call.post_run_hook(  # type: ignore
-                    tc["id"],
-                    self,
-                    all_extras,
-                    out,
+                if isinstance(pre, bool) and not pre:
+                    run = None
+                    self.logger.debug("Pre run hook returned False, skipping run.")
+                else:
+                    run = (
+                        tool_call.run(  # type: ignore
+                            tc["id"],
+                            self,
+                            all_extras,
+                            out,
+                        )
+                        if hasattr(tool_call, "run")
+                        else None
+                    )
+
+                    self.logger.debug(f"Run is {run}")
+
+                post = (
+                    tool_call.post_run_hook(  # type: ignore
+                        tc["id"],
+                        self,
+                        all_extras,
+                        out,
+                    )
+                    if hasattr(tool_call, "post_run_hook")
+                    else None
                 )
-                if hasattr(tool_call, "post_run_hook")
-                else None
-            )
 
-            self.logger.debug(f"Post run hook is {post}")
+                self.logger.debug(f"Post run hook is {post}")
 
-            tools_called.append(
-                {
-                    "id": tc["id"],
-                    "tool": tool_call,
-                    "call": {
-                        "pre_run_hook": pre,
-                        "run": run,
-                        "post_run_hook": post,
-                    },
-                }
-            )
+                tools_called.append(
+                    {
+                        "id": tc["id"],
+                        "tool": tool_call,
+                        "call": {
+                            "pre_run_hook": pre,
+                            "run": run,
+                            "post_run_hook": post,
+                        },
+                    }
+                )
 
-            tool_call_index += 1
+                tool_call_index += 1
 
-        return tools_called
+        return tools_called, tools_not_called
 
     def _process_tools_called(self, message: Message, tools_called: List[dict]) -> bool:
-
         complete = True
 
         if len(tools_called):
@@ -354,9 +370,7 @@ class StateManager(ABC, Generic[ConfType]):
                 post_run = tool_call["post_run_hook"]
 
                 if isinstance(run, bool) and not run:
-                    self.logger.debug(
-                        f"Tool run {tool.__class__.__name__} returned False. Stoping loop over tool calls."
-                    )
+                    self.logger.debug(f"Tool run {tool.__class__.__name__} returned False. Stoping loop over tool calls.")
                     complete = False
 
                 if isinstance(post_run, bool) and not post_run:
@@ -436,15 +450,14 @@ class StateManager(ABC, Generic[ConfType]):
         extra: dict = {},
         out: Message | None = None,
         raise_on_missing_tool: bool = False,
-    ) -> Tuple[List[dict], bool]:
-
-        tools_called = self._call_tools(message=message, extra=extra, out=out, raise_on_missing_tool=raise_on_missing_tool)
+    ) -> Tuple[List[dict], List[dict], bool]:
+        tools_called, tools_not_called = self._call_tools(message=message, extra=extra, out=out, raise_on_missing_tool=raise_on_missing_tool)
 
         complete = self._process_tools_called(message=message, tools_called=tools_called)
 
         self.logger.debug(f"Finished running {len(tools_called)} tools.")
 
-        return tools_called, complete
+        return tools_called, tools_not_called, complete
 
     def complete(
         self,
@@ -511,7 +524,7 @@ class StateManager(ABC, Generic[ConfType]):
 
             self.logger.debug(f"Calling tools for completion {completion.role}.")
 
-            tools_called, complete = self.call(
+            tools_called, tools_not_called, complete = self.call(
                 message=completion,
                 extra={
                     "tool_calls": completion.tool_calls,
@@ -521,17 +534,14 @@ class StateManager(ABC, Generic[ConfType]):
                 raise_on_missing_tool=raise_on_missing_tool,
             )
 
-            completions.append([completion, tools_called])
+            completions.append([completion, tools_called, tools_not_called])
 
             self.logger.debug(f"{len(tools_called)} Tools called for completion {completion.role}.")
-
 
             loop_iteration += 1
 
         if loop_iteration >= self.config.FUNCTION_CALL_MAX_ITERATIONS:
-            self.logger.warning(
-                f"Max iterations reached. Stopping loop. Raise on max iterations: {raise_on_max_iterations}"
-            )
+            self.logger.warning(f"Max iterations reached. Stopping loop. Raise on max iterations: {raise_on_max_iterations}")
             if raise_on_max_iterations:
                 raise ValueError("Max iterations reached.")
 
