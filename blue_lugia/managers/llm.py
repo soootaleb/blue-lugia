@@ -159,20 +159,19 @@ class LanguageModelManager(Manager):
         self._model = model
         return self
 
-    def _to_dict_messages(self, messages: List[Message] | List[dict], replace_tools: bool = False) -> List[dict]:
+    def _to_dict_messages(self, messages: List[Message] | List[dict], replace_tools: bool = False, oai: bool = False) -> List[dict]:
         formated_messages = []
 
         for message in messages:
             if isinstance(message, Message):
                 message_to_append = {
-                    "role": (
-                        message.role.value if (message.role != Role.TOOL or not replace_tools) else Role.SYSTEM.value
-                    ),
-                    "content": message.content or None,
+                    "role": (message.role.value if (message.role != Role.TOOL or not replace_tools) else Role.SYSTEM.value),
+                    "content": message.content or ("" if oai else None),
                 }
 
                 if message.tool_calls:
-                    message_to_append["toolCalls"] = [
+                    key = "tool_calls" if oai else "toolCalls"
+                    message_to_append[key] = [
                         {
                             "id": call["id"],
                             "type": "function",
@@ -185,7 +184,8 @@ class LanguageModelManager(Manager):
                     ]
 
                 if message.tool_call_id:
-                    message_to_append["toolCallId"] = message.tool_call_id
+                    key = "tool_call_id" if oai else "toolCallId"
+                    message_to_append[key] = message.tool_call_id
 
                 formated_messages.append(message_to_append)
 
@@ -219,9 +219,7 @@ class LanguageModelManager(Manager):
             texts=texts,
         )
 
-        typed_embeddings = [
-            Embedding(embedding, logger=self.logger.getChild(Embedding.__name__)) for embedding in embeddings.embeddings
-        ]
+        typed_embeddings = [Embedding(embedding, logger=self.logger.getChild(Embedding.__name__)) for embedding in embeddings.embeddings]
 
         return EmbeddingList(typed_embeddings, logger=self.logger.getChild(EmbeddingList.__name__))
 
@@ -243,9 +241,7 @@ class LanguageModelManager(Manager):
         system_messages = messages.filter(lambda m: m.role == Role.SYSTEM)
         not_system_messages = messages.filter(lambda m: m.role != Role.SYSTEM)
 
-        unique_system_messages = MessageList(
-            [], tokenizer=self.tokenizer, logger=self.logger.getChild(MessageList.__name__)
-        )
+        unique_system_messages = MessageList([], tokenizer=self.tokenizer, logger=self.logger.getChild(MessageList.__name__))
 
         # deduplicate system messages by content
 
@@ -259,11 +255,7 @@ class LanguageModelManager(Manager):
 
         # count tokens from system messages
 
-        input_tokens_limit = (
-            self.CONTEXT_WINDOW_SIZES.get(self._model, 0)
-            - self.OUTPUT_MAX_TOKENS.get(self._model, 0)
-            - system_tokens_count
-        )
+        input_tokens_limit = self.CONTEXT_WINDOW_SIZES.get(self._model, 0) - self.OUTPUT_MAX_TOKENS.get(self._model, 0) - system_tokens_count
 
         if input_tokens_limit <= 0:
             raise ValueError(f"BL::Manager::LLM::complete::input_tokens_limit::{input_tokens_limit}")
@@ -320,11 +312,9 @@ class LanguageModelManager(Manager):
 
         context = self._reformat(typed_messages)
 
-        replace_tools_messages = (
-            not bool(out) and not self._use_open_ai
-        )  # unique_sdk.ChatCompletion.create does not support tool messages
+        replace_tools_messages = not bool(out) and not self._use_open_ai  # unique_sdk.ChatCompletion.create does not support tool messages
 
-        formated_messages = self._to_dict_messages(context, replace_tools=replace_tools_messages)
+        formated_messages = self._to_dict_messages(context, replace_tools=replace_tools_messages, oai=self._use_open_ai)
 
         if tool_choice:
             options["toolChoice"] = {
@@ -342,9 +332,9 @@ class LanguageModelManager(Manager):
             completion = client.chat.completions.create(
                 model=self._model,
                 messages=formated_messages,  # type: ignore
-                tools=options.get("tools", NotGiven),
-                tool_choice=options.get("toolChoice", NotGiven),
-                max_tokens=options.get("max_tokens", NotGiven),
+                tools=options.get("tools", NotGiven()),
+                tool_choice=options.get("toolChoice", NotGiven()),
+                max_tokens=options.get("max_tokens", NotGiven()),
                 temperature=self._temperature,
             )
 
@@ -459,9 +449,7 @@ class Parser[T]:
     def __init__(self, llm: LanguageModelManager) -> None:
         self._logger = llm.logger.getChild(Parser.__name__)
         self._llm = llm
-        self._instructions = MessageList(
-            [], tokenizer=llm.tokenizer, logger=self._logger.getChild(MessageList.__name__)
-        )
+        self._instructions = MessageList([], tokenizer=llm.tokenizer, logger=self._logger.getChild(MessageList.__name__))
         self._assertions = []
         self._schema = BaseModel
 
