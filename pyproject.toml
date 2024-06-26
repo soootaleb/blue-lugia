@@ -1,0 +1,108 @@
+[tool.poetry]
+name = "blue-lugia"
+version = "0.1.0"
+description = "Unique SDK Wrapper"
+authors = ["Sofiane TALEB <sofiane.ext@unique.ch>"]
+readme = "README.md"
+packages = [{ include = "blue_lugia" },]
+
+[tool.poetry.dependencies]
+python = "^3.12"
+unique-sdk = "^0.8"
+flask = "^3.0"
+pydantic = "^2.7.4"
+tiktoken = "^0.7.0"
+pydantic-settings = "^2.3.3"
+openai = "^1.34.0"
+
+
+[tool.poetry.group.dev.dependencies]
+ruff = ">=0.4"
+mypy = "^1.6.0"
+pre-commit = "^3"
+pytest = ">=7.3"
+pytest-cov = ">=4.1"
+pytest-mock = ">=3.12"
+
+
+
+[tool.ruff]
+line-length = 180
+indent-width = 4
+
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".ipynb_checkpoints",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pyenv",
+    ".pytest_cache",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    ".vscode",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "site-packages",
+    "venv",
+]
+
+[tool.ruff.lint]
+# Enable most of linters by default. https://docs.astral.sh/ruff/rules/#legend
+select = [
+    # pycodestyle
+    "E", "W",
+    # Pyflakes
+    "F",
+    # pyupgrade
+    "UP",
+    # pep-8 naming
+    "N",
+    # flake8-simplify
+    "SIM",
+    # isort
+    "I",
+    # flake8-annotations
+    "ANN",
+    # mccabe -- code complexity
+    "C90",
+]
+ignore = ["ANN002", "ANN003", "ANN101", "ANN102", "ANN401"]
+
+[tool.ruff.format]
+# Like Black, use double quotes for strings.
+quote-style = "double"
+# Like Black, indent with spaces, rather than tabs.
+indent-style = "space"
+# Like Black, respect magic trailing commas.
+skip-magic-trailing-comma = false
+# Like Black, automatically detect the appropriate line ending.
+line-ending = "auto"
+# Enable auto-formatting of code examples in docstrings. Markdown,
+# reStructuredText code/literal blocks and doctests are all supported.
+docstring-code-format = false
+# Set the line length limit used when formatting code snippets in
+# docstrings.
+docstring-code-line-length = "dynamic"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+testpaths = ['tests/unit','tests/integration']
+python_files = ["test_*.py"]
+log_cli = true
+log_cli_level = "DEBUG"

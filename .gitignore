@@ -1,0 +1,15 @@
+.env
+.mypy_cache
+
+.DS_Store
+
+# as we develop a library, we follow https://python-poetry.org/docs/basic-usage/#as-a-library-developer
+poetry.lock
+
+*.ignore.*
+
+__pycache__/
+tests/**/*.env
+**/secrets.config
+
+data/
