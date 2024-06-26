@@ -265,7 +265,7 @@ class LanguageModelManager(Manager):
 
         self.logger.debug(f"Other messages truncated to {input_tokens_limit} tokens")
 
-        not_system_messages.keep(input_tokens_limit)
+        not_system_messages = not_system_messages.keep(input_tokens_limit)
 
         # prepend system messages to input messages
 
