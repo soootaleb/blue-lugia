@@ -54,7 +54,7 @@ class LanguageModelManager(Manager):
         "AZURE_GPT_4_TURBO_2024_0409": "gpt-4",
         "AZURE_GPT_35_TURBO_16K": "gpt-3.5-turbo",
         "AZURE_GPT_35_TURBO_0613": "gpt-3.5-turbo",
-        "gpt-4o": "gpt-4",
+        "gpt-4o": "gpt-4o",
         "gpt-4-turbo-2024-04-09": "gpt-4",
         "gpt-35-turbo": "gpt-3.5-turbo",
     }
