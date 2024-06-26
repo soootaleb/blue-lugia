@@ -1,6 +1,6 @@
 import logging
 from abc import ABC
-from typing import Any, Generic, List
+from typing import Any, Generic, List, Tuple
 
 from pydantic import BaseModel
 
@@ -226,30 +226,24 @@ class StateManager(ABC, Generic[ConfType]):
         return self
 
     def register(self, tools: type[BaseModel] | List[type[BaseModel]]) -> "StateManager":
-        if isinstance(tools, List):
-            self._tools.extend(tools)
-            self.logger.debug(f"Registering tools {", ".join([tool.__name__ for tool in tools])}")
-        else:
-            self._tools.append(tools)
-            self.logger.debug(f"Registering tool {tools.__name__}")
+
+        tools_as_list = tools if isinstance(tools, List) else [tools]
+
+        for tool in tools_as_list:
+            if tool not in self._tools:
+                self._tools.append(tool)
+                self.logger.debug(f"Registering tool {tool.__name__}")
+            else:
+                self.logger.warning(f"Tool {tool.__name__} already registered.")
 
         return self
 
-    def call(
-        self,
-        message_or_tool_calls: Message | List[dict],
-        extra: dict = {},
-        out: Message | None = None,
-        raise_on_missing_tool: bool = False,
-    ) -> List[dict]:
+    def _call_tools(self, message: Message, extra: dict = {}, out: Message | None = None, raise_on_missing_tool: bool = False) -> List[dict]:
         tools_called = []
 
         tools_routes = {tool.__name__: tool for tool in self.tools}
 
-        if isinstance(message_or_tool_calls, Message):  # noqa: SIM108
-            tool_calls = message_or_tool_calls.tool_calls
-        else:
-            tool_calls = message_or_tool_calls
+        tool_calls = message.tool_calls
 
         self.logger.debug(f"Calling tools {tool_calls}")
 
@@ -278,7 +272,7 @@ class StateManager(ABC, Generic[ConfType]):
                 "tool_call_index": tool_call_index,
             }
 
-            self.logger.debug(f"Extra is {all_extras}")
+            self.logger.debug(f"Extra contains {', '.join(all_extras.keys())}")
 
             pre = (
                 tool_call.pre_run_hook(  # type: ignore
@@ -337,9 +331,120 @@ class StateManager(ABC, Generic[ConfType]):
 
             tool_call_index += 1
 
+        return tools_called
+
+    def _process_tools_called(self, message: Message, tools_called: List[dict]) -> bool:
+
+        complete = True
+
+        if len(tools_called):
+            extension = MessageList(
+                [],
+                self.messages.tokenizer,
+                logger=self.logger.getChild(MessageList.__name__),
+            )
+
+            for tc in tools_called:
+                tool = tc["tool"]
+                tool_call = tc["call"]
+                tool_call_id = tc["id"]
+
+                run = tool_call["run"]
+                # pre_run = tool_call["pre_run_hook"]
+                post_run = tool_call["post_run_hook"]
+
+                if isinstance(run, bool) and not run:
+                    self.logger.debug(
+                        f"Tool run {tool.__class__.__name__} returned False. Stoping loop over tool calls."
+                    )
+                    complete = False
+
+                if isinstance(post_run, bool) and not post_run:
+                    self.logger.debug(
+                        f"""Tool post_run_hook {tool.__class__.__name__} returned False.
+                        Stoping loop over tool calls."""
+                    )
+                    complete = False
+
+                # We add exactly one tool message for each tool call, mandatory
+                extension.append(
+                    Message.TOOL(
+                        content=(run.content if isinstance(run, Message) else str(run)),
+                        tool_call_id=tool_call_id,
+                        logger=self.logger.getChild(Message.__name__),
+                    )
+                )
+
+                self.logger.debug(f"Tool run {tool_call_id} of {tool.__class__.__name__} appended to extension.")
+
+                if run is None and complete:
+                    t_name = tool.__class__.__name__
+                    self.logger.warning(
+                        f"""Tool {t_name} returned None.
+                        \nIn the mean time, the completion loop is supposed to continue.
+                        \nThat means that next iteration will try to LLM.complete()
+                            with a ToolMessage(content=None).
+                        \nIts highly advised to return False in {t_name}.run() or {t_name}.post_run_hook().
+                        \nYou should also make sure {t_name} correctly
+                            updated the frontend messages along wth the context."""
+                    )
+
+            debug_store = self.messages.filter(lambda x: x.role == Role.USER and bool(x._remote)).last()
+
+            if debug_store:
+                debug_store.update(
+                    debug_store.content,
+                    debug={
+                        **debug_store.debug,
+                        "_tool_calls": [
+                            {
+                                "role": message.role.value,
+                                "content": message.content,
+                                "tools_called": message.tool_calls,
+                            }
+                        ]
+                        + [
+                            {
+                                "role": m.role.value,
+                                "content": m.content,
+                                "tool_call_id": m.tool_call_id,
+                            }
+                            for m in extension
+                        ],
+                    },
+                )
+
+            else:
+                self.logger.warning(
+                    """No user message found in context.
+                    \nCannot update debug information for tool calls.
+                    \nThis is a critical issue for debugging."""
+                )
+
+            self.ctx.extend(extension)
+
+            self.logger.debug(f"Extension of {len(extension)} tool messages appended to context.")
+
+        else:
+            complete = False
+
+        return complete
+
+    def call(
+        self,
+        message: Message,
+        extra: dict = {},
+        out: Message | None = None,
+        raise_on_missing_tool: bool = False,
+    ) -> Tuple[List[dict], bool]:
+
+        tools_called = self._call_tools(message=message, extra=extra, out=out, raise_on_missing_tool=raise_on_missing_tool)
+
+        complete = self._process_tools_called(message=message, tools_called=tools_called)
+
         self.logger.debug(f"Finished running {len(tools_called)} tools.")
 
-        return tools_called
+        return tools_called, complete
 
     def complete(
         self,
@@ -406,8 +511,8 @@ class StateManager(ABC, Generic[ConfType]):
 
             self.logger.debug(f"Calling tools for completion {completion.role}.")
 
-            tools_called = self.call(
-                message_or_tool_calls=completion,
+            tools_called, complete = self.call(
+                message=completion,
                 extra={
                     "tool_calls": completion.tool_calls,
                     "loop_iteration": loop_iteration,
@@ -420,96 +525,6 @@ class StateManager(ABC, Generic[ConfType]):
 
             self.logger.debug(f"{len(tools_called)} Tools called for completion {completion.role}.")
 
-            if len(tools_called):
-                extension = MessageList(
-                    [],
-                    self.messages.tokenizer,
-                    logger=self.logger.getChild(MessageList.__name__),
-                )
-
-                for tc in tools_called:
-                    tool = tc["tool"]
-                    tool_call = tc["call"]
-                    tool_call_id = tc["id"]
-
-                    run = tool_call["run"]
-                    # pre_run = tool_call["pre_run_hook"]
-                    post_run = tool_call["post_run_hook"]
-
-                    if isinstance(run, bool) and not run:
-                        self.logger.debug(
-                            f"Tool run {tool.__class__.__name__} returned False. Stoping loop over tool calls."
-                        )
-                        complete = False
-
-                    if isinstance(post_run, bool) and not post_run:
-                        self.logger.debug(
-                            f"""Tool post_run_hook {tool.__class__.__name__} returned False.
-                            Stoping loop over tool calls."""
-                        )
-                        complete = False
-
-                    # We add exactly one tool message for each tool call, mandatory
-                    extension.append(
-                        Message.TOOL(
-                            content=(run.content if isinstance(run, Message) else str(run)),
-                            tool_call_id=tool_call_id,
-                            logger=self.logger.getChild(Message.__name__),
-                        )
-                    )
-
-                    self.logger.debug(f"Tool run {tool_call_id} of {tool.__class__.__name__} appended to extension.")
-
-                    if run is None and complete:
-                        t_name = tool.__class__.__name__
-                        self.logger.warning(
-                            f"""Tool {t_name} returned None.
-                            \nIn the mean time, the completion loop is supposed to continue.
-                            \nThat means that next iteration will try to LLM.complete()
-                                with a ToolMessage(content=None).
-                            \nIts highly advised to return False in {t_name}.run() or {t_name}.post_run_hook().
-                            \nYou should also make sure {t_name} correctly
-                                updated the frontend messages along wth the context."""
-                        )
-
-                debug_store = self.messages.filter(lambda x: x.role == Role.USER and bool(x._remote)).last()
-
-                if debug_store:
-                    debug_store.update(
-                        debug_store.content,
-                        debug={
-                            **debug_store.debug,
-                            "_tool_calls": [
-                                {
-                                    "role": completion.role.value,
-                                    "content": completion.content,
-                                    "tools_called": completion.tool_calls,
-                                }
-                            ]
-                            + [
-                                {
-                                    "role": m.role.value,
-                                    "content": m.content,
-                                    "tool_call_id": m.tool_call_id,
-                                }
-                                for m in extension
-                            ],
-                        },
-                    )
-
-                else:
-                    self.logger.warning(
-                        """No user message found in context.
-                        \nCannot update debug information for tool calls.
-                        \nThis is a critical issue for debugging."""
-                    )
-
-                self.ctx.extend(extension)
-
-                self.logger.debug(f"Extension of {len(extension)} tool messages appended to context.")
-
-            else:
-                complete = False
 
             loop_iteration += 1
 

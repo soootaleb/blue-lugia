@@ -19,7 +19,6 @@ class MockLLM(LanguageModelManager):
         mock = kwargs.get("mock", False)
 
         if mock:
-
             if out:
                 out._content = Message._Content("Mock content")
                 out._tool_calls = [
@@ -43,13 +42,15 @@ class MockLLM(LanguageModelManager):
 
             return Message.ASSISTANT(
                 content="Mock content",
-                remote=Message._Remote(
-                    id=out._remote.id,
-                    event=out._remote.event,
-                    debug=out._remote.debug,
-                )
-                if out and out._remote
-                else None,
+                remote=(
+                    Message._Remote(
+                        id=out._remote.id,
+                        event=out._remote.event,
+                        debug=out._remote.debug,
+                    )
+                    if out and out._remote
+                    else None
+                ),
                 tool_calls=[
                     {
                         "id": "mock_id1",
@@ -168,39 +169,47 @@ def play(state: StateManager, args: list[str] = []) -> None:
     Development purpose only, use at your own risk
     """
 
-    # files = state.files.uploaded.values("id", "name")
+    files = state.files.uploaded.values("id", "name")
 
-    # state.context(
-    #     # Message.SYSTEM(f"The documents available are {files}"), prepend=True
-    #     Message.SYSTEM(f"The documents available are {files}")
-    # ).using(
-    #     MockLLM(
-    #         event=state.event,
-    #         model=state.llm._model,
-    #         temperature=state.llm._temperature,
-    #         timeout=state.llm._timeout,
-    #         logger=state.logger.getChild(MockLLM.__name__),
-    #     )
-    # ).register(SummarizeTool).loop(
+    state.context(
+        # Message.SYSTEM(f"The documents available are {files}"), prepend=True
+        [
+            Message.SYSTEM(f"The documents available are {files}"),
+            Message.USER("Summarize the document two times using tools."),
+        ],
+    ).register(SummarizeTool)
+
+    # .loop(
     #     out=state.last_ass_message,
     # )
 
+    completion = state.complete(out=state.last_ass_message)
+
+    state.call(
+        completion,
+        out=state.last_ass_message,
+        extra={
+            "tool_calls": completion.tool_calls,
+            "loop_iteration": 0,
+        },
+    )
+
     # state.stream()
 
-    files = state.files.uploaded.search().as_files()
+    # files = state.files.uploaded.search().as_files()
 
-    if not files:
-        raise
+    # if not files:
+    #     raise
 
-    state.llm.complete(
-        [
-            Message.SYSTEM("Your role is to provide a reference to the document that answers the user's question"),
-            Message.SYSTEM("Here are the sources you must cite using source0, source1, source2, etc:"),
-            Message.SYSTEM(files.xml),
-            Message.USER("Provide one quote from the Earth and cite a source."),
-        ],
-        out=state.last_ass_message,
-        search_context=files.as_context(),
-    )
+    # state.llm.complete(
+    #     [
+    #         Message.SYSTEM("Your role is to provide a reference to the document that answers the user's question"),
+    #         Message.SYSTEM("Here are the sources you must cite using source0, source1, source2, etc:"),
+    #         Message.SYSTEM(files.xml),
+    #         Message.USER("Provide one quote from the Earth and cite a source."),
+    #     ],
+    #     out=state.last_ass_message,
+    #     search_context=files.as_context(),
+    # )
 
     return

@@ -1,0 +1,15 @@
+{
+    "python.defaultInterpreterPath": "${env:HOME}/Library/Caches/pypoetry/virtualenvs/py-pic-onechat-x27n2zo6-py3.12",
+    "[python]": {
+        "editor.defaultFormatter": "charliermarsh.ruff",
+        "editor.formatOnSave": true,
+    },
+    "python.languageServer": "Default",
+    "autoDocstring.docstringFormat": "pep257",
+    "python.testing.pytestEnabled": true,
+    "python.testing.unittestEnabled": false,
+    "python.analysis.typeCheckingMode": "basic",
+    "python.analysis.autoImportCompletions": true,
+    "debugpy.debugJustMyCode": false,
+    
+}
