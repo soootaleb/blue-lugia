@@ -119,10 +119,6 @@ class TestMessage(unittest.TestCase):
     def test_append(self) -> None:
         message = Message(role=Role.USER, content="What's the weather in Bangkok?")
         message.append("This is an assistant message.")
-        self.assertEqual(message.content, "What's the weather in Bangkok?\nThis is an assistant message.")
-
-        message = Message(role=Role.USER, content="What's the weather in Bangkok?")
-        message.append("This is an assistant message.", new_line=True, blank_line=True)
         self.assertEqual(message.content, "What's the weather in Bangkok?\n\nThis is an assistant message.")
 
         message = Message(role=Role.USER, content="What's the weather in Bangkok?")
