@@ -470,9 +470,6 @@ class StateManager(ABC, Generic[ConfType]):
 
             self.logger.debug(f"Extension of {len(extension)} tool messages appended to context.")
 
-        else:
-            complete = False
-
         return complete
 
     def call(
@@ -537,7 +534,7 @@ class StateManager(ABC, Generic[ConfType]):
         raise_on_max_iterations: bool = False,
         raise_on_missing_tool: bool = False,
     ) -> list:
-        complete = True
+        go_next = True
 
         loop_iteration = 0
 
@@ -548,7 +545,7 @@ class StateManager(ABC, Generic[ConfType]):
             Max {self.config.FUNCTION_CALL_MAX_ITERATIONS} iterations."""
         )
 
-        while complete and loop_iteration < self.config.FUNCTION_CALL_MAX_ITERATIONS:
+        while go_next and loop_iteration < self.config.FUNCTION_CALL_MAX_ITERATIONS:
             self.logger.debug(f"Completing iteration {loop_iteration}.")
 
             completion = self.complete(message, out=out, start_text=start_text, tool_choice=tool_choice)
@@ -570,6 +567,9 @@ class StateManager(ABC, Generic[ConfType]):
             self.logger.debug(f"{len(tools_called)} Tools called for completion {completion.role}.")
 
             loop_iteration += 1
+
+            # loop should continue if no tool returned False, and there are no tools left to call
+            go_next = complete and not(tools_called) and not(tools_not_called)
 
         if loop_iteration >= self.config.FUNCTION_CALL_MAX_ITERATIONS:
             self.logger.warning(f"Max iterations reached. Stopping loop. Raise on max iterations: {raise_on_max_iterations}")
