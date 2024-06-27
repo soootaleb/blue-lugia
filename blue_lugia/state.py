@@ -434,43 +434,43 @@ class StateManager(ABC, Generic[ConfType]):
                         updated the frontend messages along wth the context."""
                 )
 
-            debug_store = self.messages.filter(lambda x: x.role == Role.USER and bool(x._remote)).last()
+        debug_store = self.messages.filter(lambda x: x.role == Role.USER and bool(x._remote)).last()
 
-            if debug_store:
-                debug_store.update(
-                    debug_store.content,
-                    debug={
-                        **debug_store.debug,
-                        "_tool_calls": [
-                            {
-                                "role": message.role.value,
-                                "content": message.content,
-                                "tools_called": message.tool_calls,
-                            }
-                        ]
-                        + [
-                            {
-                                "role": m.role.value,
-                                "content": m.content,
-                                "tool_call_id": m.tool_call_id,
-                            }
-                            for m in extension
-                        ],
-                    },
-                )
+        if debug_store:
+            debug_store.update(
+                debug_store.content,
+                debug={
+                    **debug_store.debug,
+                    "_tool_calls": [
+                        {
+                            "role": message.role.value,
+                            "content": message.content,
+                            "tools_called": message.tool_calls,
+                        }
+                    ]
+                    + [
+                        {
+                            "role": m.role.value,
+                            "content": m.content,
+                            "tool_call_id": m.tool_call_id,
+                        }
+                        for m in extension
+                    ],
+                },
+            )
 
-            else:
-                self.logger.warning(
-                    """No user message found in context.
-                    \nCannot update debug information for tool calls.
-                    \nThis is a critical issue for debugging."""
-                )
+        else:
+            self.logger.warning(
+                """No user message found in context.
+                \nCannot update debug information for tool calls.
+                \nThis is a critical issue for debugging."""
+            )
 
-            self.ctx.extend(extension)
+        self.ctx.extend(extension)
 
-            self.logger.debug(f"Extension of {len(extension)} tool messages appended to context.")
+        self.logger.debug(f"Extension of {len(extension)} tool messages appended to context.")
 
-        return complete
+        return complete and (bool(tools_called) or bool(tools_not_called))
 
     def call(
         self,
@@ -534,7 +534,7 @@ class StateManager(ABC, Generic[ConfType]):
         raise_on_max_iterations: bool = False,
         raise_on_missing_tool: bool = False,
     ) -> list:
-        go_next = True
+        complete = True
 
         loop_iteration = 0
 
@@ -545,7 +545,7 @@ class StateManager(ABC, Generic[ConfType]):
             Max {self.config.FUNCTION_CALL_MAX_ITERATIONS} iterations."""
         )
 
-        while go_next and loop_iteration < self.config.FUNCTION_CALL_MAX_ITERATIONS:
+        while complete and loop_iteration < self.config.FUNCTION_CALL_MAX_ITERATIONS:
             self.logger.debug(f"Completing iteration {loop_iteration}.")
 
             completion = self.complete(message, out=out, start_text=start_text, tool_choice=tool_choice)
@@ -567,9 +567,6 @@ class StateManager(ABC, Generic[ConfType]):
             self.logger.debug(f"{len(tools_called)} Tools called for completion {completion.role}.")
 
             loop_iteration += 1
-
-            # loop should continue if no tool returned False, and there are no tools left to call
-            go_next = complete and not(tools_called) and not(tools_not_called)
 
         if loop_iteration >= self.config.FUNCTION_CALL_MAX_ITERATIONS:
             self.logger.warning(f"Max iterations reached. Stopping loop. Raise on max iterations: {raise_on_max_iterations}")

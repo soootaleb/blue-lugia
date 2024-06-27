@@ -162,14 +162,14 @@ class LanguageModelManager(Manager):
         self._model = model
         return self
 
-    def _to_dict_messages(self, messages: List[Message] | List[dict], replace_tools: bool = False, oai: bool = False) -> List[dict]:
+    def _to_dict_messages(self, messages: List[Message] | List[dict], oai: bool = False) -> List[dict]:
         formated_messages = []
 
         for message in messages:
             if isinstance(message, Message):
                 message_to_append = {
-                    "role": (message.role.value if (message.role != Role.TOOL or not replace_tools) else Role.SYSTEM.value),
-                    "content": message.content or ("" if oai else None),
+                    "role": message.role.value,
+                    "content": message.content or "",
                 }
 
                 if message.tool_calls:
@@ -315,9 +315,7 @@ class LanguageModelManager(Manager):
 
         context = self._reformat(typed_messages)
 
-        replace_tools_messages = not bool(out) and not self._use_open_ai  # unique_sdk.ChatCompletion.create does not support tool messages
-
-        formated_messages = self._to_dict_messages(context, replace_tools=replace_tools_messages, oai=self._use_open_ai)
+        formated_messages = self._to_dict_messages(context, oai=self._use_open_ai)
 
         if tool_choice:
             options["toolChoice"] = {
