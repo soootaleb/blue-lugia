@@ -88,26 +88,17 @@ class Chunk(Model):
 
         return self
 
-    def truncate(self, tokens_limit: int, in_place: bool = False) -> "Chunk":
+    def truncate(self, tokens_limit: int) -> "Chunk":
         if not self._tokenizer:
             raise ValueError("No tokenizer set for the chunk")
 
-        if in_place:
-            self.content = self._tokenizer.decode(self.tokens[:tokens_limit])
-            return self
-        else:
-            return Chunk(
-                id=self.id,
-                order=self.order,
-                content=self._tokenizer.decode(self.tokens[:tokens_limit]),
-                start_page=self.start_page,
-                end_page=self.end_page,
-                created_at=self.created_at,
-                updated_at=self.updated_at,
-                tokenizer=self._tokenizer,
-                file=self._file,
-                logger=self.logger,
-            )
+        tokens_limit = max(tokens_limit, 0)
+        self.content = self._tokenizer.decode(self.tokens[:tokens_limit])
+
+        if not self.content:
+            self.file.chunks.remove(self)
+
+        return self
 
     def __len__(self) -> int:
         return len(self.content)
@@ -180,23 +171,57 @@ class ChunkList(List[Chunk], Model):
         else:
             return ChunkList([chunk for chunk in self if f(chunk)], logger=self.logger)
 
-    def truncate(self, tokens_limit: int, in_place: bool = False) -> "ChunkList":
+    def truncate(self, tokens_limit: int, in_place: bool = False, files_map: dict[str, "File"] = {}) -> "ChunkList":
         remaining_tokens = tokens_limit
-        valid_chunks = ChunkList(logger=self.logger.getChild(ChunkList.__name__))
-
-        for chunk in self:
-            cut_chunk = chunk.truncate(remaining_tokens, in_place=in_place)
-            valid_chunks.append(cut_chunk)
-            remaining_tokens -= len(cut_chunk.tokens)
-
-            if remaining_tokens <= 0:
-                break
 
         if in_place:
-            self[:] = valid_chunks
+            for chunk in self:
+                chunk.truncate(remaining_tokens)
+                remaining_tokens -= len(chunk.tokens)
+                if not chunk.content:
+                    self.remove(chunk)
             return self
         else:
-            return valid_chunks
+            chunks = ChunkList(logger=self.logger.getChild(ChunkList.__name__))
+
+            for chunk in self:
+                if remaining_tokens > 0:
+                    if chunk.file.id not in files_map:
+                        files_map[chunk.file.id] = File(
+                            event=chunk.file._event,
+                            id=chunk.file.id,
+                            name=chunk.file.name,
+                            chunks=ChunkList(logger=chunk.file.chunks.logger),
+                            mime_type=chunk.file.mime_type,
+                            tokenizer=chunk.file._tokenizer,
+                            read_url=chunk.file.read_url,
+                            write_url=chunk.file.write_url,
+                            created_at=chunk.file.created_at,
+                            updated_at=chunk.file.updated_at,
+                            logger=chunk.file.logger,
+                        )
+
+                    chunks.append(
+                        Chunk(
+                            id=chunk.id,
+                            order=chunk.order,
+                            content=chunk.content,
+                            start_page=chunk.start_page,
+                            end_page=chunk.end_page,
+                            created_at=chunk.created_at,
+                            updated_at=chunk.updated_at,
+                            tokenizer=chunk._tokenizer,
+                            file=files_map[chunk.file.id],
+                            logger=chunk.logger,
+                        ).truncate(remaining_tokens)  # remaining tokens > 0
+                    )
+
+                    remaining_tokens -= len(chunk.tokens)
+
+                else:
+                    break
+
+            return chunks
 
     def as_files(self) -> "FileList":
         found_files = FileList(logger=self.logger.getChild(FileList.__name__))
@@ -305,12 +330,12 @@ class File(Model):
             self.chunks.truncate(tokens_limit, in_place=True)
             return self
         else:
-            return File(
+            file = File(
                 event=self._event,
                 id=self.id,
                 name=self.name,
                 mime_type=self.mime_type,
-                chunks=self.chunks.truncate(tokens_limit),
+                chunks=ChunkList(logger=self.chunks.logger),
                 tokenizer=self._tokenizer,
                 read_url=self.read_url,
                 write_url=self.write_url,
@@ -318,6 +343,10 @@ class File(Model):
                 updated_at=self.updated_at,
                 logger=self.logger,
             )
+
+            self.chunks.truncate(tokens_limit, files_map={file.id: file})
+
+            return file
 
     def write(self, content: str, scope: str) -> "File":
         existing = unique_sdk.Content.upsert(
