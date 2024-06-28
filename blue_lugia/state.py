@@ -2,6 +2,7 @@ import logging
 from abc import ABC
 from typing import Any, Generic, List, Tuple
 
+import unique_sdk
 from pydantic import BaseModel
 from pydantic_core import ValidationError
 
@@ -493,6 +494,7 @@ class StateManager(ABC, Generic[ConfType]):
         out: Message | None = None,
         start_text: str = "",
         tool_choice: type[BaseModel] | None = None,
+        search_context: List[unique_sdk.Integrated.SearchResult] = [],
     ) -> Message:
         if isinstance(message, str):
             message = Message.USER(message, logger=self.logger.getChild(Message.__name__))
@@ -517,6 +519,7 @@ class StateManager(ABC, Generic[ConfType]):
             out=out,
             start_text=start_text,
             tool_choice=tool_choice,
+            search_context=search_context,
         )
 
         self.logger.debug(f"Appending completion to context: {completion.role if completion else "None"}")
@@ -531,6 +534,7 @@ class StateManager(ABC, Generic[ConfType]):
         out: Message | None = None,
         start_text: str = "",
         tool_choice: type[BaseModel] | None = None,
+        search_context: List[unique_sdk.Integrated.SearchResult] = [],
         raise_on_max_iterations: bool = False,
         raise_on_missing_tool: bool = False,
     ) -> list:
@@ -548,7 +552,7 @@ class StateManager(ABC, Generic[ConfType]):
         while complete and loop_iteration < self.config.FUNCTION_CALL_MAX_ITERATIONS:
             self.logger.debug(f"Completing iteration {loop_iteration}.")
 
-            completion = self.complete(message, out=out, start_text=start_text, tool_choice=tool_choice)
+            completion = self.complete(message, out=out, start_text=start_text, tool_choice=tool_choice, search_context=search_context)
 
             self.logger.debug(f"Calling tools for completion {completion.role}.")
 
