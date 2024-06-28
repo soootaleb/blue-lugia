@@ -18,9 +18,7 @@ class Message(Model):
         _event: ExternalModuleChosenEvent
         _debug: dict[str, Any]
 
-        def __init__(
-            self, event: ExternalModuleChosenEvent, id: str, debug: dict[str, Any]
-        ) -> None:
+        def __init__(self, event: ExternalModuleChosenEvent, id: str, debug: dict[str, Any]) -> None:
             self._event = event
             self._id = id
             self._debug = debug or {}
@@ -46,9 +44,7 @@ class Message(Model):
             return json.loads(self)
 
         def pprint(self, indent: int = 2) -> str:
-            return "```json{}{}{}```".format(
-                "\n", json.dumps(self.json(), indent=indent), "\n"
-            )
+            return "```json{}{}{}```".format("\n", json.dumps(self.json(), indent=indent), "\n")
 
         def __getitem__(self, key: SupportsIndex | slice) -> "Message._Content":
             return Message._Content(super().__getitem__(key))
@@ -77,25 +73,17 @@ class Message(Model):
         self._tool_calls = tool_calls or []
         self._tool_call_id = tool_call_id
 
-        if role.value.lower() not in [
-            r.value.lower() for r in Role
-        ]:  # python 3.11 does not allow the in operator to work with enums
-            raise MessageFormatError(
-                f"BL::Model::Message::init::InvalidRole::{role.value}"
-            )
+        if role.value.lower() not in [r.value.lower() for r in Role]:  # python 3.11 does not allow the in operator to work with enums
+            raise MessageFormatError(f"BL::Model::Message::init::InvalidRole::{role.value}")
         else:
             self._role = role
             self._content = Message._Content(content) if content else None
 
         if self.role == Role.TOOL and not self._tool_call_id:
-            raise MessageFormatError(
-                "BL::Model::Message::init::ToolMessageWithoutToolCallId"
-            )
+            raise MessageFormatError("BL::Model::Message::init::ToolMessageWithoutToolCallId")
 
         if self.role != Role.ASSISTANT and self._tool_calls:
-            raise MessageFormatError(
-                "BL::Model::Message::init::NonAssistantMessageWithToolCalls"
-            )
+            raise MessageFormatError("BL::Model::Message::init::NonAssistantMessageWithToolCalls")
 
     @property
     def role(self) -> Role:
@@ -139,9 +127,9 @@ class Message(Model):
         params = json.loads(params)
         return params.get("language", "English")
 
-    def update(
-        self, content: str | _Content | None, debug: dict[str, Any] = {}
-    ) -> "Message":
+    def update(self, content: str | _Content | None, debug: dict[str, Any] | None = None) -> "Message":
+        if debug is None:
+            debug = {}
         self._content = Message._Content(content)
         if self._remote:
             self._remote._debug = (self._remote._debug or {}) | debug
@@ -172,9 +160,7 @@ class Message(Model):
 
     def delete(self) -> "Message":
         if not self._remote:
-            raise MessageRemoteError(
-                "BL::Model::Message::delete::RemoteError::Message has no remote counter part"
-            )
+            raise MessageRemoteError("BL::Model::Message::delete::RemoteError::Message has no remote counter part")
 
         unique_sdk.Message.delete(
             id=self._remote._id,
@@ -216,13 +202,7 @@ class Message(Model):
         return Message(
             role=Role(self.role.value),
             content=Message._Content(self.content) if self.content else None,
-            remote=(
-                Message._Remote(
-                    self._remote._event, self._remote._id, self.debug.copy()
-                )
-                if self._remote
-                else None
-            ),
+            remote=(Message._Remote(self._remote._event, self._remote._id, self.debug.copy()) if self._remote else None),
             tool_call_id=self._tool_call_id,
             tool_calls=[tc.copy() for tc in self._tool_calls],
             logger=self.logger.getChild(Message.__name__),
@@ -276,9 +256,7 @@ class MessageList(List[Message], Model):
         return all_tokens
 
     def fork(self) -> "MessageList":
-        forked = MessageList(
-            [o.fork() for o in self], self._tokenizer, logger=self.logger
-        )
+        forked = MessageList([o.fork() for o in self], self._tokenizer, logger=self.logger)
         forked._expanded = self._expanded
         return forked
 
@@ -303,30 +281,20 @@ class MessageList(List[Message], Model):
 
     def keep(self, max_tokens: int, in_place: bool = False) -> "MessageList":
         if in_place:
-            self.logger.debug(
-                f"Keeping {max_tokens} tokens from {len(self.tokens)} tokens along {len(self)} messages."
-            )
+            self.logger.debug(f"Keeping {max_tokens} tokens from {len(self.tokens)} tokens along {len(self)} messages.")
             while len(self.tokens) > max_tokens:
                 if len(self):
-                    first_non_system_message = self.first(
-                        lambda x: x.role != Role.SYSTEM
-                    )
+                    first_non_system_message = self.first(lambda x: x.role != Role.SYSTEM)
 
                     if not first_non_system_message:
-                        self.logger.warning(
-                            "No non-system message found in the message list when truncating."
-                        )
+                        self.logger.warning("No non-system message found in the message list when truncating.")
                         break
 
-                    first_non_system_message_index = self.index(
-                        first_non_system_message
-                    )
+                    first_non_system_message_index = self.index(first_non_system_message)
 
                     removed_message = self.pop(first_non_system_message_index)
 
-                    self.logger.debug(
-                        f"Removing message {removed_message.role} with {len(removed_message.tool_calls)} tool calls."
-                    )
+                    self.logger.debug(f"Removing message {removed_message.role} with {len(removed_message.tool_calls)} tool calls.")
 
                     for tc in removed_message.tool_calls:
                         while found_tc := next(
@@ -334,9 +302,7 @@ class MessageList(List[Message], Model):
                             None,
                         ):
                             if found_tc:
-                                self.logger.debug(
-                                    f"Removing tool call {found_tc.tool_call_id}"
-                                )
+                                self.logger.debug(f"Removing tool call {found_tc.tool_call_id}")
                                 self.remove(found_tc)
 
             return self
@@ -344,9 +310,7 @@ class MessageList(List[Message], Model):
         else:
             return self.fork().keep(max_tokens, in_place=True)
 
-    def expand(
-        self, legacy_key: str = "state_manager_tool_calls", in_place: bool = False
-    ) -> "MessageList":
+    def expand(self, legacy_key: str = "state_manager_tool_calls", in_place: bool = False) -> "MessageList":
         self.logger.debug("Expanding message list")
 
         if in_place:
@@ -359,11 +323,7 @@ class MessageList(List[Message], Model):
                         self[message_index + 1 : message_index + 1] = [
                             Message(
                                 role=Role(value=tc["role"]),
-                                content=(
-                                    Message._Content(tc["content"])
-                                    if tc["content"]
-                                    else None
-                                ),
+                                content=(Message._Content(tc["content"]) if tc["content"] else None),
                                 tool_calls=tc.get("tools_called", []),
                                 tool_call_id=tc.get("tool_call_id", None),
                                 logger=self.logger.getChild(Message.__name__),
@@ -378,20 +338,14 @@ class MessageList(List[Message], Model):
                         self[message_index + 1 : message_index + 1] = [
                             Message(
                                 role=Role(value=tc["role"]),
-                                content=(
-                                    Message._Content(tc["content"])
-                                    if tc["content"]
-                                    else None
-                                ),
+                                content=(Message._Content(tc["content"]) if tc["content"] else None),
                                 tool_calls=[
                                     {
                                         "id": tcall["id"],
                                         "type": tcall["type"],
                                         "function": {
                                             "name": tcall["function"]["name"],
-                                            "arguments": json.loads(
-                                                tcall["function"]["arguments"]
-                                            ),
+                                            "arguments": json.loads(tcall["function"]["arguments"]),
                                         },
                                     }
                                     for tcall in tc.get("toolCalls", [])

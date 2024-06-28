@@ -23,13 +23,17 @@ class SumTool(BaseModel):
     y: int = Field(..., description="second value")
 
     def run(self, call_id: str, state: StateManager, *args, **kwargs) -> int:
-        state.last_ass_message.update(f"The sum of {self.x} and {self.y} is {self.x + self.y}")
+        # state.last_ass_message.update(f"The sum of {self.x} and {self.y} is {self.x + self.y}")
+        return self.x + self.y
 
-    def post_run_hook(self, call_id: str, state: StateManager, *args, **kwargs) -> bool:
-        return False
+    def post_run_hook(self, call_id: str, state: StateManager, *args, **kwargs) -> Message:
+        pass
+        # return False
 
     @classmethod
-    def on_validation_error(cls, call_id: str, arguments: dict, state: StateManager, extra: dict = {}, out: Message | None = None) -> bool:
+    def on_validation_error(cls, call_id: str, arguments: dict, state: StateManager, extra: dict | None = None, out: Message | None = None) -> bool:
+        if extra is None:
+            extra = {}
         validation_error = extra.get("validation_error")
         state.last_ass_message.append(f"Tool {cls.__name__} not called because of validation error {validation_error}")
         return False
@@ -42,7 +46,7 @@ def hello(state: StateManager[CustomConfig], args: list[str] = []) -> None:
 
 
 def add(state: StateManager[CustomConfig], args: list[str] = []) -> None:
-    state._llm = state.llm.oai(state.conf.OPENAI_API_KEY).using("gpt-4o")
+    # state._llm = state.llm.oai(state.conf.OPENAI_API_KEY).using("gpt-4o")
 
     state.context([Message.SYSTEM("Your role is to make a tool call to add the two numbers provided by the user"), Message.USER(" ".join(args))]).register(SumTool).loop(
         tool_choice=SumTool

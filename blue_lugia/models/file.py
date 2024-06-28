@@ -171,8 +171,11 @@ class ChunkList(List[Chunk], Model):
         else:
             return ChunkList([chunk for chunk in self if f(chunk)], logger=self.logger)
 
-    def truncate(self, tokens_limit: int, in_place: bool = False, files_map: dict[str, "File"] = {}) -> "ChunkList":
+    def truncate(self, tokens_limit: int, in_place: bool = False, files_map: dict[str, "File"] | None = None) -> "ChunkList":
         remaining_tokens = tokens_limit
+
+        if files_map is None:
+            files_map = {}
 
         if in_place:
             for chunk in self:
@@ -224,16 +227,13 @@ class ChunkList(List[Chunk], Model):
             return chunks
 
     def as_files(self) -> "FileList":
-        found_files = FileList(logger=self.logger.getChild(FileList.__name__))
-
-        files_map: dict[str, File] = {}
+        files = FileList(logger=self.logger.getChild(FileList.__name__))
 
         for chunk in self:
-            if chunk.file.id not in files_map:
-                files_map[chunk.file.id] = chunk.file
-                found_files.append(files_map[chunk.file.id])
+            if chunk.file not in files:
+                files.append(chunk.file)
 
-        return found_files
+        return files
 
     def as_context(self) -> List[unique_sdk.Integrated.SearchResult]:
         results = []

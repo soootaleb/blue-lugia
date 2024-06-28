@@ -137,7 +137,11 @@ class MessageManager(Manager):
         else:
             return mapped
 
-    def create(self, role_or_message: Role | Message, text: str = "", debug: dict[str, Any] | None = {}) -> Message:
+    def create(self, role_or_message: Role | Message, text: str = "", debug: dict[str, Any] | None = None) -> Message:
+
+        if debug is None:
+            debug = {}
+
         if isinstance(role_or_message, Message):
             role = role_or_message.role
             content = role_or_message.content

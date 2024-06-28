@@ -45,7 +45,7 @@ class StateManager(ABC, Generic[ConfType]):
         event: ExternalModuleChosenEvent,
         conf: ConfType,
         logger: logging.Logger | None = None,
-        managers: dict[str, type[Manager]] = {},
+        managers: dict[str, type[Manager]] | None = None,
     ) -> None:
         self._event: ExternalModuleChosenEvent = event
 
@@ -53,7 +53,7 @@ class StateManager(ABC, Generic[ConfType]):
 
         self._logger = logger or logging.getLogger(__name__.lower())
 
-        self._managers = self._managers | managers or {}
+        self._managers = self._managers | (managers or {}) or {}
 
         self._messages = self._MessageManager(
             event=event,
@@ -87,7 +87,6 @@ class StateManager(ABC, Generic[ConfType]):
             self.messages.all().fork().filter(lambda x: bool(x.content) or bool(x.tool_calls)).expand(self._key if hasattr(self, "_key") else "state_manager_tool_calls")  # type: ignore
         )
         self._extra = {}
-        # ======= CIP =======
 
     @property
     def _FileManager(self) -> type[FileManager]:  # noqa: N802
@@ -232,7 +231,7 @@ class StateManager(ABC, Generic[ConfType]):
 
         return self
 
-    def _call_tools(self, message: Message, extra: dict = {}, out: Message | None = None, raise_on_missing_tool: bool = False) -> Tuple[List[dict], List[dict]]:
+    def _call_tools(self, message: Message, extra: dict | None = None, out: Message | None = None, raise_on_missing_tool: bool = False) -> Tuple[List[dict], List[dict]]:
         tools_called = []
         tools_not_called = []
 
@@ -476,11 +475,11 @@ class StateManager(ABC, Generic[ConfType]):
     def call(
         self,
         message: Message,
-        extra: dict = {},
+        extra: dict | None = None,
         out: Message | None = None,
         raise_on_missing_tool: bool = False,
     ) -> Tuple[List[dict], List[dict], bool]:
-        tools_called, tools_not_called = self._call_tools(message=message, extra=extra, out=out, raise_on_missing_tool=raise_on_missing_tool)
+        tools_called, tools_not_called = self._call_tools(message=message, extra=extra or {}, out=out, raise_on_missing_tool=raise_on_missing_tool)
 
         complete = self._process_tools_called(message=message, tools_called=tools_called, tools_not_called=tools_not_called)
 

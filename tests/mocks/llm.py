@@ -26,7 +26,7 @@
 #         max_tokens: int | None | Literal["auto"] = None,
 #         out: Message | None = None,
 #         search_context: Any = None,
-#         debug_info: dict[str, Any] | None = {},
+#         debug_info: dict[str, Any] | None = None,
 #         start_text: str = "",
 #         *args,
 #         **kwargs,

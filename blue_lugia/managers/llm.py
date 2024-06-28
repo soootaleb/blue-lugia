@@ -289,11 +289,15 @@ class LanguageModelManager(Manager):
         max_tokens: int | Literal["auto"] | None = None,
         out: Message | None = None,
         search_context: List[unique_sdk.Integrated.SearchResult] = [],
-        debug_info: dict[str, Any] | None = {},
+        debug_info: dict[str, Any] | None = None,
         start_text: str = "",
         *args,
         **kwargs,
     ) -> Message:
+
+        if debug_info is None:
+            debug_info = {}
+
         options: dict[str, Any] = {
             "temperature": self._temperature,
         }

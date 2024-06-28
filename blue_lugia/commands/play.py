@@ -88,13 +88,17 @@ class SummarizeTool(BaseModel):
         self,
         call_id: str,
         state: StateManager,
-        extra: dict = {},
+        extra: dict | None = None,
         out: Message | None = None,
     ) -> None:
         """
         If this method returns False, the tool will not run.
         The post run hook will still be called.
         """
+
+        if extra is None:
+            extra = {}
+
         all_tool_calls = extra["tool_calls"]
 
         summarize_tool_calls = list(
@@ -114,7 +118,7 @@ class SummarizeTool(BaseModel):
         self,
         call_id: str,
         state: StateManager,
-        extra: dict = {},
+        extra: dict | None = None,
         out: Message | None = None,
     ) -> Message | dict | str | None:
         """
@@ -133,6 +137,9 @@ class SummarizeTool(BaseModel):
             - str
             - None
         """
+
+        if extra is None:
+            extra = {}
 
         document = state.files.get_by_id(self.document_id)
 
@@ -154,14 +161,17 @@ class SummarizeTool(BaseModel):
         self,
         call_id: str,
         state: StateManager,
-        extra: dict = {},
+        extra: dict | None = None,
         out: Message | None = None,
     ) -> bool:
         """
         If this method returns False, the loop over tools will not continue.
         Returned messages are still added to the context
         """
-        return not extra["break_loop"]
+        if extra is None:
+            extra = {}
+
+        return not extra.get("break_loop")
 
 
 def play(state: StateManager, args: list[str] = []) -> None:

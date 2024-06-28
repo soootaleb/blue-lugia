@@ -66,14 +66,14 @@ class SummarizeTool(BaseModel):
 
     document_id: str = Field(..., description="the document id to summarize")
 
-    def pre_run_hook(self, call_id: str, state: StateManager, extra: dict = {}, out: Message | None = None):
+    def pre_run_hook(self, call_id: str, state: StateManager, extra: dict | None = None, out: Message | None = None):
         """
         If this method returns False, the tool will not run.
         The post run hook will still be called.
         """
         pass
 
-    def run(self, call_id: str, state: StateManager, extra: dict = {}, out: Message | None = None):
+    def run(self, call_id: str, state: StateManager, extra: dict | None = None, out: Message | None = None):
         """
         Main logic of the tool.
         Summarizes the content of the document with the given document_id.
@@ -91,7 +91,7 @@ class SummarizeTool(BaseModel):
         if not out:
             return completion
 
-    def post_run_hook(self, call_id: str, state: StateManager, extra: dict = {}, out: Message | None = None):
+    def post_run_hook(self, call_id: str, state: StateManager, extra: dict | None = None, out: Message | None = None):
         """
         If this method returns False, the loop over tools will not continue.
         Returned messages are still added to the context.
@@ -107,13 +107,13 @@ class SumBinaryNumbers(BaseModel):
     x: str = Field(..., description="first binary number")
     y: str = Field(..., description="second binary number")
 
-    def pre_run_hook(self, call_id: str, state: StateManager, extra: dict = {}):
+    def pre_run_hook(self, call_id: str, state: StateManager, extra: dict | None = None):
         """
         Hook to be run before the main logic. Can be used for setup tasks.
         """
         print("Pre run hook")
 
-    def run(self, call_id: str, state: StateManager, extra: dict = {}):
+    def run(self, call_id: str, state: StateManager, extra: dict | None = None):
         """
         Main logic of the tool.
         Converts binary numbers to integers, sums them, and returns the result.
