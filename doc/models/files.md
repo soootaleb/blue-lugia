@@ -120,7 +120,7 @@ print(file.content)
 file.write("New content for the file.")
 
 # Truncate file content
-file.truncate(100)
+file = file.truncate(100)
 
 # Create a file list
 file_list = FileList([file])

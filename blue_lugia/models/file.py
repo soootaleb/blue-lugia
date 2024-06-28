@@ -438,14 +438,10 @@ class FileList(List[File], Model):
         self._tokenizer = tokenizer
         return self
 
-    def order_by(
-        self, key: str | Callable[[File], Any] | None = None, reverse: bool = False, in_place: bool = False
-    ) -> "FileList":
+    def order_by(self, key: str | Callable[[File], Any] | None = None, reverse: bool = False, in_place: bool = False) -> "FileList":
         return self.sort(key=key, reverse=reverse, in_place=in_place)
 
-    def sort(
-        self, key: str | Callable[[File], Any] | None, reverse: bool = False, in_place: bool = False
-    ) -> "FileList":
+    def sort(self, key: str | Callable[[File], Any] | None, reverse: bool = False, in_place: bool = False) -> "FileList":
         if isinstance(key, str):
             sort_key: Callable[[File], Any] = lambda x: getattr(x, key)  # noqa: E731
         elif key is None:
@@ -490,11 +486,15 @@ class FileList(List[File], Model):
             logger=self.logger.getChild(MessageList.__name__),
         )
 
-    def truncate(self, tokens_limit: int) -> "FileList":
+    def truncate(self, tokens_limit: int, in_place: bool = False) -> "FileList":
         file_token_limit = tokens_limit // len(self)
-        for file in self:
-            file.truncate(file_token_limit)
-        return self
+
+        if in_place:
+            for file in self:
+                file.truncate(file_token_limit, in_place=True)
+            return self
+        else:
+            return FileList([file.truncate(file_token_limit) for file in self], logger=self.logger.getChild(FileList.__name__))
 
     def as_context(self) -> List[unique_sdk.Integrated.SearchResult]:
         results = []

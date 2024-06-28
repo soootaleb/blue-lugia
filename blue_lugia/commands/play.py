@@ -139,7 +139,7 @@ class SummarizeTool(BaseModel):
         if not document:
             return "_Document not found_"
         else:
-            document.truncate(500)
+            document = document.truncate(500)
 
         return state.llm.complete(
             messages=[
