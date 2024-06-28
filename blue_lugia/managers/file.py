@@ -71,6 +71,24 @@ class FileManager(Manager):
             logger=self.logger.getChild(FileManager.__name__),
         )
 
+    def fork(self) -> "FileManager":
+        file_manager = FileManager(
+            chat_only=self._chat_only,
+            search_type=self._search_type,
+            event=self._event,
+            logger=self.logger.getChild(FileManager.__name__),
+            tokenizer=self.tokenizer,
+        )
+
+        file_manager._filters = self._filters.copy()
+        file_manager._filters_operator = self._filters_operator
+        file_manager._order_by = self._order_by
+        file_manager._order_reverse = self._order_reverse
+        file_manager._all = FileList(self._all, tokenizer=self.tokenizer, logger=self.logger.getChild(FileList.__name__))
+        file_manager._retrieved = self._retrieved
+
+        return file_manager
+
     def _cast_search(self, chunks: list[Any]) -> ChunkList:
         files_map: dict[str, File] = {}
         all_chunks = []
@@ -160,24 +178,22 @@ class FileManager(Manager):
         )
 
     def using(self, search_type: SearchType) -> "FileManager":
-        return FileManager(
-            chat_only=self._chat_only,
-            search_type=search_type,
-            event=self._event,
-            logger=self.logger.getChild(FileManager.__name__),
-            tokenizer=self.tokenizer,
-        )
+        file_manager = self.fork()
+        file_manager._search_type = search_type
+        return file_manager
 
     def scoped(self, scopes: List[str] | str) -> "FileManager":
+        file_manager = self.fork()
+
         if isinstance(scopes, str):
             scopes = [scopes]
 
-        if self._scopes:
+        if file_manager._scopes:
             self.logger.warning("BL::Manager::Files::scoped::ScopesOverwritten")
 
-        self._scopes = scopes
+        file_manager._scopes = scopes
 
-        return self
+        return file_manager
 
     def search(self, query: str = "", limit: int = 1000) -> ChunkList:
         page = 1
@@ -190,11 +206,7 @@ class FileManager(Manager):
             last_filter = self._filters[-1]
             metadata_filters = {
                 "path": [last_filter[0]],
-                "operator": (
-                    self._mapped_operators[last_filter[1]]
-                    if last_filter[1] in self._mapped_operators
-                    else last_filter[1]
-                ),
+                "operator": (self._mapped_operators[last_filter[1]] if last_filter[1] in self._mapped_operators else last_filter[1]),
                 "value": last_filter[2],
             }
 
@@ -228,9 +240,7 @@ class FileManager(Manager):
         wheres = {}
 
         if self._scopes:
-            self.logger.warning(
-                "BL::Manager::Files::fetch::ScopesIgnored::Content search API does not support scopes."
-            )
+            self.logger.warning("BL::Manager::Files::fetch::ScopesIgnored::Content search API does not support scopes.")
 
         mapped_filters = list(
             map(
@@ -279,7 +289,7 @@ class FileManager(Manager):
             return typed_content
 
     def filter(self, op: Op = Op.OR, **kwargs) -> "FileManager":
-        self._filters_operator = op
+        file_manager = self.fork()
 
         for full_key, value in kwargs.items():
             if "__" in full_key:
@@ -287,18 +297,28 @@ class FileManager(Manager):
             else:
                 key, operation = full_key, "eq"
 
-            self._filters.append([key, operation, value])
+            file_manager._filters.append([key, operation, value])
 
-        return self
+        return file_manager
 
     def order_by(self, key: str | Callable[[File], Any], reverse: bool = False) -> "FileManager":
-        self._order_by = key
-        self._order_reverse = reverse
-        return self
+        file_manager = self.fork()
+
+        if file_manager._order_by:
+            self.logger.warning("BL::Manager::ChatFile::order_by::Overwritten")
+
+        if file_manager._order_reverse:
+            self.logger.warning("BL::Manager::ChatFile::order_by::ReverseOverwritten")
+
+        file_manager._order_by = key
+        file_manager._order_reverse = reverse
+
+        return file_manager
 
     def sort(self, key: str | Callable[[File], Any], reverse: bool = False) -> "FileManager":
         return self.order_by(key, reverse)
 
+    # Executive methods should not fork the manager
     def all(self) -> FileList:
         if not self._retrieved:
             self._all = self.fetch()
@@ -327,8 +347,13 @@ class FileManager(Manager):
         except StopIteration:
             return None
 
-    def count(self) -> int:
-        return len(self.all())
+    def count(self, where: Callable[[File], bool] | None = None) -> int:
+        files = self.all()
+
+        if where:
+            return len(list(filter(where, files)))
+        else:
+            return len(files)
 
     def __len__(self) -> int:
         return self.count()
@@ -346,9 +371,7 @@ class FileManager(Manager):
         elif flat and len(args) == 0:
             return [item for item in mapped]
         elif flat and len(args) > 1:
-            raise ChatFileManagerError(
-                "BL::Manager::ChatFile::values::InvalidArgs::flat=True requires at most one argument."
-            )
+            raise ChatFileManagerError("BL::Manager::ChatFile::values::InvalidArgs::flat=True requires at most one argument.")
         else:
             return mapped
 
