@@ -15,7 +15,7 @@ from blue_lugia.managers import (
     MessageManager,
     StorageManager,
 )
-from blue_lugia.models import ExternalModuleChosenEvent, File, FileList, Message, MessageList
+from blue_lugia.models import ExternalModuleChosenEvent, File, FileList, Message, MessageList, ToolCalled, ToolNotCalled
 
 
 class StateManager(ABC, Generic[ConfType]):
@@ -231,9 +231,11 @@ class StateManager(ABC, Generic[ConfType]):
 
         return self
 
-    def _call_tools(self, message: Message, extra: dict | None = None, out: Message | None = None, raise_on_missing_tool: bool = False) -> Tuple[List[dict], List[dict]]:
-        tools_called = []
-        tools_not_called = []
+    def _call_tools(
+        self, message: Message, extra: dict | None = None, out: Message | None = None, raise_on_missing_tool: bool = False
+    ) -> Tuple[List[ToolCalled], List[ToolNotCalled]]:
+        tools_called: List[ToolCalled] = []
+        tools_not_called: List[ToolNotCalled] = []
 
         tools_routes = {tool.__name__: tool for tool in self.tools}
 
@@ -350,7 +352,7 @@ class StateManager(ABC, Generic[ConfType]):
 
         return tools_called, tools_not_called
 
-    def _process_tools_called(self, message: Message, tools_called: List[dict], tools_not_called: List[dict]) -> bool:  # noqa: C901
+    def _process_tools_called(self, message: Message, tools_called: List[ToolCalled], tools_not_called: List[ToolNotCalled]) -> bool:  # noqa: C901
         complete = True
 
         extension = MessageList(
@@ -478,7 +480,7 @@ class StateManager(ABC, Generic[ConfType]):
         extra: dict | None = None,
         out: Message | None = None,
         raise_on_missing_tool: bool = False,
-    ) -> Tuple[List[dict], List[dict], bool]:
+    ) -> Tuple[List[ToolCalled], List[ToolNotCalled], bool]:
         tools_called, tools_not_called = self._call_tools(message=message, extra=extra or {}, out=out, raise_on_missing_tool=raise_on_missing_tool)
 
         complete = self._process_tools_called(message=message, tools_called=tools_called, tools_not_called=tools_not_called)
@@ -536,12 +538,12 @@ class StateManager(ABC, Generic[ConfType]):
         search_context: List[unique_sdk.Integrated.SearchResult] = [],
         raise_on_max_iterations: bool = False,
         raise_on_missing_tool: bool = False,
-    ) -> list:
+    ) -> List[Tuple[Message, List[ToolCalled], List[ToolNotCalled]]]:
         complete = True
 
         loop_iteration = 0
 
-        completions = []
+        completions: List[Tuple[Message, List[ToolCalled], List[ToolNotCalled]]] = []
 
         self.logger.debug(
             f"""Starting completion loop with message {message.role if message else "None"}.
@@ -565,7 +567,7 @@ class StateManager(ABC, Generic[ConfType]):
                 raise_on_missing_tool=raise_on_missing_tool,
             )
 
-            completions.append([completion, tools_called, tools_not_called])
+            completions.append((completion, tools_called, tools_not_called))
 
             self.logger.debug(f"{len(tools_called)} Tools called for completion {completion.role}.")
 

@@ -18,10 +18,6 @@ class Model(Enum):
     OPENAI_GPT_4_O = "gpt-4o"
 
 
-class ToolType(Enum):
-    FUNCTION = "function"
-
-
 class SearchType(Enum):
     VECTOR = "VECTOR"
     COMBINED = "COMBINED"

@@ -1,19 +1,23 @@
-from typing import Any, Type
+from typing import Any, Optional, TypedDict
 
-from pydantic import BaseModel
-
-from blue_lugia.enums import ToolType
+from pydantic import BaseModel, ValidationError
 
 
-class Tool(BaseModel):
-    class ToolFunction(BaseModel):
-        class ToolFunctionCall(BaseModel):
-            name: str
-            arguments: dict[str, Any]
+class ToolExecution(TypedDict):
+    pre_run_hook: Optional[Any]
+    run: Optional[Any]
+    post_run_hook: Optional[Any]
 
-        name: str
-        description: str
-        parameters: Type[BaseModel]
 
-    type: ToolType
-    function: ToolFunction
+class ToolCalled(TypedDict):
+    id: str
+    tool: BaseModel
+    call: ToolExecution
+
+
+class ToolNotCalled(TypedDict):
+    id: str
+    tool: type[BaseModel]
+    arguments: dict
+    handled: Optional[Any]
+    error: ValidationError
