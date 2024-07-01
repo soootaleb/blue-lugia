@@ -247,7 +247,7 @@ class ChunkList(List[Chunk], Model):
                     chunkId=chunk.id,
                     key=key,
                     title=chunk.file.name,
-                    url=chunk.file.read_url,
+                    url=chunk.file.read_url or f"unique://content/{chunk.file.id}",
                 )
             )
 
