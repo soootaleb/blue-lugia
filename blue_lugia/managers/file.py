@@ -32,7 +32,6 @@ class FileManager(Manager):
 
     _mapped_operators = {
         "eq": "equals",
-        "in": "contains",
     }
 
     _tokenizer: str | tiktoken.Encoding
@@ -290,6 +289,8 @@ class FileManager(Manager):
 
     def filter(self, op: Op = Op.OR, **kwargs) -> "FileManager":
         file_manager = self.fork()
+
+        file_manager._filters_operator = op
 
         for full_key, value in kwargs.items():
             if "__" in full_key:
