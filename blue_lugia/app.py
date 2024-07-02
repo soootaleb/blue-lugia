@@ -6,9 +6,11 @@ import traceback
 from http import HTTPStatus
 from logging.config import dictConfig
 from typing import Any, Callable, Generic, List, Tuple, Type, cast
+from urllib.parse import urlparse
 
 import unique_sdk
 from flask import Flask, Response, jsonify, request
+from sseclient import SSEClient
 
 from blue_lugia.commands import command
 from blue_lugia.config import ConfType, ModuleConfig
@@ -63,11 +65,7 @@ class App(Flask, Generic[ConfType]):
     _conf: ConfType
     _state_manager: Type[StateManager[ConfType]] | None = None
 
-    _error_handlers: List[
-        Tuple[
-            Type[Exception], Callable[[Exception, StateManager[ConfType]], None] | None
-        ]
-    ]
+    _error_handlers: List[Tuple[Type[Exception], Callable[[Exception, StateManager[ConfType]], None] | None]]
 
     _managers: dict[str, Type[Manager]]
 
@@ -101,9 +99,6 @@ class App(Flask, Generic[ConfType]):
             root_path,
         )
 
-        self.config["DEBUG"] = False
-        self.config["TESTING"] = False
-
         self._module = None
 
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=15)
@@ -118,6 +113,20 @@ class App(Flask, Generic[ConfType]):
 
         self.route("/")(self._hello)
         self.route("/webhook", methods=["POST"])(self._webhook)  # type: ignore
+
+    @property
+    def sse_client(self) -> SSEClient:
+        base_url = urlparse(self._conf.API_BASE)
+        url = f"{base_url.scheme}://{base_url.netloc}/public/event-socket/events/stream?subscriptions=unique.chat.external-module.chosen"
+        self.logger.debug(f"Connecting to {url}")
+        return SSEClient(
+            url=url,
+            headers={
+                "Authorization": f"Bearer {self._conf.API_KEY}",
+                "x-app-id": self._conf.APP_ID,
+                "x-company-id": self._conf.COMPANY_ID,
+            },
+        )
 
     def configure_logging(self) -> None:
         dictConfig(
@@ -277,6 +286,22 @@ class App(Flask, Generic[ConfType]):
         self.logger.info(f"Error handler {exception.__name__} added.")
         return self
 
+    def listen(self) -> None:
+        for sse_event in self.sse_client:
+            try:
+                event_data = json.loads(sse_event.data or "{}")
+                if "event" in event_data:
+                    self._type_event_and_run_module(
+                        {
+                            "id": "evt_mock_event_1234",
+                            "version": "1.0.0",
+                            "createdAt": datetime.datetime.now().timestamp(),
+                            **event_data,
+                        }
+                    )
+            except Exception as e:
+                self.logger.error(f"BL::State::listen::Error processing event: {e.__class__.__name__}", exc_info=False)
+
     def _type_event(self, event: dict[str, Any]) -> ExternalModuleChosenEvent:
         target_timezone = datetime.timezone(datetime.timedelta(hours=2))
 
@@ -296,15 +321,11 @@ class App(Flask, Generic[ConfType]):
                 user_message=UserMessage(
                     id=event["payload"]["userMessage"]["id"],
                     text=event["payload"]["userMessage"]["text"],
-                    created_at=datetime.datetime.fromisoformat(
-                        event["payload"]["userMessage"]["createdAt"]
-                    ).astimezone(target_timezone),
+                    created_at=datetime.datetime.fromisoformat(event["payload"]["userMessage"]["createdAt"]).astimezone(target_timezone),
                 ),
                 assistant_message=AssistantMessage(
                     id=event["payload"]["assistantMessage"]["id"],
-                    created_at=datetime.datetime.fromisoformat(
-                        event["payload"]["assistantMessage"]["createdAt"]
-                    ).astimezone(target_timezone),
+                    created_at=datetime.datetime.fromisoformat(event["payload"]["assistantMessage"]["createdAt"]).astimezone(target_timezone),
                 ),
             ),
         )
@@ -328,12 +349,7 @@ class App(Flask, Generic[ConfType]):
         try:
             last_user_message = state.last_usr_message
 
-            if (
-                last_user_message
-                and last_user_message.content
-                and last_user_message.is_command
-                and state.conf.ALLOW_COMMANDS
-            ):
+            if last_user_message and last_user_message.content and last_user_message.is_command and state.conf.ALLOW_COMMANDS:
                 user_input = last_user_message.content[1:].split()
                 command_name = user_input[0]
 
@@ -376,9 +392,7 @@ class App(Flask, Generic[ConfType]):
                 try:
                     self.root_exception_handler(exception, state)
                 except Exception as exc:
-                    self.logger.error(
-                        f"Error running root error handler: {exc}", exc_info=True
-                    )
+                    self.logger.error(f"Error running root error handler: {exc}", exc_info=True)
 
         finally:
             if len(state.messages.all(force_refresh=True)):
@@ -412,9 +426,7 @@ class App(Flask, Generic[ConfType]):
         else:
             self.logger.error("No user message found to attach exception to.")
 
-    def root_exception_handler(
-        self, e: Exception, state: StateManager[ConfType]
-    ) -> None:
+    def root_exception_handler(self, e: Exception, state: StateManager[ConfType]) -> None:
         self.logger.error(f"Error running module: {e}", exc_info=True)
 
         self.save_exception(e, state)
@@ -431,6 +443,15 @@ class App(Flask, Generic[ConfType]):
             state.last_ass_message.update(error_message)
         else:
             self.logger.error("No last_ass_message found to set error message")
+
+    def _type_event_and_run_module(self, event: dict) -> None:
+        if event and event["event"] == "unique.chat.external-module.chosen":
+            external_event = self._type_event(event)
+            if external_event.payload.name.lower() == self.name.lower():
+                if self._threaded:
+                    self._executor.submit(self._run_module, external_event)
+                else:
+                    self._run_module(external_event)
 
     def _hello(self) -> Tuple[str, int]:
         return f"Hello from the {self.name} tool! 🚀", 200
@@ -461,9 +482,7 @@ class App(Flask, Generic[ConfType]):
                 return jsonify(success=False), HTTPStatus.BAD_REQUEST
 
             try:
-                event = unique_sdk.Webhook.construct_event(
-                    payload, sig_header, timestamp, self._conf.ENDPOINT_SECRET
-                )
+                event = unique_sdk.Webhook.construct_event(payload, sig_header, timestamp, self._conf.ENDPOINT_SECRET)
             except unique_sdk.SignatureVerificationError as e:
                 self.logger.info("⚠️  Webhook signature verification failed. " + str(e))
 
@@ -490,20 +509,6 @@ class App(Flask, Generic[ConfType]):
 
                 return jsonify(success=False), HTTPStatus.BAD_REQUEST
 
-        if event and event["event"] == "unique.chat.external-module.chosen":
-            external_event = self._type_event(event)
-            if external_event.payload.name.lower() == self.name.lower():
-                if self._threaded:
-                    self._executor.submit(self._run_module, external_event)
-                else:
-                    self._run_module(external_event)
+        self._type_event_and_run_module(event)
 
         return "OK", 200
-
-    def set_debug_mode(self) -> "App":
-        self.config["DEBUG"] = True
-        return self
-
-    def set_test_mode(self) -> "App":
-        self.config["TESTING"] = True
-        return self

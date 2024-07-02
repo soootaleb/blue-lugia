@@ -1,3 +1,5 @@
+from typing import Optional
+
 from pydantic import BaseModel, Field
 
 from blue_lugia.app import App
@@ -26,7 +28,7 @@ class SumTool(BaseModel):
         # state.last_ass_message.update(f"The sum of {self.x} and {self.y} is {self.x + self.y}")
         return self.x + self.y
 
-    def post_run_hook(self, call_id: str, state: StateManager, *args, **kwargs) -> Message:
+    def post_run_hook(self, call_id: str, state: StateManager, *args, **kwargs) -> Optional[bool]:
         pass
         # return False
 
