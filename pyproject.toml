@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "blue-lugia"
-version = "0.2.0"
+version = "0.2.1"
 description = "Unique SDK Wrapper"
 authors = ["Sofiane TALEB <sofiane.ext@unique.ch>"]
 readme = "README.md"
