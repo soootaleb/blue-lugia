@@ -246,7 +246,7 @@ class ChunkList(List[Chunk], Model):
                     id=chunk.file.id,
                     chunkId=chunk.id,
                     key=key,
-                    title=chunk.file.name,
+                    # title=chunk.file.name, # Setting a static title breaks sources indexes and the link
                     url=chunk.file.read_url or f"unique://content/{chunk.file.id}",
                 )
             )
