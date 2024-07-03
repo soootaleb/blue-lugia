@@ -21,7 +21,7 @@ class ModuleConfig(BaseSettings):
     # NOTE: We use camelCase here to align with the other
     # language model configurations, but we use snake_case
     # elsewhere in the codebase b/c it's more Pythonic.
-    languageModel: str = "AZURE_GPT_4_TURBO_1106"  # noqa: N815
+    languageModel: str = "AZURE_GPT_4_TURBO_2024_0409"  # noqa: N815
 
     ALLOW_COMMANDS: str | bool | None = None
     ON_FAILURE_MESSAGE_OVERRIDE: str | None = None
