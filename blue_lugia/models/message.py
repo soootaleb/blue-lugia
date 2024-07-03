@@ -179,13 +179,13 @@ class Message(Model):
     def USER(  # noqa: N802
         cls, content: str | _Content | None, **kwargs: Any
     ) -> "Message":
-        return cls(Role.USER, content, **kwargs)
+        return cls(role=Role.USER, content=content, **kwargs)
 
     @classmethod
     def SYSTEM(  # noqa: N802
         cls, content: str | _Content | None, **kwargs: Any
     ) -> "Message":
-        return cls(Role.SYSTEM, content, **kwargs)
+        return cls(role=Role.SYSTEM, content=content, **kwargs)
 
     @classmethod
     def ASSISTANT(  # noqa: N802
@@ -194,13 +194,13 @@ class Message(Model):
         tool_calls: List[dict[str, Any]] = [],
         **kwargs: Any,
     ) -> "Message":
-        return cls(Role.ASSISTANT, content, tool_calls=tool_calls, **kwargs)
+        return cls(role=Role.ASSISTANT, content=content, tool_calls=tool_calls, **kwargs)
 
     @classmethod
     def TOOL(  # noqa: N802
         cls, content: str | _Content | None, tool_call_id: str, **kwargs: Any
     ) -> "Message":
-        return cls(Role.TOOL, content, tool_call_id=tool_call_id, **kwargs)
+        return cls(role=Role.TOOL, content=content, tool_call_id=tool_call_id, **kwargs)
 
     def fork(self) -> "Message":
         return Message(

@@ -122,18 +122,18 @@ class ChunkList(List[Chunk], Model):
             all_tokens += chunk.tokens
         return all_tokens
 
-    @property
-    def xml(self) -> str:
+    def xml(self, offset: int = 0) -> str:
         xml = "<sources>"
 
-        for i, chunk in enumerate(self):
-            xml += f"""<source{i}
-                            id='{chunk.id}'
-                            order='{chunk.order}'
-                            start_page='{chunk.start_page}'
-                            end_page='{chunk.end_page}'>
-                            {chunk.xml}
-                        </source{i}>"""
+        for index, chunk in enumerate(self):
+            chunk = self[index]
+            i = index + offset
+
+            xml += f"""<source{i} id='{chunk.id}' order='{chunk.order}' start_page='{chunk.start_page}' end_page='{chunk.end_page}'>
+
+                        {chunk.xml}
+
+                    </source{i}>"""
 
         return xml + "</sources>"
 
@@ -299,10 +299,9 @@ class File(Model):
     def content(self) -> str:
         return "".join([chunk.content for chunk in self.chunks])
 
-    @property
-    def xml(self) -> str:
+    def xml(self, chunks_offset: int = 0) -> str:
         xml = f"<document name='{self.name}' id='{self.id}'>"
-        xml += self.chunks.xml
+        xml += self.chunks.xml(chunks_offset)
         xml += "</document>"
         return xml
 
@@ -452,15 +451,21 @@ class FileList(List[File], Model):
             all_tokens += file.tokens
         return all_tokens
 
-    @property
-    def xml(self) -> str:
+    def xml(self, offset: int = 0) -> str:
         xml = "<documents>"
-        for i, file in enumerate(self):
-            xml += f"""<document{i}
-                            name='{file.name}'
-                            id='{file.id}'>
-                            {file.xml}
-                        </document{i}>"""
+        chunks_offset = 0
+
+        for i in range(offset, len(self)):
+            file = self[i]
+
+            xml += f"""<document{i} name='{file.name}' id='{file.id}'>
+
+                    {file.xml(chunks_offset)}
+
+                </document{i}>"""
+
+            chunks_offset += len(file.chunks)
+
         return xml + "</documents>"
 
     def using(self, tokenizer: str | tiktoken.Encoding) -> "FileList":
