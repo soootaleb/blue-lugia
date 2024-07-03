@@ -77,7 +77,7 @@ class Message(Model):
             raise MessageFormatError(f"BL::Model::Message::init::InvalidRole::{role.value}")
         else:
             self._role = role
-            self._content = Message._Content(content) if content else None
+            self.content = content if content else None
 
         if self.role == Role.TOOL and not self._tool_call_id:
             raise MessageFormatError("BL::Model::Message::init::ToolMessageWithoutToolCallId")
@@ -100,6 +100,10 @@ class Message(Model):
     @property
     def content(self) -> Optional[_Content]:
         return self._content
+
+    @content.setter
+    def content(self, value: str | _Content | None) -> None:
+        self._content = Message._Content(value)
 
     @property
     def id(self) -> str | None:
@@ -130,7 +134,7 @@ class Message(Model):
     def update(self, content: str | _Content | None, debug: dict[str, Any] | None = None) -> "Message":
         if debug is None:
             debug = {}
-        self._content = Message._Content(content)
+        self.content = content
         if self._remote:
             self._remote._debug = (self._remote._debug or {}) | debug
             unique_sdk.Message.modify(
@@ -145,14 +149,14 @@ class Message(Model):
         return self
 
     def append(self, content: str, new_line: bool = True) -> "Message":
-        int_content = self._content or ""
+        int_content = self.content or ""
         if new_line:
             int_content += "\n\n"
         int_content += content
         return self.update(int_content)
 
     def prepend(self, content: str, new_line: bool = True) -> "Message":
-        int_content = self._content or ""
+        int_content = self.content or ""
         if new_line:
             content += "\n\n"
         int_content = content + int_content

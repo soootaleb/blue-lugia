@@ -378,7 +378,7 @@ class LanguageModelManager(Manager):
                     temperature=self._temperature,
                 )
 
-                out._content = Message._Content(completion.message.text)
+                out.content = completion.message.text
 
                 out_tool_calls_ids = [call["id"] for call in out._tool_calls]
                 out._tool_calls = out._tool_calls + [

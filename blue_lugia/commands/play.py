@@ -20,7 +20,7 @@ class MockLLM(LanguageModelManager):
 
         if mock:
             if out:
-                out._content = Message._Content("Mock content")
+                out.content = "Mock content"
                 out._tool_calls = [
                     {
                         "id": "mock_id1",
