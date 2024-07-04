@@ -1,3 +1,4 @@
+import datetime
 from typing import Optional
 
 from pydantic import BaseModel, Field
@@ -5,6 +6,7 @@ from pydantic import BaseModel, Field
 from blue_lugia.app import App
 from blue_lugia.config import ModuleConfig
 from blue_lugia.models import Message
+from blue_lugia.models.event import AssistantMessage, ExternalModuleChosenEvent, Payload, UserMessage
 from blue_lugia.state import StateManager
 
 
@@ -42,6 +44,9 @@ class SumTool(BaseModel):
 
 
 def hello(state: StateManager[CustomConfig], args: list[str] = []) -> None:
+    """
+    Just say hello
+    """
     state.last_ass_message.update(f"World: {', '.join(args)}")
 
     raise CommandError(f"Bye world ({state.conf.TEST_MESSAGE}, {state.conf.IN_MESSAGE})")
@@ -59,4 +64,4 @@ def module(state: StateManager) -> None:
     state.complete(out=state.last_ass_message)
 
 
-app = App("Petal").configured(CustomConfig).register("hello", hello).register("add", add).handle(CommandError).threaded(False).of(module)
+app = App("Petal").configured(CustomConfig).register("hello", hello).register("add", add).handle(CommandError).threaded(False).of(module).listen()

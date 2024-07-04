@@ -91,4 +91,16 @@ def help(state: StateManager[ModuleConfig], *args: list[str]) -> None:
     Generate and display documentation for all modules and functions in the `blue_lugia.commands` package.
     """
 
-    state.last_ass_message.update(_generate_docs("blue_lugia.commands"))
+    lib_docs = _generate_docs("blue_lugia.commands")
+
+    for command_name in state.commands:
+        command = state.commands[command_name]
+
+        lib_docs += f"## Command `{command_name}`\n"
+        command_doc = inspect.getdoc(command)
+        if command_doc:
+            lib_docs += f"{command_doc}\n"
+        else:
+            lib_docs += "No documentation available.\n"
+
+    state.last_ass_message.update(lib_docs)

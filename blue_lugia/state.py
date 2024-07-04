@@ -1,6 +1,6 @@
 import logging
 from abc import ABC
-from typing import Any, Generic, List, Tuple
+from typing import Any, Callable, Generic, List, Tuple
 
 import unique_sdk
 from pydantic import BaseModel
@@ -40,12 +40,15 @@ class StateManager(ABC, Generic[ConfType]):
 
     _conf: ConfType
 
+    _commands: dict[str, Callable]
+
     def __init__(
         self,
         event: ExternalModuleChosenEvent,
         conf: ConfType,
         logger: logging.Logger | None = None,
         managers: dict[str, type[Manager]] | None = None,
+        commands: dict[str, Callable] | None = None,
     ) -> None:
         self._event: ExternalModuleChosenEvent = event
 
@@ -86,7 +89,10 @@ class StateManager(ABC, Generic[ConfType]):
         self._ctx = (
             self.messages.all().fork().filter(lambda x: bool(x.content) or bool(x.tool_calls)).expand(self._key if hasattr(self, "_key") else "state_manager_tool_calls")  # type: ignore
         )
+
         self._extra = {}
+
+        self._commands = commands or {}
 
     @property
     def _FileManager(self) -> type[FileManager]:  # noqa: N802
@@ -147,6 +153,10 @@ class StateManager(ABC, Generic[ConfType]):
     @property
     def logger(self) -> logging.Logger:
         return self._logger or logging.getLogger(__name__.lower())
+
+    @property
+    def commands(self) -> dict[str, Callable]:
+        return self._commands
 
     @property
     def last_ass_message(self) -> Message | None:

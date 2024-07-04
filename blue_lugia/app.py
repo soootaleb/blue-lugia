@@ -344,6 +344,7 @@ class App(Flask, Generic[ConfType]):
             conf=self._conf,
             logger=self.logger.getChild(self._state_manager.__name__),
             managers=self._managers,
+            commands=self._commands,
         )
 
         try:
