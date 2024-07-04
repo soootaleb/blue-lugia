@@ -21,14 +21,10 @@ def command(state: StateManager[ConfType], command: list[str]) -> bool:
                 function = getattr(module, command[0])
                 command_result = function(state, command[1:])
 
-    except ModuleNotFoundError as e:
+    except ModuleNotFoundError as _:
         state.last_ass_message.update(f"Command not found: {command[0]}")
 
-        raise e
-
-    except AttributeError as e:
+    except AttributeError as _:
         state.last_ass_message.update(f"Function not found: {command[1]}")
-
-        raise e
 
     return command_result
