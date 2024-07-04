@@ -103,7 +103,7 @@ class Message(Model):
 
     @content.setter
     def content(self, value: str | _Content | None) -> None:
-        self._content = Message._Content(value)
+        self._content = Message._Content(value) if value is not None else None
 
     @property
     def id(self) -> str | None:
