@@ -24,6 +24,7 @@ from blue_lugia.managers import (
 )
 from blue_lugia.models import ExternalModuleChosenEvent
 from blue_lugia.models.event import AssistantMessage, Payload, UserMessage
+from blue_lugia.processor import Processor
 from blue_lugia.state import StateManager
 
 
@@ -71,6 +72,8 @@ class App(Flask, Generic[ConfType]):
 
     _commands: dict[str, Callable[[StateManager[ConfType], list[str]], bool | None]]
 
+    _processors: List[type[Processor]]
+
     def __init__(
         self,
         import_name: str,
@@ -103,9 +106,10 @@ class App(Flask, Generic[ConfType]):
 
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=15)
         self._error_handlers = []
-        self._managers = {}
 
+        self._managers = {}
         self._commands = {}
+        self._processors = []
 
         self.configure_logging()
 
@@ -127,6 +131,16 @@ class App(Flask, Generic[ConfType]):
                 "x-company-id": self._conf.COMPANY_ID,
             },
         )
+
+    def process(self, processors: type[Processor] | List[type[Processor]]) -> "App":
+        if isinstance(processors, type):
+            processors = [processors]
+
+        for proc in processors:
+            if proc not in self._processors:
+                self._processors.append(proc)
+
+        return self
 
     def configure_logging(self) -> None:
         dictConfig(
@@ -345,6 +359,9 @@ class App(Flask, Generic[ConfType]):
             logger=self.logger.getChild(self._state_manager.__name__),
             managers=self._managers,
         )
+
+        for proc in self._processors:
+            proc(state)()
 
         try:
             last_user_message = state.last_usr_message
