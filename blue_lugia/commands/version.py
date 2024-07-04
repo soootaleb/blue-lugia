@@ -16,35 +16,26 @@ Returns versions
 
 def version(state: StateManager[ModuleConfig], *args: list[str]) -> None:
     """
-    Returns the version of blue-lugia
+    Return versions by looking for a pyproject.toml file in the parent directory of the module file.
     """
 
-    # target pyproject.toml that is in the lib
-
-    current_script_path = os.path.abspath(__file__)
-    script_dir = os.path.dirname(current_script_path)
-    project_root = os.path.dirname(os.path.dirname(script_dir))
-    pyproject_toml_path = os.path.join(project_root, "pyproject.toml")
-
-    with open(pyproject_toml_path) as file:
-        data = toml.load(file)
-
-    version = {
-        "blue-lugia": data["tool"]["poetry"]["version"],
-    }
+    version = {}
 
     app: App = state.app
 
     if app._module:
         module: Callable = app._module
         module_file_path = inspect.getfile(module)
-        parent = os.path.dirname(os.path.dirname(module_file_path))
+        parent = os.path.dirname(module_file_path)
+
+        if not os.path.exists(os.path.join(parent, "pyproject.toml")):
+            parent = os.path.dirname(parent)
+
         pyproject = os.path.join(parent, "pyproject.toml")
 
         try:
             with open(pyproject) as file:
-                data = toml.load(file)
-                version[app.name] = data["tool"]["poetry"]["version"]
+                version = toml.load(file)
         except FileNotFoundError:
             state.logger.debug(f"Could not find pyproject.toml in {parent}")
             pass
