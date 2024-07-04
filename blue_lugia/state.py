@@ -41,6 +41,7 @@ class StateManager(ABC, Generic[ConfType]):
     _conf: ConfType
 
     _commands: dict[str, Callable]
+    _app: Any
 
     def __init__(
         self,
@@ -48,7 +49,7 @@ class StateManager(ABC, Generic[ConfType]):
         conf: ConfType,
         logger: logging.Logger | None = None,
         managers: dict[str, type[Manager]] | None = None,
-        commands: dict[str, Callable] | None = None,
+        app: Any | None = None,
     ) -> None:
         self._event: ExternalModuleChosenEvent = event
 
@@ -90,9 +91,8 @@ class StateManager(ABC, Generic[ConfType]):
             self.messages.all().fork().filter(lambda x: bool(x.content) or bool(x.tool_calls)).expand(self._key if hasattr(self, "_key") else "state_manager_tool_calls")  # type: ignore
         )
 
+        self._app = app
         self._extra = {}
-
-        self._commands = commands or {}
 
     @property
     def _FileManager(self) -> type[FileManager]:  # noqa: N802
@@ -155,8 +155,8 @@ class StateManager(ABC, Generic[ConfType]):
         return self._logger or logging.getLogger(__name__.lower())
 
     @property
-    def commands(self) -> dict[str, Callable]:
-        return self._commands
+    def app(self) -> Any:
+        return self._app
 
     @property
     def last_ass_message(self) -> Message | None:

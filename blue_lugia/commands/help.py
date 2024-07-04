@@ -2,6 +2,7 @@ import importlib
 import inspect
 import pkgutil
 
+from blue_lugia.app import App
 from blue_lugia.config import ModuleConfig
 from blue_lugia.state import StateManager
 
@@ -93,8 +94,10 @@ def help(state: StateManager[ModuleConfig], *args: list[str]) -> None:
 
     lib_docs = _generate_docs("blue_lugia.commands")
 
-    for command_name in state.commands:
-        command = state.commands[command_name]
+    app: App = state.app
+
+    for command_name in app._commands:
+        command = app._commands[command_name]
 
         lib_docs += f"## Command `{command_name}`\n"
         command_doc = inspect.getdoc(command)
