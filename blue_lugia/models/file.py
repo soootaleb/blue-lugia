@@ -1,6 +1,7 @@
 import datetime
 import logging
 import re
+from io import BytesIO
 from typing import Any, Callable, Iterable, List
 
 import requests
@@ -197,7 +198,6 @@ class ChunkList(List[Chunk], Model):
                             chunks=ChunkList(logger=chunk.file.chunks.logger),
                             mime_type=chunk.file.mime_type,
                             tokenizer=chunk.file._tokenizer,
-                            read_url=chunk.file.read_url,
                             write_url=chunk.file.write_url,
                             created_at=chunk.file.created_at,
                             updated_at=chunk.file.updated_at,
@@ -247,7 +247,7 @@ class ChunkList(List[Chunk], Model):
                     chunkId=chunk.id,
                     key=key,
                     # title=chunk.file.name, # Setting a static title breaks sources indexes and the link
-                    url=chunk.file.read_url or f"unique://content/{chunk.file.id}",
+                    url=f"unique://content/{chunk.file.id}",
                 )
             )
 
@@ -260,7 +260,6 @@ class File(Model):
     name: str
     chunks: ChunkList
     mime_type: str
-    read_url: str
     write_url: str
     created_at: datetime.datetime
     updated_at: datetime.datetime
@@ -276,7 +275,6 @@ class File(Model):
         mime_type: str,
         chunks: ChunkList | None = None,
         tokenizer: tiktoken.Encoding | None = None,
-        read_url: str = "",
         write_url: str = "",
         created_at: datetime.datetime = datetime.datetime.now(),
         updated_at: datetime.datetime = datetime.datetime.now(),
@@ -289,7 +287,6 @@ class File(Model):
         self.name = name
         self.mime_type = mime_type
         self.chunks = chunks or ChunkList(logger=self.logger.getChild(ChunkList.__name__))
-        self.read_url = read_url
         self.write_url = write_url
         self.created_at = created_at
         self.updated_at = updated_at
@@ -298,6 +295,20 @@ class File(Model):
     @property
     def content(self) -> str:
         return "".join([chunk.content for chunk in self.chunks])
+
+    @property
+    def data(self) -> BytesIO:
+        response = requests.get(
+            f"{unique_sdk.api_base}/content/{self.id}/file?chatId={self._event.payload.chat_id}",
+            headers={
+                "x-api-version": unique_sdk.api_version,
+                "x-user-id": self._event.user_id,
+                "x-company-id": self._event.company_id,
+                "Authorization": f"Bearer {unique_sdk.api_key}",
+            },
+        )
+
+        return BytesIO(response.content)
 
     def xml(self, chunks_offset: int = 0) -> str:
         xml = f"<document name='{self.name}' id='{self.id}'>"
@@ -336,7 +347,6 @@ class File(Model):
                 mime_type=self.mime_type,
                 chunks=ChunkList(logger=self.chunks.logger),
                 tokenizer=self._tokenizer,
-                read_url=self.read_url,
                 write_url=self.write_url,
                 created_at=self.created_at,
                 updated_at=self.updated_at,
@@ -359,7 +369,6 @@ class File(Model):
             scopeId=scope,
         )  # type: ignore
 
-        self.read_url = existing.readUrl
         self.write_url = existing.writeUrl
 
         requests.put(
@@ -381,7 +390,7 @@ class File(Model):
                 "byteSize": len(content),
             },
             scopeId=scope,
-            readUrl=self.write_url,  # type: ignore
+            fileUrl=self.write_url,
         )  # type: ignore
 
         self.chunks = ChunkList(

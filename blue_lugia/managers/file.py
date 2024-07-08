@@ -137,7 +137,6 @@ class FileManager(Manager):
             chunks = found_file["chunks"]
 
             if file_id not in files_map:
-                read_url = found_file.get("readUrl", "")
                 write_url = found_file.get("writeUrl", "")
 
                 files_map[file_id] = File(
@@ -147,7 +146,6 @@ class FileManager(Manager):
                     mime_type=(found_file.get("metadata", {}) or {}).get("mimeType", "text/plain"),
                     chunks=ChunkList(logger=self.logger.getChild(ChunkList.__name__)),
                     tokenizer=self.tokenizer,
-                    read_url=read_url,
                     write_url=write_url,
                     created_at=datetime.datetime.fromisoformat(found_file["updatedAt"]),
                     updated_at=datetime.datetime.fromisoformat(found_file["updatedAt"]),
@@ -398,7 +396,7 @@ class FileManager(Manager):
                 "byteSize": 0,
             },
             scopeId=self._scopes[0] if self._scopes else scope,
-            readUrl=existing.writeUrl,  # type: ignore
+            fileUrl=existing.writeUrl,
         )  # type: ignore
 
         return File(
@@ -408,7 +406,6 @@ class FileManager(Manager):
             mime_type=mime,
             chunks=ChunkList(logger=self.logger.getChild(ChunkList.__name__)),
             tokenizer=self.tokenizer,
-            read_url=existing.readUrl,
             write_url=existing.writeUrl,
             created_at=datetime.datetime.now(),
             updated_at=datetime.datetime.now(),
