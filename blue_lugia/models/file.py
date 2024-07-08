@@ -303,6 +303,7 @@ class File(Model):
             headers={
                 "x-api-version": unique_sdk.api_version,
                 "x-user-id": self._event.user_id,
+                "x-app-id": unique_sdk.app_id,
                 "x-company-id": self._event.company_id,
                 "Authorization": f"Bearer {unique_sdk.api_key}",
             },
