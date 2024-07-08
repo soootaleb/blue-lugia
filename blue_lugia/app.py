@@ -492,7 +492,7 @@ class App(Flask, Generic[ConfType]):
                         user_id=event["userId"],
                         company_id=event["companyId"],
                         chatId=event["payload"]["chatId"],
-                        id=event["payload"]["assistantMessage"]["id"],
+                        id=event["payload"]["assistantId"],
                         text="Sorry, I am unavailable right now",
                         debugInfo={
                             "error": str(e),
