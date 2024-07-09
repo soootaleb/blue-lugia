@@ -5,35 +5,51 @@ from pydantic import BaseModel, Field
 
 from blue_lugia.app import App
 from blue_lugia.config import ModuleConfig
+from blue_lugia.enums import Role
+from blue_lugia.managers.file import FileManager
 from blue_lugia.models import Message
 from blue_lugia.models.event import AssistantMessage, ExternalModuleChosenEvent, Payload, UserMessage
+from blue_lugia.models.file import ChunkList, FileList
+from blue_lugia.models.message import MessageList
 from blue_lugia.state import StateManager
 
 
+# Create a custom error and handle it. Need to call App.handle() to handle the error
 class CommandError(Exception):
     def handle(self, state: StateManager) -> None:
         state.last_ass_message.append(f"Woopsies, here is a command error: {self}")
 
 
+# Inherit the base config to add your fields. The fields will be set with the corresponding ENVARS or module configuration set in the UI
 class CustomConfig(ModuleConfig):
     TEST_MESSAGE: str = "CustomConfig"
     IN_MESSAGE: str = "InMessage"
 
 
+# A tool is a Base Model
+# The class name is used as the tool name
+# The class description is used as the tool description
+# Fields descriptions and types (potentially optional) are used as the tool arguments.
 class SumTool(BaseModel):
     """Add two numbers"""
 
     x: int = Field(..., description="first value")
     y: int = Field(..., description="second value")
 
+    # The run method is executed by state.call(completion). The tool call formulated by the LLM results in an instance of the tool, so you can access arguments with self.x
+    # What's returned by this method is considered the "tool response", so the state.call() will append a message { role: TOOL, content: run() } to the context
     def run(self, call_id: str, state: StateManager, *args, **kwargs) -> int:
         # state.last_ass_message.update(f"The sum of {self.x} and {self.y} is {self.x + self.y}")
         return self.x + self.y
 
+    # pre_run_hook and post_run_hook and run must accept a number of arguments, add *args and **kwargs if you don't know them all
+    # returning False will prevent state.loop() to complete the context after all tools have been called.
     def post_run_hook(self, call_id: str, state: StateManager, *args, **kwargs) -> Optional[bool]:
         pass
         # return False
 
+    # It happens that the LLM returns a tool call that does not match the signature (e.g with a missing required argument)
+    # This method is executed if the tool was designated but could not be instanciated / executed
     @classmethod
     def on_validation_error(cls, call_id: str, arguments: dict, state: StateManager, extra: dict | None = None, out: Message | None = None) -> bool:
         if extra is None:
@@ -43,6 +59,8 @@ class SumTool(BaseModel):
         return False
 
 
+# You can created custom commands that will be executed when the user message starts with the command prefix ! or /
+# You must register commands with App.register()
 def hello(state: StateManager[CustomConfig], args: list[str] = []) -> None:
     """
     Just say hello
@@ -52,16 +70,142 @@ def hello(state: StateManager[CustomConfig], args: list[str] = []) -> None:
     raise CommandError(f"Bye world ({state.conf.TEST_MESSAGE}, {state.conf.IN_MESSAGE})")
 
 
-def add(state: StateManager[CustomConfig], args: list[str] = []) -> None:
-    # state._llm = state.llm.oai(state.conf.OPENAI_API_KEY).using("gpt-4o")
+# The module is a function accepting a state manager
+def module(state: StateManager[ModuleConfig]) -> None:
+    # ============= LOGGING =======================
 
-    state.context([Message.SYSTEM("Your role is to make a tool call to add the two numbers provided by the user"), Message.USER(" ".join(args))]).register(SumTool).loop(
-        tool_choice=SumTool
+    # log messages with the state logger
+    state.logger.debug(f"Just entered the module of app {state.app.name}")
+
+    # create child loggers for better readability
+    logger = state.logger.getChild("ChildLogger")
+
+    # state exposes the configuration, based on default values set by ModuleConfig, overriden by envars, overriden by assistant config from the UI
+    logger.debug(f"languageModel is {state.conf.languageModel}")
+
+    # ===================== MODELS ========================
+
+    # You generally manipulate models Message, File
+    message: Message = Message(Role.USER, "Hello") or Message.USER("Hello")
+
+    # Models have methods to handle them
+    message.append("World")
+
+    # And properties you can find using autocompletion
+    state.logger.debug(message.content)
+
+    # Models also have their associated lists
+    history = MessageList([Message.SYSTEM("You are a helpful assistant"), Message.USER("Who are you ?")])
+
+    # With their methods
+    user_messages: MessageList = history.filter(lambda x: x.role == Role.USER)
+    first_message: Message | None = history.first()
+    first_system_message: Message | None = history.first(lambda x: x.role == Role.SYSTEM)
+    truncated_messages: MessageList = history.keep(1000)
+
+    # And their properties
+    messages_tokens = history.tokens
+
+    # ===================== MANAGERS ========================
+
+    # Managers are used to interact with the API
+    files = state.files
+    messages = state.messages
+    llm = state.llm
+
+    # They expose methods to retrieve, create, update, delete the models
+    messages_in_chat: MessageList = messages.all()
+
+    # The managers return models or list of models
+    user_messages_in_chat: MessageList = messages.filter(lambda x: x.role == Role.USER).all()
+    last_user_message: Message | None = messages.last(lambda x: x.role == Role.USER)  # equivalent to state.last_usr_message
+    last_assistant_message: Message | None = messages.last(lambda x: x.role == Role.ASSISTANT)  # equivalent to state.last_ass_message
+
+    # Note that managers have "configuration methods" and "execution methods"
+    # For example, Manager.filter() does not execute a query, but instead returns a new manager with filters ready to be applied
+    files: FileManager = files.filter(key__contains=".xlsx")
+
+    # The files manager encapsulates both Search & Content APIs
+    # Search returns a ChunkList while Content returns a FileList
+    searching_chunks: ChunkList = files.search("What's directive 51 ?")
+    retrieving_files: FileList = files.fetch()
+
+    # Objects returned by a manager are generally compatible with methods of other managers
+    completion: Message = llm.complete([Message.USER("Tell me a joke")])
+    state.last_ass_message.update(completion.content)
+
+    # LLM Manager streams to frontend if you provide a message to stream to
+    llm.complete([Message.USER("Tell me a story between the moon, the earth and the sun")], out=state.last_ass_message)
+
+    # ====================== COMBINING ============================
+
+    # Let's try to do some RAG
+
+    # Retrieve some chunks
+    chunks: ChunkList = state.files.search("What's directive 51 ?")
+
+    # Prepare some prompting
+    context: MessageList = MessageList(
+        [
+            Message.SYSTEM("Your role is to summarize the informatin asked by the user using bullet points."),
+            Message.SYSTEM("You MUST cite your sources using [source0], [source1], [source2], etc"),
+        ]
     )
 
+    # You can manipulate the retrieved chunks before exposing it to the context
+    chunks: ChunkList = chunks.sort(lambda chunk: chunk.order)
 
-def module(state: StateManager) -> None:
+    # Format the sources to be exposed to the LLM
+    formated_sources: str = chunks.xml()
+
+    context.append(Message.SYSTEM(f"The available sources are: {formated_sources}"))
+
+    # Format the retrieved data as a search context for the frontend to create the links
+    search_context = chunks.as_context()
+
+    # Use the LLM to answer directly to the frontend
+    completion = llm.complete(context, out=state.last_ass_message, search_context=search_context)
+
+    # Completion is already in frontend, but you could analyse it
+    state.logger.debug(f"LLM responded with {completion.content}")
+
+    # ============================ STATE ==============================
+
+    # TODO
+
+    state.files.uploaded.search().as_files().first()
     state.complete(out=state.last_ass_message)
 
 
-app = App("Petal").configured(CustomConfig).register("hello", hello).register("add", add).handle(CommandError).threaded(False).of(module).listen()
+# Use method chaining to define the app name, the commands, error handlers, custom config, and the module to run
+app = App("Petal").configured(CustomConfig).register("hello", hello).handle(CommandError).threaded(False).of(module)
+
+# You can arbitrarily execute your module by mocking an event
+# Keep in mind that the app._conf which is a ModuleConfig, will be set with your environment variables.
+# Your .env should be set according to the APIs your want to use (local, next, neo, etc)
+app._run_module(
+    ExternalModuleChosenEvent(
+        id="evt_iva44sshtaa9vsd29zkeg0ry",
+        version="1.0.0",
+        event="unique.chat.external-module.chosen",
+        created_at=datetime.datetime.now(),
+        user_id=app._conf.USER_ID,
+        company_id=app._conf.COMPANY_ID,
+        payload=Payload(
+            name="Petal",
+            description="Mock module",
+            configuration={"ALLOW_COMMANDS": True},
+            chat_id="chat_tc04wpvc5ovcgbjr7bjlb59d",
+            assistant_id="assistant_ty2y4wden5h42amac1s9jxzx",
+            user_message=UserMessage(
+                id="msg_t7mb1y3j1pathvwycs3bdma0",
+                text="User message",
+                created_at=datetime.datetime.now(),
+            ),
+            assistant_message=AssistantMessage(
+                id="msg_ee42vqkf3lp9za25io1qudx7",
+                created_at=datetime.datetime.now(),
+            ),
+        ),
+    )
+)
