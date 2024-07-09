@@ -207,7 +207,7 @@ class FileManager(Manager):
                 "value": last_filter[2],
             }
 
-        while found_count > 0:
+        while found_count > 0 and len(found_all) < limit:
             found = unique_sdk.Search.create(
                 user_id=self._event.user_id,
                 company_id=self._event.company_id,
