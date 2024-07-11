@@ -266,7 +266,7 @@ class LanguageModelManager(Manager):
         if input_tokens_limit <= 0:
             raise ValueError(f"BL::Manager::LLM::complete::input_tokens_limit::{input_tokens_limit}")
 
-        self.logger.debug(f"Other messages truncated to {input_tokens_limit} tokens")
+        self.logger.debug(f"BL::Manager::LLM::complete::NonSystemMessagesTruncatedTo::{input_tokens_limit} tokens")
 
         not_system_messages = not_system_messages.keep(input_tokens_limit)
 
@@ -280,7 +280,7 @@ class LanguageModelManager(Manager):
                 ),
             )
 
-        self.logger.debug(f"Context messages reformated. Returning {len(not_system_messages.tokens)} tokens.")
+        self.logger.debug(f"BL::Manager::LLM::complete::MessagesReformatedTo::{len(not_system_messages.tokens)} tokens.")
 
         return not_system_messages
 
@@ -297,7 +297,33 @@ class LanguageModelManager(Manager):
         *args,
         **kwargs,
     ) -> Message:
+        """
+        Completes a communication or operation sequence by processing input messages and optionally using tools to generate or refine responses.
 
+        This method orchestrates various components like message processing, tool interactions, and external API calls to generate a completed message based on input parameters and internal configurations.
+
+        Args:
+            messages (List[Message] | List[dict[str, Any]]): The list of messages or structured message data to process.
+            tools (List[type[BaseModel]] | None): Optional list of tools (as model classes) to apply during the completion process.
+            tool_choice (type[BaseModel] | None): Specific tool (model class) selected for applying in the completion process.
+            max_tokens (int | Literal["auto"] | None): The maximum number of tokens to generate or process; 'auto' for automatic determination based on context.
+            out (Message | None): Optional existing message object to update with the completion result.
+            search_context (List[unique_sdk.Integrated.SearchResult]): Contextual data for search or reference during the completion.
+            debug_info (dict[str, Any] | None): Additional debug information to pass through or generate during the process.
+            start_text (str): Initial text to prepend to any generated content, setting the context or continuation tone.
+            *args: Variable length argument list.
+            **kwargs: Arbitrary keyword arguments.
+
+        Returns:
+            Message: The completed message after processing, including any new content, tool interactions, and updates to existing messages.
+
+        Raises:
+            MessageFormatError: If there are issues with the message formatting or invalid roles.
+            MessageRemoteError: For operations requiring a remote but none is available.
+
+        Detailed explanation:
+            The method handles a complex flow of data transformations and API interactions, starting from raw or semi-structured message inputs, applying tools as specified, and culminating in a synthesized output that may be a new message or an update to an existing one. It intelligently handles token limits, tool applications, and external integrations (e.g., OpenAI or unique_sdk integrations) based on the provided configurations and runtime conditions.
+        """
         if debug_info is None:
             debug_info = {}
 

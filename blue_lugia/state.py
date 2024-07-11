@@ -19,6 +19,53 @@ from blue_lugia.models import ExternalModuleChosenEvent, File, FileList, Message
 
 
 class StateManager(ABC, Generic[ConfType]):
+    """
+    Manages the state of the system, coordinating interactions between different managers like message handling, file management, and language modeling.
+
+    Attributes:
+        _event (ExternalModuleChosenEvent): The external event that triggers state management.
+        _messages (MessageManager): Manager responsible for message operations.
+        _llm (LanguageModelManager): Manages interactions with language models.
+        _files (FileManager): Handles file-based operations.
+        _storage (StorageManager): Manages data persistence and retrieval.
+        _extra (dict[str, Any]): Extra parameters that might be needed during processing.
+        _tools (List[type[BaseModel]]): Registered tools for processing.
+        _ctx (MessageList): The current context of messages being processed.
+        _logger (logging.Logger | None): Logger for logging activities, optional.
+        _managers (dict[str, type[Manager]]): Dictionary mapping manager types to their instances.
+        _conf (ConfType): Configuration object specific to the manager implementations.
+        _commands (dict[str, Callable]): Commands available within the state.
+        _app (Any): Application context or reference.
+
+    Methods:
+        __init__: Initializes a new instance of StateManager.
+        event: Returns the event that initiated the state management.
+        messages: Accesses the message manager.
+        files: Accesses the file manager.
+        llm: Accesses the language model manager.
+        ctx: Accesses the current message context.
+        tools: Lists all registered tools.
+        storage: Accesses the storage manager.
+        conf, config, cfg: Returns the configuration object.
+        logger: Accesses the logger.
+        app: Returns the application context.
+        last_ass_message: Retrieves the last assistant message.
+        last_usr_message: Retrieves the last user message.
+        using: Configures the state manager to use a specified language model manager.
+        extra: Sets extra parameters for use in processing.
+        context: Sets or modifies the context in which messages are processed.
+        register: Registers new tools for use in processing.
+        _call_tools: Internal method to facilitate tool calls.
+        _process_tools_called: Processes the results from tool calls.
+        call: Facilitates calling tools with a given message.
+        complete: Completes the processing of a message or context.
+        loop: Executes a processing loop, handling message and tool interactions iteratively.
+        stream: Streams processing for continuous interaction.
+        clear: Clears all messages and resets context.
+        pre_module_hook: Hook that runs before module operations.
+        post_module_hook: Hook that runs after module operations.
+    """
+
     _event: ExternalModuleChosenEvent
     _messages: MessageManager
     _llm: LanguageModelManager
@@ -167,12 +214,36 @@ class StateManager(ABC, Generic[ConfType]):
         return self.messages.filter(lambda x: x.role == Role.USER).last()
 
     def using(self, llm: LanguageModelManager) -> "StateManager[ConfType]":
-        self.logger.debug(f"Using LLM {llm}")
+        """
+        Configures the StateManager to use a specific Language Model Manager.
+
+        Args:
+            llm (LanguageModelManager): The language model manager to be used by the StateManager.
+
+        Returns:
+            StateManager[ConfType]: The current instance of StateManager with the updated language model manager.
+
+        Usage:
+            This method allows for dynamic switching or updating of the language model manager within the StateManager, facilitating flexibility in response to changes or different processing needs.
+        """
+        self.logger.debug(f"BL::StateManager::using::Using LLM {llm}")
         self._llm = llm
         return self
 
     def extra(self, extra: dict[str, Any]) -> "StateManager[ConfType]":
-        self.logger.debug(f"Setting extras {(', '.join(extra.keys()))}")
+        """
+        Sets additional parameters that can be used during the processing of messages and tools.
+
+        Args:
+            extra (dict[str, Any]): A dictionary of extra parameters to set.
+
+        Returns:
+            StateManager[ConfType]: The current instance of StateManager with updated extra parameters.
+
+        Usage:
+            This method provides a way to pass arbitrary extra data that can influence the behavior of the StateManager during message and tool processing.
+        """
+        self.logger.debug(f"BL::StateManager::extra::Setting extras {(', '.join(extra.keys()))}")
         self._extra = extra
         return self
 
@@ -182,6 +253,23 @@ class StateManager(ABC, Generic[ConfType]):
         append: bool = False,
         prepend: bool = False,
     ) -> "StateManager[ConfType]":
+        """
+        Sets or modifies the current context for processing messages.
+
+        Args:
+            messages (Union[List[Message], File, FileManager, FileList, Message, MessageList, MessageManager]): The new context or additional messages to set or add.
+            append (bool): If True, adds the provided messages to the end of the current context.
+            prepend (bool): If True, adds the provided messages to the beginning of the current context.
+
+        Returns:
+            StateManager[ConfType]: The current instance of StateManager with the modified context.
+
+        Raises:
+            ValueError: If both append and prepend are True, which is logically conflicting.
+
+        Usage:
+            This method manages the message context which is crucial for maintaining the state across interactions within the system. It allows for dynamically changing the context in which subsequent operations are evaluated.
+        """
         if isinstance(messages, File):
             _ctx = MessageList(
                 [messages.as_message()],
@@ -208,36 +296,73 @@ class StateManager(ABC, Generic[ConfType]):
             )
 
         if append and prepend:
-            self.logger.error("Cannot append and prepend to the context at the same time.")
+            self.logger.error("BL::StateManager::context::Cannot append and prepend to the context at the same time.")
             raise ValueError("Cannot append and prepend at the same time.")
 
         if append:
-            self.logger.debug(f"Adding {len(_ctx)} messages to the context")
+            self.logger.debug(f"BL::StateManager::context::Adding {len(_ctx)} messages to the context")
             self.ctx.extend(_ctx)
         elif prepend:
             sent_user_message = self.ctx.filter(lambda x: bool(x._remote)).filter(lambda x: bool(x._remote) and x._remote._id == self.event.payload.user_message.id).first()
             if sent_user_message:
-                self.logger.debug(f"Inserting {len(_ctx)} messages to the context")
+                self.logger.debug(f"BL::StateManager::context::Inserting {len(_ctx)} messages to the context")
                 sent_user_message_index = self.ctx.index(sent_user_message)
                 self.ctx[sent_user_message_index:sent_user_message_index] = _ctx
             else:
-                self.logger.debug(f"Adding {len(_ctx)} messages to the context")
+                self.logger.debug(f"BL::StateManager::context::Adding {len(_ctx)} messages to the context")
                 self.ctx.extend(_ctx)
         else:
-            self.logger.debug(f"Setting {len(_ctx)} messages as the context")
+            self.logger.debug(f"BL::StateManager::context::Setting {len(_ctx)} messages as the context")
             self._ctx = _ctx
 
         return self
 
+    def set_context(
+        self,
+        messages: (List[Message] | File | FileManager | FileList | Message | MessageList | MessageManager),
+        append: bool = False,
+        prepend: bool = False,
+    ) -> "StateManager[ConfType]":
+        """
+        Sets or modifies the current context for processing messages.
+
+        Args:
+            messages (Union[List[Message], File, FileManager, FileList, Message, MessageList, MessageManager]): The new context or additional messages to set or add.
+            append (bool): If True, adds the provided messages to the end of the current context.
+            prepend (bool): If True, adds the provided messages to the beginning of the current context.
+
+        Returns:
+            StateManager[ConfType]: The current instance of StateManager with the modified context.
+
+        Raises:
+            ValueError: If both append and prepend are True, which is logically conflicting.
+
+        Usage:
+            This method manages the message context which is crucial for maintaining the state across interactions within the system. It allows for dynamically changing the context in which subsequent operations are evaluated.
+        """
+        return self.context(messages=messages, append=append, prepend=prepend)
+
     def register(self, tools: type[BaseModel] | List[type[BaseModel]]) -> "StateManager":
+        """
+        Registers one or more new tools to be used in processing.
+
+        Args:
+            tools (Union[type[BaseModel], List[type[BaseModel]]]): The tool or list of tools to register.
+
+        Returns:
+            StateManager: The current instance of StateManager with the new tools registered.
+
+        Usage:
+            This method is used to add new tools to the StateManager's toolkit, expanding its capabilities for handling various tasks related to message and data processing.
+        """
         tools_as_list = tools if isinstance(tools, List) else [tools]
 
         for tool in tools_as_list:
             if tool not in self._tools:
                 self._tools.append(tool)
-                self.logger.debug(f"Registering tool {tool.__name__}")
+                self.logger.debug(f"BL::StateManager::register::Registering tool {tool.__name__}")
             else:
-                self.logger.warning(f"Tool {tool.__name__} already registered.")
+                self.logger.warning(f"BL::StateManager::register::Tool {tool.__name__} already registered.")
 
         return self
 
@@ -251,7 +376,7 @@ class StateManager(ABC, Generic[ConfType]):
 
         tool_calls = message.tool_calls
 
-        self.logger.debug(f"Calling tools {tool_calls}")
+        self.logger.debug(f"BL::StateManager::_call_tools::Calling tools {tool_calls}")
 
         if extra is None:
             extra = {}
@@ -259,12 +384,12 @@ class StateManager(ABC, Generic[ConfType]):
         tool_call_index = 0
 
         for tc in tool_calls:
-            self.logger.debug(f"{tool_call_index} - Calling tool {tc['function']['name']}")
+            self.logger.debug(f"BL::StateManager::_call_tools::{tool_call_index} - Calling tool {tc['function']['name']}")
 
             if tc["function"]["name"] not in tools_routes:
-                self.logger.error(f"Tool {tc['function']['name']} not registered. Skipping.")
+                self.logger.error(f"BL::StateManager::_call_tools::Tool {tc['function']['name']} not registered. Skipping.")
                 if raise_on_missing_tool:
-                    raise ValueError(f"Tool {tc['function']['name']} not registered.")
+                    raise ValueError(f"BL::StateManager::_call_tools::Tool {tc['function']['name']} not registered.")
                 else:
                     continue
 
@@ -276,7 +401,7 @@ class StateManager(ABC, Generic[ConfType]):
                 "tool_call_index": tool_call_index,
             }
 
-            self.logger.debug(f"Extra contains {', '.join(all_extras.keys())}")
+            self.logger.debug(f"BL::StateManager::_call_tools::Extra contains {', '.join(all_extras.keys())}")
 
             try:
                 tool_call = tool(**tc["function"]["arguments"])
@@ -288,20 +413,20 @@ class StateManager(ABC, Generic[ConfType]):
                 tool_validation_handler = getattr(tool, "on_validation_error", None)
 
                 if tool_validation_handler:
-                    self.logger.debug(f"Calling {tool.__name__}.on_validation_error")
+                    self.logger.debug(f"BL::StateManager::_call_tools::Calling {tool.__name__}.on_validation_error")
 
                     all_extras["validation_error"] = e
 
                     handled = tool_validation_handler(tc["id"], arguments, self, all_extras, out)
 
                 else:
-                    self.logger.debug(f"No on_validation_error handler for {tool.__name__}.")
+                    self.logger.debug(f"BL::StateManager::_call_tools::No on_validation_error handler for {tool.__name__}.")
                     handled = None
 
                 tools_not_called.append({"id": tc["id"], "tool": tool, "arguments": arguments, "handled": handled, "error": e})
 
             else:
-                self.logger.debug(f"Tool {tc['function']['name']} is {tool_call}")
+                self.logger.debug(f"BL::StateManager::_call_tools::Tool {tc['function']['name']} is {tool_call}")
 
                 pre = (
                     tool_call.pre_run_hook(  # type: ignore
@@ -314,11 +439,11 @@ class StateManager(ABC, Generic[ConfType]):
                     else None
                 )
 
-                self.logger.debug(f"Pre run hook is {pre}")
+                self.logger.debug(f"BL::StateManager::_call_tools::Pre run hook is {pre}")
 
                 if isinstance(pre, bool) and not pre:
                     run = None
-                    self.logger.debug("Pre run hook returned False, skipping run.")
+                    self.logger.debug("BL::StateManager::_call_tools::Pre run hook returned False, skipping run.")
                 else:
                     run = (
                         tool_call.run(  # type: ignore
@@ -331,7 +456,7 @@ class StateManager(ABC, Generic[ConfType]):
                         else None
                     )
 
-                    self.logger.debug(f"Run is {run}")
+                    self.logger.debug(f"BL::StateManager::_call_tools::Run is {run}")
 
                 post = (
                     tool_call.post_run_hook(  # type: ignore
@@ -344,7 +469,7 @@ class StateManager(ABC, Generic[ConfType]):
                     else None
                 )
 
-                self.logger.debug(f"Post run hook is {post}")
+                self.logger.debug(f"BL::StateManager::_call_tools::Post run hook is {post}")
 
                 tools_called.append(
                     {
@@ -381,12 +506,12 @@ class StateManager(ABC, Generic[ConfType]):
             post_run = tool_call["post_run_hook"]
 
             if isinstance(run, bool) and not run:
-                self.logger.debug(f"Tool run {tool.__class__.__name__} returned False. Stoping loop over tool calls.")
+                self.logger.debug(f"BL::StateManager::_process_tools_called::Tool run {tool.__class__.__name__} returned False. Stoping loop over tool calls.")
                 complete = False
 
             if isinstance(post_run, bool) and not post_run:
                 self.logger.debug(
-                    f"""Tool post_run_hook {tool.__class__.__name__} returned False.
+                    f"""BL::StateManager::_process_tools_called::Tool post_run_hook {tool.__class__.__name__} returned False.
                     Stoping loop over tool calls."""
                 )
                 complete = False
@@ -400,12 +525,12 @@ class StateManager(ABC, Generic[ConfType]):
                 )
             )
 
-            self.logger.debug(f"Tool run {tool_call_id} of {tool.__class__.__name__} appended to extension.")
+            self.logger.debug(f"BL::StateManager::_process_tools_called::Tool run {tool_call_id} of {tool.__class__.__name__} appended to extension.")
 
             if run is None and complete:
                 t_name = tool.__class__.__name__
                 self.logger.warning(
-                    f"""Tool {t_name} returned None.
+                    f"""BL::StateManager::_process_tools_called::Tool {t_name} returned None.
                     \nIn the mean time, the completion loop is supposed to continue.
                     \nThat means that next iteration will try to LLM.complete()
                         with a ToolMessage(content=None).
@@ -420,7 +545,7 @@ class StateManager(ABC, Generic[ConfType]):
             tool_call_id = tc["id"]
 
             if isinstance(handled, bool) and not handled:
-                self.logger.debug(f"Tool {tool.__name__} on_validation_error returned False. Stoping loop over tool calls.")
+                self.logger.debug(f"BL::StateManager::_process_tools_called::Tool {tool.__name__} on_validation_error returned False. Stoping loop over tool calls.")
                 complete = False
 
             # We add exactly one tool message for each tool call, mandatory
@@ -432,12 +557,12 @@ class StateManager(ABC, Generic[ConfType]):
                 )
             )
 
-            self.logger.debug(f"Tool handling {tool_call_id} of {tool.__name__} appended to extension.")
+            self.logger.debug(f"BL::StateManager::_process_tools_called::Tool handling {tool_call_id} of {tool.__name__} appended to extension.")
 
             if handled is None and complete:
                 t_name = tool.__name__
                 self.logger.warning(
-                    f"""Tool {t_name} on_validation_error returned None.
+                    f"""BL::StateManager::_process_tools_called::Tool {t_name} on_validation_error returned None.
                     \nIn the mean time, the completion loop is supposed to continue.
                     \nThat means that next iteration will try to LLM.complete()
                         with a ToolMessage(content=None).
@@ -473,14 +598,14 @@ class StateManager(ABC, Generic[ConfType]):
 
         else:
             self.logger.warning(
-                """No user message found in context.
+                """BL::StateManager::_process_tools_called::No user message found in context.
                 \nCannot update debug information for tool calls.
                 \nThis is a critical issue for debugging."""
             )
 
         self.ctx.extend(extension)
 
-        self.logger.debug(f"Extension of {len(extension)} tool messages appended to context.")
+        self.logger.debug(f"BL::StateManager::_process_tools_called::Extension of {len(extension)} tool messages appended to context.")
 
         return complete and (bool(tools_called) or bool(tools_not_called))
 
@@ -491,11 +616,26 @@ class StateManager(ABC, Generic[ConfType]):
         out: Message | None = None,
         raise_on_missing_tool: bool = False,
     ) -> Tuple[List[ToolCalled], List[ToolNotCalled], bool]:
+        """
+        Facilitates calling registered tools with a given message.
+
+        Args:
+            message (Message): The message to process with tools.
+            extra (dict, optional): Additional parameters to pass to tools during processing.
+            out (Message, optional): An output message that may be modified by tools.
+            raise_on_missing_tool (bool): If True, raises an exception when a required tool is missing.
+
+        Returns:
+            Tuple[List[ToolCalled], List[ToolNotCalled], bool]: A tuple containing lists of tools that were called and not called, and a boolean indicating if the process should continue.
+
+        Usage:
+            This method is central for tool execution, handling the orchestration of tool calls in response to message events, applying additional parameters, and managing the continuation of processing based on tool outputs.
+        """
         tools_called, tools_not_called = self._call_tools(message=message, extra=extra or {}, out=out, raise_on_missing_tool=raise_on_missing_tool)
 
         complete = self._process_tools_called(message=message, tools_called=tools_called, tools_not_called=tools_not_called)
 
-        self.logger.debug(f"Finished running {len(tools_called)} tools.")
+        self.logger.debug(f"BL::StateManager::call::Finished running {len(tools_called)} tools.")
 
         return tools_called, tools_not_called, complete
 
@@ -507,20 +647,36 @@ class StateManager(ABC, Generic[ConfType]):
         tool_choice: type[BaseModel] | None = None,
         search_context: List[unique_sdk.Integrated.SearchResult] = [],
     ) -> Message:
+        """
+        Completes the processing of a message or a sequence within the current context by optionally involving tool interactions and language model outputs.
+
+        Args:
+            message (Message | None): The message to be processed or None to use the existing context.
+            out (Message | None): An optional message that may be updated with the completion results.
+            start_text (str): Initial text to set the context or prompt for language model generation.
+            tool_choice (type[BaseModel] | None): If specified, forces the use of a particular tool for this operation.
+            search_context (List[unique_sdk.Integrated.SearchResult]): Contextual data to assist in generating responses.
+
+        Returns:
+            Message: The message generated or modified as a result of the completion process.
+
+        Usage:
+            This method is critical for integrating various components of the system to generate a cohesive response or output based on the input message, context, and system capabilities.
+        """
         if isinstance(message, str):
             message = Message.USER(message, logger=self.logger.getChild(Message.__name__))
 
         if message:
-            self.logger.debug(f"Completing message {message.role if message else "None"}")
+            self.logger.debug(f"BL::StateManager::complete::Completing message {message.role if message else "None"}")
 
         if message and message not in self.ctx:
             ctx = self.ctx.append(message)
-            self.logger.debug(f"Appending message {message.role if message else "None"} to context.")
+            self.logger.debug(f"BL::StateManager::complete::Appending message {message.role if message else "None"} to context.")
         else:
-            self.logger.debug(f"Message {message.role if message else "None"} already in context.")
+            self.logger.debug(f"BL::StateManager::complete::Message {message.role if message else "None"} already in context.")
             ctx = self.ctx
 
-        self.logger.debug("Filtering context for empty assistant messages without content nor tools.")
+        self.logger.debug("BL::StateManager::complete::Filtering context for empty assistant messages without content nor tools.")
 
         ctx = ctx.filter(lambda x: x.role != Role.ASSISTANT or bool(x.content) or bool(x.tool_calls))
 
@@ -533,7 +689,7 @@ class StateManager(ABC, Generic[ConfType]):
             search_context=search_context,
         )
 
-        self.logger.debug(f"Appending completion to context: {completion.role if completion else "None"}")
+        self.logger.debug(f"BL::StateManager::complete::Appending completion to context: {completion.role if completion else "None"}")
 
         self.ctx.append(completion)
 
@@ -549,6 +705,24 @@ class StateManager(ABC, Generic[ConfType]):
         raise_on_max_iterations: bool = False,
         raise_on_missing_tool: bool = False,
     ) -> List[Tuple[Message, List[ToolCalled], List[ToolNotCalled]]]:
+        """
+        Executes a loop of message processing and tool interactions to handle complex scenarios that require iterative processing.
+
+        Args:
+            message (Message | None): The starting message for the loop or None to start with the current context.
+            out (Message | None): An optional message to collect outputs.
+            start_text (str): Initial text to prompt processing in each iteration.
+            tool_choice (type[BaseModel] | None): Specifies a particular tool to use throughout the iterations.
+            search_context (List[unique_sdk.Integrated.SearchResult]): Additional search context for the language model.
+            raise_on_max_iterations (bool): If True, raises an exception when the maximum number of iterations is reached.
+            raise_on_missing_tool (bool): If True, raises an exception when a required tool is missing.
+
+        Returns:
+            List[Tuple[Message, List[ToolCalled], List[ToolNotCalled]]]: A list of results from each iteration, including messages and tool interaction outcomes.
+
+        Usage:
+            This method is designed for scenarios where a single pass through the system's processing capabilities is insufficient, allowing for dynamic adjustments and re-evaluation of conditions in response to evolving contexts.
+        """
         complete = True
 
         loop_iteration = 0
@@ -556,7 +730,7 @@ class StateManager(ABC, Generic[ConfType]):
         completions: List[Tuple[Message, List[ToolCalled], List[ToolNotCalled]]] = []
 
         self.logger.debug(
-            f"""Starting completion loop with message {message.role if message else "None"}.
+            f"""BL::StateManager::loop::Starting completion loop with message {message.role if message else "None"}.
             Max {self.config.FUNCTION_CALL_MAX_ITERATIONS} iterations."""
         )
 
@@ -565,7 +739,7 @@ class StateManager(ABC, Generic[ConfType]):
 
             completion = self.complete(message, out=out, start_text=start_text, tool_choice=tool_choice, search_context=search_context)
 
-            self.logger.debug(f"Calling tools for completion {completion.role}.")
+            self.logger.debug(f"BL::StateManager::loop::Calling tools for completion {completion.role}.")
 
             tools_called, tools_not_called, complete = self.call(
                 message=completion,
@@ -579,28 +753,58 @@ class StateManager(ABC, Generic[ConfType]):
 
             completions.append((completion, tools_called, tools_not_called))
 
-            self.logger.debug(f"{len(tools_called)} Tools called for completion {completion.role}.")
+            self.logger.debug(f"BL::StateManager::loop::{len(tools_called)} Tools called for completion {completion.role}.")
 
             loop_iteration += 1
 
         if loop_iteration >= self.config.FUNCTION_CALL_MAX_ITERATIONS:
-            self.logger.warning(f"Max iterations reached. Stopping loop. Raise on max iterations: {raise_on_max_iterations}")
+            self.logger.warning(f"BL::StateManager::loop::Max iterations reached. Stopping loop. Raise on max iterations: {raise_on_max_iterations}")
             if raise_on_max_iterations:
-                raise ValueError("Max iterations reached.")
+                raise ValueError("BL::StateManager::loop::Max iterations reached.")
 
         return completions
 
     def stream(self, message: Message | None = None, out: Message | None = None, start_text: str = "") -> Message:
-        self.logger.debug(f"Starting stream with message {message.role if message else "None"}.")
+        """
+        Streams processing of messages, potentially in a real-time environment, handling one message at a time.
+
+        Args:
+            message (Message | None): The message to start streaming processing for.
+            out (Message | None): An output message that may be continuously updated.
+            start_text (str): Initial text to prime the language model or processing logic.
+
+        Returns:
+            Message: The updated message after processing the input or current context.
+
+        Usage:
+            Used in scenarios where messages need to be processed in a streaming or ongoing fashion, adapting to incoming data in real-time or near-real-time.
+        """
+        self.logger.debug(f"BL::StateManager::stream::Starting stream with message {message.role if message else "None"}.")
         return self.complete(message, out=out or self.last_ass_message, start_text=start_text)
 
     def clear(self) -> int:
-        self.logger.debug("Clearing all messages and context.")
+        """
+        Clears all messages and resets the context to an initial state.
+
+        Returns:
+            int: The number of messages cleared from the context.
+
+        Usage:
+            This method provides a way to reset the system, clearing all stored messages and contexts, typically used in situations requiring a fresh start or in response to specific system states.
+        """
+        self.logger.debug("BL::StateManager::clear::Clearing all messages and context.")
         self.ctx.clear()
         return self.messages.delete()
 
     def pre_module_hook(self) -> None:
+        """
+        Executed before running the module
+        """
         pass
 
     def post_module_hook(self) -> None:
+        """
+        Executed before running the module.
+        Will run even if the module raises and error.
+        """
         pass

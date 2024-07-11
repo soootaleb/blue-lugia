@@ -54,6 +54,7 @@ class Chunk(Model):
 
     @property
     def tokens(self) -> list[int]:
+        """The tokens of the chunk's content. Uses the tokenizer set for the chunk."""
         if not self._tokenizer:
             raise ValueError("No tokenizer set for the chunk")
         return self._tokenizer.encode(self.content)
@@ -64,6 +65,20 @@ class Chunk(Model):
 
     @property
     def xml(self) -> str:
+        """
+        An XML representation of the chunk.
+        Mainly used for RAG, you can pass it as a system message's content.
+
+        Structure is :
+
+        <source
+            id='{self.id}'
+            order='{self.order}'
+            start_page='{self.start_page}'
+            end_page='{self.end_page}'>
+            {self.content}
+        </source>
+        """
         return f"""<source
                     id='{self.id}'
                     order='{self.order}'
@@ -80,6 +95,8 @@ class Chunk(Model):
         return _content
 
     def using(self, model: str | tiktoken.Encoding | None) -> "Chunk":
+        """Define the tokenizer to use for the chunk."""
+
         if isinstance(model, str):
             self._tokenizer = tiktoken.encoding_for_model(model)
         elif model is not None:
@@ -90,6 +107,8 @@ class Chunk(Model):
         return self
 
     def truncate(self, tokens_limit: int) -> "Chunk":
+        """Truncates the content of the chunks to the given number of tokens. Also affects the content of the file."""
+
         if not self._tokenizer:
             raise ValueError("No tokenizer set for the chunk")
 
@@ -118,12 +137,29 @@ class ChunkList(List[Chunk], Model):
 
     @property
     def tokens(self) -> list[int]:
+        """
+        The tokens of all the chunks in the list.
+        """
+
         all_tokens = []
         for chunk in self:
             all_tokens += chunk.tokens
         return all_tokens
 
     def xml(self, offset: int = 0) -> str:
+        """
+        An XML representation of the chunk list.
+        Mainly used for RAG, you can pass it as a system message's content.
+
+        Structure is :
+
+        <sources>
+            <source{index} id='{chunk.id}' order='{chunk.order}' start_page='{chunk.start_page}' end_page='{chunk.end_page}'>
+                {chunk.content}
+            </source{index}>
+        </sources>
+        """
+
         xml = "<sources>"
 
         for index, chunk in enumerate(self):
@@ -139,18 +175,33 @@ class ChunkList(List[Chunk], Model):
         return xml + "</sources>"
 
     def first(self, lookup: Callable[[Chunk], bool] | None = None) -> Chunk | None:
+        """
+        Returns the first chunk in the list that matches the lookup function.
+        If no lookup function is provided, returns the first chunk in the list.
+        """
+
         if lookup:
             return next(filter(lookup, self), None)
         else:
             return self[0] if self else None
 
     def last(self, lookup: Callable[[Chunk], bool] | None = None) -> Chunk | None:
+        """
+        Returns the last chunk in the list that matches the lookup function.
+        If no lookup function is provided, returns the last chunk in the list.
+        """
+
         if lookup:
             return next(filter(lookup, reversed(self)), None)
         else:
             return self[-1] if self else None
 
     def sort(self, key: str | Callable[[Chunk], Any], reverse: bool = False, in_place: bool = False) -> "ChunkList":
+        """
+        Returns a new sorted ChunkList.
+        You can specify in_place, defaults to creating a new list.
+        """
+
         if isinstance(key, str):
             sort_key: Callable[[Chunk], Any] = lambda x: getattr(x, key)  # noqa: E731
         else:
@@ -166,6 +217,11 @@ class ChunkList(List[Chunk], Model):
             )
 
     def filter(self, f: Callable[[Chunk], bool], in_place: bool = False) -> "ChunkList":
+        """
+        Returns a new filtered ChunkList.
+        You can specify in_place, defaults to creating a new list.
+        """
+
         if in_place:
             self[:] = [chunk for chunk in self if f(chunk)]
             return self
@@ -173,6 +229,29 @@ class ChunkList(List[Chunk], Model):
             return ChunkList([chunk for chunk in self if f(chunk)], logger=self.logger)
 
     def truncate(self, tokens_limit: int, in_place: bool = False, files_map: dict[str, "File"] | None = None) -> "ChunkList":
+        """
+        Truncates the content of a ChunkList to a specified limit of tokens.
+
+        Args:
+            tokens_limit (int): The maximum number of tokens to retain in the ChunkList.
+            in_place (bool): If True, truncation is applied directly to this ChunkList, modifying it.
+                            If False, a new truncated ChunkList is created and returned.
+            files_map (dict[str, "File"] | None): A mapping from file identifiers to File objects,
+                                                which may be provided to manage the references to
+                                                unique files across truncated chunks. If None, an empty
+                                                dictionary is initialized.
+
+        Returns:
+            ChunkList: The truncated ChunkList. If 'in_place' is True, this is the same modified ChunkList,
+                    otherwise, it is a new ChunkList instance containing the truncated chunks.
+
+        This method adjusts the content of chunks in the ChunkList based on the 'tokens_limit' by
+        iterating through each chunk and reducing its size as necessary until the limit is reached.
+        If 'in_place' is False, it constructs a new ChunkList and selectively copies and truncates
+        chunks to this new list, respecting the token limit and using the 'files_map' to manage
+        file references if provided.
+        """
+
         remaining_tokens = tokens_limit
 
         if files_map is None:
@@ -227,6 +306,17 @@ class ChunkList(List[Chunk], Model):
             return chunks
 
     def as_files(self) -> "FileList":
+        """
+        Converts the collection of chunks into a FileList containing unique files.
+
+        Returns:
+            FileList: A list containing unique File objects referenced by the chunks in this collection.
+                    Each file is added to the list only once, regardless of how many chunks refer to it.
+
+        This method iterates over each chunk in the collection, checking if its associated file is already
+        included in the resultant FileList. If not, the file is appended to the list. This ensures that each
+        file is represented only once in the returned FileList, even if multiple chunks refer to the same file.
+        """
         files = FileList(logger=self.logger.getChild(FileList.__name__))
 
         for chunk in self:
@@ -236,6 +326,19 @@ class ChunkList(List[Chunk], Model):
         return files
 
     def as_context(self) -> List[unique_sdk.Integrated.SearchResult]:
+        """
+        Converts the collection of chunks into a list of search results based on their content and metadata.
+        The result is designed to be used as a search_context when using LLM.complete()
+
+        Returns:
+            List[unique_sdk.Integrated.SearchResult]: A list of SearchResult objects that represent each chunk.
+                                                    Each result contains the chunk's file ID, chunk ID,
+                                                    a key representing the file and page range, and a URL to access the chunk.
+
+        This method constructs a SearchResult for each chunk by forming a key from the file key and the range
+        of pages the chunk spans. This key is used along with other chunk information to populate the SearchResult.
+        The method ensures that each chunk's context is uniquely represented and accessible through a formatted URL.
+        """
         results = []
 
         for chunk in self:
@@ -255,6 +358,35 @@ class ChunkList(List[Chunk], Model):
 
 
 class File(Model):
+    """
+    A representation of a file in a digital system, managing content and metadata associated with
+    a specific file entity.
+
+    Attributes:
+        id (str): The unique identifier for the file.
+        key (str): A key associated with the file, typically used for indexing.
+        name (str): The name of the file.
+        chunks (ChunkList): A list of content chunks that compose the entire file.
+        mime_type (str): The MIME type of the file.
+        write_url (str): A URL for writing data directly to the file storage.
+        created_at (datetime.datetime): The creation timestamp of the file.
+        updated_at (datetime.datetime): The last updated timestamp of the file.
+
+    Methods:
+        __init__: Initializes a new instance of the File class with specified attributes.
+        content: Returns the combined content of all chunks in the file as a string.
+        data: Retrieves the file content from a specified URL and returns it as a BytesIO stream.
+        xml: Generates an XML string representation of the file and its chunks.
+        tokens: Encodes the file's content into tokens using a tokenizer.
+        using: Assigns a tokenizer model to the file.
+        truncate: Truncates the file's content to a specified token limit.
+        write: Writes new content to the file and updates its chunks.
+        as_message: Constructs a system message containing the file's content.
+        as_context: Converts the file into search results based on its chunks.
+        __str__: Returns the name of the file as its string representation.
+        __repr__: Returns the name of the file as its official string representation.
+    """
+
     id: str
     key: str
     name: str
@@ -294,10 +426,22 @@ class File(Model):
 
     @property
     def content(self) -> str:
+        """
+        Returns the combined content of all chunks in the file as a string.
+
+        Returns:
+            str: A single string consisting of concatenated contents of all chunks.
+        """
         return "".join([chunk.content for chunk in self.chunks])
 
     @property
     def data(self) -> BytesIO:
+        """
+        Retrieves the file content from a specified URL and returns it as a BytesIO stream.
+
+        Returns:
+            BytesIO: A stream of file content obtained from a remote URL.
+        """
         response = requests.get(
             f"{unique_sdk.api_base}/content/{self.id}/file?chatId={self._event.payload.chat_id}",
             headers={
@@ -312,6 +456,15 @@ class File(Model):
         return BytesIO(response.content)
 
     def xml(self, chunks_offset: int = 0) -> str:
+        """
+        Generates an XML string representation of the file and its chunks.
+
+        Args:
+            chunks_offset (int): The starting offset for chunk enumeration in the XML, default is 0.
+
+        Returns:
+            str: An XML representation of the file and its content chunks.
+        """
         xml = f"<document name='{self.name}' id='{self.id}'>"
         xml += self.chunks.xml(chunks_offset)
         xml += "</document>"
@@ -319,17 +472,53 @@ class File(Model):
 
     @property
     def tokens(self) -> list[int]:
+        """
+        Encodes the file's content into tokens using a tokenizer.
+
+        Returns:
+            list[int]: A list of token ids representing the file content.
+
+        Raises:
+            ValueError: If no tokenizer is set for the file.
+        """
         if not self._tokenizer:
             raise ValueError("No tokenizer set for the file")
         return self._tokenizer.encode(self.content)
 
     def __lt__(self, other: "File") -> bool:
+        """
+        Less than comparison based on the creation date of the files.
+
+        Args:
+            other (File): Another file to compare against.
+
+        Returns:
+            bool: True if this file was created earlier than the other file, False otherwise.
+        """
         return self.created_at < other.created_at
 
     def __eq__(self, other: "File") -> bool:
+        """
+        Equality comparison based on the file's unique identifier.
+
+        Args:
+            other (File): Another file to compare against.
+
+        Returns:
+            bool: True if both files have the same id, False otherwise.
+        """
         return self.id == other.id
 
     def using(self, model: str | tiktoken.Encoding) -> "File":
+        """
+        Assigns a tokenizer model to the file.
+
+        Args:
+            model (str | tiktoken.Encoding): A string representing the model name or an instance of tiktoken.Encoding to be used for tokenization.
+
+        Returns:
+            File: The current instance of File, with the tokenizer set or updated.
+        """
         if isinstance(model, str):
             self._tokenizer = tiktoken.encoding_for_model(model)
         else:
@@ -337,6 +526,18 @@ class File(Model):
         return self
 
     def truncate(self, tokens_limit: int, in_place: bool = False) -> "File":
+        """
+        Truncates the file's content to a specified token limit.
+
+        Args:
+            tokens_limit (int): The maximum number of tokens to retain.
+            in_place (bool): If True, truncation is applied directly to this file's chunks, modifying it.
+                             If False, a new truncated File instance is created and returned.
+
+        Returns:
+            File: The truncated file. If 'in_place' is True, this is the same modified File instance,
+                  otherwise, it is a new File instance containing the truncated chunks.
+        """
         if in_place:
             self.chunks.truncate(tokens_limit, in_place=True)
             return self
@@ -359,6 +560,16 @@ class File(Model):
             return file
 
     def write(self, content: str, scope: str) -> "File":
+        """
+        Writes new content to the file and updates its chunks.
+
+        Args:
+            content (str): The new content to write to the file.
+            scope (str): The scope identifier under which the content update is logged or managed.
+
+        Returns:
+            File: The current instance of File, with updated content and metadata.
+        """
         existing = unique_sdk.Content.upsert(
             user_id=self._event.user_id,
             company_id=self._event.company_id,
@@ -415,6 +626,15 @@ class File(Model):
         return self
 
     def as_message(self, role: Role = Role.SYSTEM) -> Message:
+        """
+        Constructs a system message containing the file's content.
+
+        Args:
+            role (Role): The role of the message within the system, typically indicates the message's origin or purpose.
+
+        Returns:
+            Message: A message object containing the content of the file.
+        """
         return Message(
             role=role,
             content=self.content,
@@ -422,6 +642,13 @@ class File(Model):
         )
 
     def as_context(self) -> List[unique_sdk.Integrated.SearchResult]:
+        """
+        Converts the file into search results based on its chunks.
+        Designed to be passed as a search_context in LLM.complete()
+
+        Returns:
+            List[unique_sdk.Integrated.SearchResult]: A list of search results, each representing a chunk of the file.
+        """
         return self.chunks.as_context()
 
     def __str__(self) -> str:
@@ -432,6 +659,29 @@ class File(Model):
 
 
 class FileList(List[File], Model):
+    """
+    A list structure that holds a collection of File objects, extending both Python's list and a custom Model base class.
+
+    Attributes:
+        _tokenizer (str | tiktoken.Encoding | None): The tokenizer to use for encoding the content of files in the list.
+
+    Methods:
+        __init__: Initializes a new instance of the FileList class with an optional list of File objects and a tokenizer.
+        tokenizer: Retrieves the current tokenizer set for the file list.
+        tokens: Aggregates and returns a list of all tokens from the files in the list.
+        xml: Generates an XML representation of the files in the list.
+        using: Assigns a tokenizer to the file list.
+        order_by: Sorts the files in the list based on a specified key or function, optionally in place.
+        sort: Sorts the files in the list based on a specified key or function, optionally in place.
+        first: Returns the first file in the list that matches a specified lookup function, or the first file if no function is provided.
+        last: Returns the last file in the list that matches a specified lookup function, or the last file if no function is provided.
+        append: Appends a File object to the list.
+        extend: Extends the list by appending elements from another iterable of File objects.
+        as_messages: Converts the list of files into a list of messages.
+        truncate: Truncates the content of all files in the list to a specified token limit, optionally in place.
+        as_context: Converts the list of files into a list of search results based on their content and metadata.
+    """
+
     _tokenizer: str | tiktoken.Encoding | None
 
     def __init__(
@@ -440,12 +690,29 @@ class FileList(List[File], Model):
         tokenizer: str | tiktoken.Encoding | None = None,
         **kwargs,
     ) -> None:
+        """
+        Initializes a new instance of the FileList class with an optional list of File objects and a tokenizer.
+
+        Args:
+            iterable (Iterable[File]): An optional iterable of File objects to initialize the list, default is an empty list.
+            tokenizer (str | tiktoken.Encoding | None): An optional tokenizer for encoding the content of the files in the list, default is None.
+            **kwargs: Additional keyword arguments inherited from the base class.
+        """
         list.__init__(self, iterable)
         Model.__init__(self, **kwargs)
         self._tokenizer = tokenizer
 
     @property
     def tokenizer(self) -> tiktoken.Encoding:
+        """
+        Retrieves the current tokenizer set for the file list. If the tokenizer is specified as a string, it is converted to a tiktoken.Encoding object.
+
+        Returns:
+            tiktoken.Encoding: The tokenizer used for encoding the content of the files in the list.
+
+        Raises:
+            ValueError: If no tokenizer is set for the file list.
+        """
         if not self._tokenizer:
             raise ValueError("No tokenizer set for the file list")
 
@@ -456,12 +723,27 @@ class FileList(List[File], Model):
 
     @property
     def tokens(self) -> list[int]:
+        """
+        Aggregates and returns a list of all tokens from the files in the list, encoded using the set tokenizer.
+
+        Returns:
+            list[int]: A list of token ids representing the aggregated content of all files in the list.
+        """
         all_tokens = []
         for file in self:
             all_tokens += file.tokens
         return all_tokens
 
     def xml(self, offset: int = 0) -> str:
+        """
+        Generates an XML representation of the files in the list. Each file is represented as a separate document within the XML structure.
+
+        Args:
+            offset (int): The starting index from which to include files in the XML representation, default is 0.
+
+        Returns:
+            str: An XML string representing the files in the list from the specified offset onwards.
+        """
         xml = "<documents>"
         chunks_offset = 0
 
@@ -479,13 +761,46 @@ class FileList(List[File], Model):
         return xml + "</documents>"
 
     def using(self, tokenizer: str | tiktoken.Encoding) -> "FileList":
+        """
+        Assigns a tokenizer to the file list. If a string is provided, it is converted to a tiktoken.Encoding object.
+
+        Args:
+            tokenizer (str | tiktoken.Encoding): A string representing the model name or an instance of tiktoken.Encoding to be used for tokenization.
+
+        Returns:
+            FileList: The current instance of FileList, with the tokenizer set or updated.
+        """
         self._tokenizer = tokenizer
         return self
 
     def order_by(self, key: str | Callable[[File], Any] | None = None, reverse: bool = False, in_place: bool = False) -> "FileList":
+        """
+        Sorts the files in the list based on a specified key or function. The sorting can be done in place.
+
+        Args:
+            key (str | Callable[[File], Any] | None): A key or function used for sorting the files. If a string is provided, it refers to an attribute of the File objects. If None, files are sorted by their natural order.
+            reverse (bool): If True, the files are sorted in descending order. If False, in ascending order.
+            in_place (bool): If True, the sorting is performed on the current FileList instance. If False, a new sorted FileList instance is returned.
+
+        Returns:
+            FileList: The sorted list of files. If 'in_place' is True, this is the same modified FileList instance,
+                      otherwise, it is a new FileList instance containing the sorted files.
+        """
         return self.sort(key=key, reverse=reverse, in_place=in_place)
 
     def sort(self, key: str | Callable[[File], Any] | None, reverse: bool = False, in_place: bool = False) -> "FileList":
+        """
+        Sorts the files in the list based on a specified key or function. The sorting can be done in place.
+
+        Args:
+            key (str | Callable[[File], Any] | None): A key or function used for sorting the files. If a string is provided, it refers to an attribute of the File objects. If None, files are sorted by their natural order.
+            reverse (bool): If True, the files are sorted in descending order. If False, in ascending order.
+            in_place (bool): If True, the sorting is performed on the current FileList instance. If False, a new sorted FileList instance is returned.
+
+        Returns:
+            FileList: The sorted list of files. If 'in_place' is True, this is the same modified FileList instance,
+                      otherwise, it is a new FileList instance containing the sorted files.
+        """
         if isinstance(key, str):
             sort_key: Callable[[File], Any] = lambda x: getattr(x, key)  # noqa: E731
         elif key is None:
@@ -504,26 +819,72 @@ class FileList(List[File], Model):
             )
 
     def first(self, lookup: Callable[[File], bool] | None = None) -> File | None:
+        """
+        Returns the first file in the list that matches a specified lookup function. If no function is provided, returns the first file.
+
+        Args:
+            lookup (Callable[[File], bool] | None): An optional lookup function that specifies criteria to find the file.
+
+        Returns:
+            File | None: The first file that matches the criteria specified by the lookup function. If no function is provided, the first file in the list. If no file matches or the list is empty, None is returned.
+        """
         if lookup:
             return next(filter(lookup, self), None)
         else:
             return self[0] if self else None
 
     def last(self, lookup: Callable[[File], bool] | None = None) -> File | None:
+        """
+        Returns the last file in the list that matches a specified lookup function. If no function is provided, returns the last file.
+
+        Args:
+            lookup (Callable[[File], bool] | None): An optional lookup function that specifies criteria to find the file.
+
+        Returns:
+            File | None: The last file that matches the criteria specified by the lookup function. If no function is provided, the last file in the list. If no file matches or the list is empty, None is returned.
+        """
         if lookup:
             return next(filter(lookup, reversed(self)), None)
         else:
             return self[-1] if self else None
 
     def append(self, object: File) -> "FileList":
+        """
+        Appends a File object to the list.
+
+        Args:
+            object (File): The File object to append to the list.
+
+        Returns:
+            FileList: The current instance of FileList, with the File object appended.
+        """
         super().append(object)
         return self
 
     def extend(self, iterable: Iterable[File]) -> "FileList":
+        """
+        Extends the list by appending elements from another iterable of File objects.
+
+        Args:
+            iterable (Iterable[File]): An iterable of File objects to append to the list.
+
+        Returns:
+            FileList: The current instance of FileList, extended by the elements from the provided iterable.
+        """
         super().extend(iterable)
         return self
 
     def as_messages(self, role: Role = Role.SYSTEM, tokenizer: str | tiktoken.Encoding | None = None) -> MessageList:
+        """
+        Converts the list of files into a list of messages, each representing the content of a file.
+
+        Args:
+            role (Role): The role of the messages within the system, typically indicates the message's origin or purpose.
+            tokenizer (str | tiktoken.Encoding | None): An optional tokenizer for encoding the content of the files into messages, default is the tokenizer set for the file list.
+
+        Returns:
+            MessageList: A list of messages, each containing the content of a file.
+        """
         return MessageList(
             [file.as_message(role) for file in self],
             tokenizer=tokenizer or self._tokenizer,
@@ -531,6 +892,18 @@ class FileList(List[File], Model):
         )
 
     def truncate(self, tokens_limit: int, in_place: bool = False) -> "FileList":
+        """
+        Truncates the content of all files in the list to a specified token limit, optionally in place.
+
+        Args:
+            tokens_limit (int): The maximum number of tokens to retain across all files.
+            in_place (bool): If True, truncation is applied directly to each file in the list, modifying them.
+                             If False, a new truncated FileList instance is created with each file truncated.
+
+        Returns:
+            FileList: The truncated list of files. If 'in_place' is True, this is the same modified FileList instance,
+                      otherwise, it is a new FileList instance containing the truncated files.
+        """
         file_token_limit = tokens_limit // len(self)
 
         if in_place:
@@ -541,6 +914,12 @@ class FileList(List[File], Model):
             return FileList([file.truncate(file_token_limit) for file in self], logger=self.logger.getChild(FileList.__name__))
 
     def as_context(self) -> List[unique_sdk.Integrated.SearchResult]:
+        """
+        Converts the list of files into a list of search results based on their content and metadata.
+
+        Returns:
+            List[unique_sdk.Integrated.SearchResult]: A list of search results, each representing a file in the list.
+        """
         results = []
 
         for file in self:
