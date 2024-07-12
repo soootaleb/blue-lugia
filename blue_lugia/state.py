@@ -224,7 +224,8 @@ class StateManager(ABC, Generic[ConfType]):
             StateManager[ConfType]: The current instance of StateManager with the updated language model manager.
 
         Usage:
-            This method allows for dynamic switching or updating of the language model manager within the StateManager, facilitating flexibility in response to changes or different processing needs.
+            This method allows for dynamic switching or updating of the language model manager within the StateManager,
+            facilitating flexibility in response to changes or different processing needs.
         """
         self.logger.debug(f"BL::StateManager::using::Using LLM {llm}")
         self._llm = llm
@@ -268,7 +269,8 @@ class StateManager(ABC, Generic[ConfType]):
             ValueError: If both append and prepend are True, which is logically conflicting.
 
         Usage:
-            This method manages the message context which is crucial for maintaining the state across interactions within the system. It allows for dynamically changing the context in which subsequent operations are evaluated.
+            This method manages the message context which is crucial for maintaining the state across interactions within the system.
+            It allows for dynamically changing the context in which subsequent operations are evaluated.
         """
         if isinstance(messages, File):
             _ctx = MessageList(
@@ -338,7 +340,8 @@ class StateManager(ABC, Generic[ConfType]):
             ValueError: If both append and prepend are True, which is logically conflicting.
 
         Usage:
-            This method manages the message context which is crucial for maintaining the state across interactions within the system. It allows for dynamically changing the context in which subsequent operations are evaluated.
+            This method manages the message context which is crucial for maintaining the state across interactions within the system.
+            It allows for dynamically changing the context in which subsequent operations are evaluated.
         """
         return self.context(messages=messages, append=append, prepend=prepend)
 
@@ -626,10 +629,12 @@ class StateManager(ABC, Generic[ConfType]):
             raise_on_missing_tool (bool): If True, raises an exception when a required tool is missing.
 
         Returns:
-            Tuple[List[ToolCalled], List[ToolNotCalled], bool]: A tuple containing lists of tools that were called and not called, and a boolean indicating if the process should continue.
+            Tuple[List[ToolCalled], List[ToolNotCalled], bool]: A tuple containing lists of tools that were called and not called,
+            and a boolean indicating if the process should continue.
 
         Usage:
-            This method is central for tool execution, handling the orchestration of tool calls in response to message events, applying additional parameters, and managing the continuation of processing based on tool outputs.
+            This method is central for tool execution, handling the orchestration of tool calls in response to message events, applying additional parameters,
+            and managing the continuation of processing based on tool outputs.
         """
         tools_called, tools_not_called = self._call_tools(message=message, extra=extra or {}, out=out, raise_on_missing_tool=raise_on_missing_tool)
 
@@ -661,7 +666,8 @@ class StateManager(ABC, Generic[ConfType]):
             Message: The message generated or modified as a result of the completion process.
 
         Usage:
-            This method is critical for integrating various components of the system to generate a cohesive response or output based on the input message, context, and system capabilities.
+            This method is critical for integrating various components of the system to generate a cohesive response or output based on the input message,
+            context, and system capabilities.
         """
         if isinstance(message, str):
             message = Message.USER(message, logger=self.logger.getChild(Message.__name__))
@@ -721,7 +727,8 @@ class StateManager(ABC, Generic[ConfType]):
             List[Tuple[Message, List[ToolCalled], List[ToolNotCalled]]]: A list of results from each iteration, including messages and tool interaction outcomes.
 
         Usage:
-            This method is designed for scenarios where a single pass through the system's processing capabilities is insufficient, allowing for dynamic adjustments and re-evaluation of conditions in response to evolving contexts.
+            This method is designed for scenarios where a single pass through the system's processing capabilities is insufficient, allowing for dynamic adjustments
+            and re-evaluation of conditions in response to evolving contexts.
         """
         complete = True
 
@@ -790,7 +797,8 @@ class StateManager(ABC, Generic[ConfType]):
             int: The number of messages cleared from the context.
 
         Usage:
-            This method provides a way to reset the system, clearing all stored messages and contexts, typically used in situations requiring a fresh start or in response to specific system states.
+            This method provides a way to reset the system, clearing all stored messages and contexts, typically used in situations requiring a fresh start or
+            in response to specific system states.
         """
         self.logger.debug("BL::StateManager::clear::Clearing all messages and context.")
         self.ctx.clear()

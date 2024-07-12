@@ -166,8 +166,8 @@ class LanguageModelManager(Manager):
         llm._model = model
         return llm
 
-    def fork(self, **kwargs) -> "LanguageModelManager":
-        llm = LanguageModelManager(event=self._event, model=self._model, **kwargs)
+    def fork(self) -> "LanguageModelManager":
+        llm = LanguageModelManager(event=self._event, model=self._model, temperature=self._temperature, timeout=self._timeout, logger=self.logger)
         llm._use_open_ai = self._use_open_ai
         llm._open_ai_api_key = self._open_ai_api_key
         return llm
@@ -307,7 +307,8 @@ class LanguageModelManager(Manager):
         """
         Completes a communication or operation sequence by processing input messages and optionally using tools to generate or refine responses.
 
-        This method orchestrates various components like message processing, tool interactions, and external API calls to generate a completed message based on input parameters and internal configurations.
+        This method orchestrates various components like message processing, tool interactions, and external API calls to generate a completed message based on input parameters
+        and internal configurations.
 
         Args:
             messages (List[Message] | List[dict[str, Any]]): The list of messages or structured message data to process.
@@ -329,7 +330,10 @@ class LanguageModelManager(Manager):
             MessageRemoteError: For operations requiring a remote but none is available.
 
         Detailed explanation:
-            The method handles a complex flow of data transformations and API interactions, starting from raw or semi-structured message inputs, applying tools as specified, and culminating in a synthesized output that may be a new message or an update to an existing one. It intelligently handles token limits, tool applications, and external integrations (e.g., OpenAI or unique_sdk integrations) based on the provided configurations and runtime conditions.
+            The method handles a complex flow of data transformations and API interactions, starting from raw or semi-structured message inputs, applying tools as specified,
+            and culminating in a synthesized output that may be a new message or an update to an existing one.
+            It intelligently handles token limits, tool applications, and external integrations (e.g., OpenAI or unique_sdk integrations) based on
+            the provided configurations and runtime conditions.
         """
         if debug_info is None:
             debug_info = {}

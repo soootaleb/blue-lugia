@@ -778,7 +778,8 @@ class FileList(List[File], Model):
         Sorts the files in the list based on a specified key or function. The sorting can be done in place.
 
         Args:
-            key (str | Callable[[File], Any] | None): A key or function used for sorting the files. If a string is provided, it refers to an attribute of the File objects. If None, files are sorted by their natural order.
+            key (str | Callable[[File], Any] | None): A key or function used for sorting the files.
+            If a string is provided, it refers to an attribute of the File objects. If None, files are sorted by their natural order.
             reverse (bool): If True, the files are sorted in descending order. If False, in ascending order.
             in_place (bool): If True, the sorting is performed on the current FileList instance. If False, a new sorted FileList instance is returned.
 
@@ -793,7 +794,8 @@ class FileList(List[File], Model):
         Sorts the files in the list based on a specified key or function. The sorting can be done in place.
 
         Args:
-            key (str | Callable[[File], Any] | None): A key or function used for sorting the files. If a string is provided, it refers to an attribute of the File objects. If None, files are sorted by their natural order.
+            key (str | Callable[[File], Any] | None): A key or function used for sorting the files.
+            If a string is provided, it refers to an attribute of the File objects. If None, files are sorted by their natural order.
             reverse (bool): If True, the files are sorted in descending order. If False, in ascending order.
             in_place (bool): If True, the sorting is performed on the current FileList instance. If False, a new sorted FileList instance is returned.
 
@@ -826,7 +828,8 @@ class FileList(List[File], Model):
             lookup (Callable[[File], bool] | None): An optional lookup function that specifies criteria to find the file.
 
         Returns:
-            File | None: The first file that matches the criteria specified by the lookup function. If no function is provided, the first file in the list. If no file matches or the list is empty, None is returned.
+            File | None: The first file that matches the criteria specified by the lookup function. If no function is provided, the first file in the list.
+            If no file matches or the list is empty, None is returned.
         """
         if lookup:
             return next(filter(lookup, self), None)
@@ -841,7 +844,8 @@ class FileList(List[File], Model):
             lookup (Callable[[File], bool] | None): An optional lookup function that specifies criteria to find the file.
 
         Returns:
-            File | None: The last file that matches the criteria specified by the lookup function. If no function is provided, the last file in the list. If no file matches or the list is empty, None is returned.
+            File | None: The last file that matches the criteria specified by the lookup function. If no function is provided, the last file in the list.
+            If no file matches or the list is empty, None is returned.
         """
         if lookup:
             return next(filter(lookup, reversed(self)), None)

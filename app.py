@@ -98,13 +98,13 @@ def module(state: StateManager[ModuleConfig]) -> None:
     history = MessageList([Message.SYSTEM("You are a helpful assistant"), Message.USER("Who are you ?")])
 
     # With their methods
-    user_messages: MessageList = history.filter(lambda x: x.role == Role.USER)
-    first_message: Message | None = history.first()
-    first_system_message: Message | None = history.first(lambda x: x.role == Role.SYSTEM)
-    truncated_messages: MessageList = history.keep(1000)
+    user_messages: MessageList = history.filter(lambda x: x.role == Role.USER)  # noqa: F841
+    first_message: Message | None = history.first()  # noqa: F841
+    first_system_message: Message | None = history.first(lambda x: x.role == Role.SYSTEM)  # noqa: F841
+    truncated_messages: MessageList = history.keep(1000)  # noqa: F841
 
     # And their properties
-    messages_tokens = history.tokens
+    messages_tokens = history.tokens  # noqa: F841
 
     # ===================== MANAGERS ========================
 
@@ -114,12 +114,12 @@ def module(state: StateManager[ModuleConfig]) -> None:
     llm = state.llm
 
     # They expose methods to retrieve, create, update, delete the models
-    messages_in_chat: MessageList = messages.all()
+    messages_in_chat: MessageList = messages.all()  # noqa: F841
 
     # The managers return models or list of models
-    user_messages_in_chat: MessageList = messages.filter(lambda x: x.role == Role.USER).all()
-    last_user_message: Message | None = messages.last(lambda x: x.role == Role.USER)  # equivalent to state.last_usr_message
-    last_assistant_message: Message | None = messages.last(lambda x: x.role == Role.ASSISTANT)  # equivalent to state.last_ass_message
+    user_messages_in_chat: MessageList = messages.filter(lambda x: x.role == Role.USER).all()  # noqa: F841
+    last_user_message: Message | None = messages.last(lambda x: x.role == Role.USER)  # equivalent to state.last_usr_message  # noqa: F841
+    last_assistant_message: Message | None = messages.last(lambda x: x.role == Role.ASSISTANT)  # equivalent to state.last_ass_message  # noqa: F841
 
     # Note that managers have "configuration methods" and "execution methods"
     # For example, Manager.filter() does not execute a query, but instead returns a new manager with filters ready to be applied
@@ -127,8 +127,8 @@ def module(state: StateManager[ModuleConfig]) -> None:
 
     # The files manager encapsulates both Search & Content APIs
     # Search returns a ChunkList while Content returns a FileList
-    searching_chunks: ChunkList = files.search("What's directive 51 ?")
-    retrieving_files: FileList = files.fetch()
+    searching_chunks: ChunkList = files.search("What's directive 51 ?")  # noqa: F841
+    retrieving_files: FileList = files.fetch()  # noqa: F841
 
     # Objects returned by a manager are generally compatible with methods of other managers
     completion: Message = llm.complete([Message.USER("Tell me a joke")])
