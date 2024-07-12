@@ -86,6 +86,9 @@ class LanguageModelManager(Manager):
         self._use_open_ai = False
         self._model = model
         self._timeout = timeout
+        self._use_open_ai = False
+        self._open_ai_api_key = ""
+        self._parser = Parser(self)
 
     @property
     def tokenizer(self) -> tiktoken.Encoding:
