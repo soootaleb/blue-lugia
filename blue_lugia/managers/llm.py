@@ -156,14 +156,21 @@ class LanguageModelManager(Manager):
         return Parser(self)
 
     def oai(self, key: str) -> "LanguageModelManager":
-        manager = LanguageModelManager(event=self._event, model=self._model)
-        manager._use_open_ai = True
-        manager._open_ai_api_key = key
-        return manager
+        llm = self.fork()
+        llm._use_open_ai = True
+        llm._open_ai_api_key = key
+        return llm
 
     def using(self, model: str) -> "LanguageModelManager":
-        self._model = model
-        return self
+        llm = self.fork()
+        llm._model = model
+        return llm
+
+    def fork(self, **kwargs) -> "LanguageModelManager":
+        llm = LanguageModelManager(event=self._event, model=self._model, **kwargs)
+        llm._use_open_ai = self._use_open_ai
+        llm._open_ai_api_key = self._open_ai_api_key
+        return llm
 
     def _to_dict_messages(self, messages: List[Message] | List[dict], oai: bool = False) -> List[dict]:
         formated_messages = []
