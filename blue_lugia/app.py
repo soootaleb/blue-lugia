@@ -330,6 +330,68 @@ class App(Flask, Generic[ConfType]):
             except Exception as e:
                 self.logger.error(f"BL::State::listen::Error processing event: {e.__class__.__name__}", exc_info=False)
 
+    def run(
+            self,
+            chat_id: str,
+            assistant_id: str,
+            conf: dict | None = None,
+            description: str = "Mock event",
+            event_id: str = "evt_xyz",
+            version: str = "1.0.0",
+            event_type: str ="unique.chat.external-module.chosen",
+            user_message: str = "User message",
+            user_id: str | None = None,
+            user_message_id: str = "msg_xyz",
+            assistant_message_id: str = "msg_123",
+            company_id: str | None = None,
+            event_created_at: Callable[[], datetime.datetime] = datetime.datetime.now,
+            user_message_created_at: Callable[[], datetime.datetime] = datetime.datetime.now,
+            assistant_message_created_at: Callable[[], datetime.datetime] = datetime.datetime.now,
+        ) -> None:
+        """
+        Execute the webhook using the provided user id and chat id.
+
+        You can define the event configuration. Specify a custom configuration to define default values.
+        - envars starting with MOD_CONF_ will be set as the configuration. (MOD_CONF_X will be accessible with state.conf.X)
+        - you can also pass a dictionary with the configuration, which will override the envars
+        """
+
+        config = {}
+
+        # take all evars starting with MOD_CONF_ and add them to the configuration
+        for key, value in os.environ.items():
+            if key.startswith("MOD_CONF_"):
+                config[key[9:]] = value
+
+        config.update(conf or {})
+
+        event = ExternalModuleChosenEvent(
+            id=event_id,
+            version=version,
+            event=event_type,
+            created_at=event_created_at(),
+            user_id=user_id or self._conf.USER_ID,
+            company_id=company_id or self._conf.COMPANY_ID,
+            payload=Payload(
+                name=self.name,
+                description=description,
+                configuration=config,
+                chat_id=chat_id,
+                assistant_id=assistant_id,
+                user_message=UserMessage(
+                    id=user_message_id,
+                    text=user_message,
+                    created_at=user_message_created_at(),
+                ),
+                assistant_message=AssistantMessage(
+                    id=assistant_message_id,
+                    created_at=assistant_message_created_at(),
+                ),
+            ),
+        )
+
+        return self._run_module(event)
+
     def _type_event(self, event: dict[str, Any]) -> ExternalModuleChosenEvent:
         target_timezone = datetime.timezone(datetime.timedelta(hours=2))
 

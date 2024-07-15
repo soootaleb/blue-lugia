@@ -183,29 +183,4 @@ app = App("Petal").configured(CustomConfig).register("hello", hello).handle(Comm
 # You can arbitrarily execute your module by mocking an event
 # Keep in mind that the app._conf which is a ModuleConfig, will be set with your environment variables.
 # Your .env should be set according to the APIs your want to use (local, next, neo, etc)
-app._run_module(
-    ExternalModuleChosenEvent(
-        id="evt_iva44sshtaa9vsd29zkeg0ry",
-        version="1.0.0",
-        event="unique.chat.external-module.chosen",
-        created_at=datetime.datetime.now(),
-        user_id=app._conf.USER_ID,
-        company_id=app._conf.COMPANY_ID,
-        payload=Payload(
-            name="Petal",
-            description="Mock module",
-            configuration={"ALLOW_COMMANDS": True},
-            chat_id="chat_tc04wpvc5ovcgbjr7bjlb59d",
-            assistant_id="assistant_ty2y4wden5h42amac1s9jxzx",
-            user_message=UserMessage(
-                id="msg_t7mb1y3j1pathvwycs3bdma0",
-                text="User message",
-                created_at=datetime.datetime.now(),
-            ),
-            assistant_message=AssistantMessage(
-                id="msg_ee42vqkf3lp9za25io1qudx7",
-                created_at=datetime.datetime.now(),
-            ),
-        ),
-    )
-)
+# app.run(chat_id="chat_bp99pjgm4ngvq5v6qkco5a0g", assistant_id="assistant_y4j9d9h0yoa2f084qp9jknxi")
