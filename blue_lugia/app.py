@@ -1,5 +1,6 @@
 import concurrent.futures
 import datetime
+import inspect
 import json
 import os
 import traceback
@@ -8,6 +9,7 @@ from logging.config import dictConfig
 from typing import Any, Callable, Generic, List, Tuple, Type, cast
 from urllib.parse import urlparse
 
+import toml
 import unique_sdk
 from flask import Flask, Response, jsonify, request
 from sseclient import SSEClient
@@ -112,6 +114,7 @@ class App(Flask, Generic[ConfType]):
         self.configured(cast(Type[ConfType], ModuleConfig))
 
         self.route("/")(self._hello)
+        self.route("/version")(self._version)
         self.route("/webhook", methods=["POST"])(self._webhook)  # type: ignore
 
     @property
@@ -127,6 +130,31 @@ class App(Flask, Generic[ConfType]):
                 "x-company-id": self._conf.COMPANY_ID,
             },
         )
+
+    @property
+    def version(self) -> dict[str, Any]:
+        version = {}
+
+        if self._module:
+            module: Callable = self._module
+            module_file_path = inspect.getfile(module)
+            parent = os.path.dirname(module_file_path)
+
+            if not os.path.exists(os.path.join(parent, "pyproject.toml")):
+                parent = os.path.dirname(parent)
+
+            pyproject = os.path.join(parent, "pyproject.toml")
+
+            try:
+                with open(pyproject) as file:
+                    version = toml.load(file)
+            except FileNotFoundError:
+                self.logger.debug(f"BL:App::version::Could not find pyproject.toml in {parent}")
+                pass
+        else:
+            version["error"] = "Module not set"
+
+        return version
 
     def configure_logging(self) -> None:
         dictConfig(
@@ -456,6 +484,9 @@ class App(Flask, Generic[ConfType]):
 
     def _hello(self) -> Tuple[str, int]:
         return f"Hello from the {self.name} tool! 🚀", 200
+
+    def _version(self) -> Tuple[dict, int]:
+        return self.version, 200
 
     def _webhook(self) -> Tuple[str, int] | Tuple[Response, int] | None:
         event = None
