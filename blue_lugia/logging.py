@@ -1,26 +1,33 @@
 import logging
 
+from colorama import Fore, Style, init
 
-class DefaultFormatter(logging.Formatter):
+# Initialize colorama
+init(autoreset=True)
+
+
+class ColorFormatter(logging.Formatter):
+    """Custom formatter to add colors to log level names only."""
+
+    COLORS = {
+        logging.DEBUG: Fore.BLACK + Style.BRIGHT,
+        logging.INFO: Fore.BLUE + Style.BRIGHT,
+        logging.WARNING: Fore.YELLOW + Style.BRIGHT,
+        logging.ERROR: Fore.RED + Style.BRIGHT,
+        logging.CRITICAL: Fore.MAGENTA + Style.BRIGHT,
+    }
+
+    # Define a format that will color only the level name
     def format(self, record: logging.LogRecord) -> str:
-        log_msg = super().format(record)
-        # Split the log message into parts
-        parts = log_msg.split(" - ")
-        timestamp = parts[0]
-        name_parts = parts[1].split(".")
-        level = parts[2]
-        message = parts[3]
+        # Preserve the original formatting for the rest of the log message
+        original_format = self._fmt
+        # Apply color to levelname only
+        log_fmt = f"%(asctime)s - %(name)s - {self.COLORS.get(record.levelno, '')}%(levelname)s{Style.RESET_ALL} - %(message)s"
 
-        # Format the logger's name with proper indentation
-        formatted_name = f"{name_parts[0]}"
-        for part in name_parts[1:]:
-            formatted_name += f"\n    {part}"
+        # Create a new formatter with the customized format
+        formatter = logging.Formatter(log_fmt, "%Y-%m-%d %H:%M:%S")
+        # Reset format to avoid altering global state
+        self._fmt = original_format
 
-        # Combine the parts with the desired formatting
-        formatted_message = f"{timestamp} - {formatted_name} - {level:<7} - {message}"
-        return formatted_message
-
-
-class ExplainFormatter(logging.Formatter):
-    def format(self, record: logging.LogRecord) -> str:
-        return super().format(record)
+        # Return the formatted record
+        return formatter.format(record)

@@ -165,13 +165,18 @@ class App(Flask, Generic[ConfType]):
                     "default": {
                         "format": "%(asctime)s - %(name)s - %(levelname)-8s - %(message)s",
                         "datefmt": "%Y-%m-%d %H:%M:%S",
+                    },
+                    "color": {
+                        "()": "blue_lugia.logging.ColorFormatter",
+                        "format": "%(asctime)s - %(name)s - %(levelname)-8s - %(message)s",
+                        "datefmt": "%Y-%m-%d %H:%M:%S",
                     }
                 },
                 "handlers": {
                     "console": {
                         "class": "logging.StreamHandler",
                         "level": "DEBUG",
-                        "formatter": "default",
+                        "formatter": "color",
                     }
                 },
                 "root": {"level": "DEBUG", "handlers": ["console"]},
