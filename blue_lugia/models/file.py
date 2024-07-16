@@ -734,6 +734,21 @@ class FileList(List[File], Model):
             all_tokens += file.tokens
         return all_tokens
 
+    @property
+    def chunks(self) -> ChunkList:
+        """
+        Aggregates and returns a list of all chunks from the files in the list.
+
+        Returns:
+            ChunkList: A list of all chunks from the files in the list.
+        """
+        all_chunks = ChunkList(logger=self.logger.getChild(ChunkList.__name__))
+
+        for file in self:
+            all_chunks.extend(file.chunks)
+
+        return all_chunks
+
     def xml(self, offset: int = 0) -> str:
         """
         Generates an XML representation of the files in the list. Each file is represented as a separate document within the XML structure.
