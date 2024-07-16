@@ -71,11 +71,11 @@ class FileManager(Manager):
         )
 
     def fork(self) -> "FileManager":
-        file_manager = FileManager(
+        file_manager = self.__class__(
             chat_only=self._chat_only,
             search_type=self._search_type,
             event=self._event,
-            logger=self.logger.getChild(FileManager.__name__),
+            logger=self.logger,
             tokenizer=self.tokenizer,
         )
 

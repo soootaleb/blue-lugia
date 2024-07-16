@@ -170,7 +170,7 @@ class LanguageModelManager(Manager):
         return llm
 
     def fork(self) -> "LanguageModelManager":
-        llm = LanguageModelManager(event=self._event, model=self._model, temperature=self._temperature, timeout=self._timeout, logger=self.logger)
+        llm = self.__class__(event=self._event, model=self._model, temperature=self._temperature, timeout=self._timeout, logger=self.logger)
         llm._use_open_ai = self._use_open_ai
         llm._open_ai_api_key = self._open_ai_api_key
         return llm
