@@ -335,7 +335,7 @@ class App(Flask, Generic[ConfType]):
             except Exception as e:
                 self.logger.error(f"BL::State::listen::Error processing event: {e.__class__.__name__}", exc_info=False)
 
-    def run(
+    def webhook(
             self,
             chat_id: str,
             assistant_id: str,

@@ -1,4 +1,3 @@
-import datetime
 from typing import Optional
 
 from pydantic import BaseModel, Field
@@ -8,7 +7,6 @@ from blue_lugia.config import ModuleConfig
 from blue_lugia.enums import Role
 from blue_lugia.managers.file import FileManager
 from blue_lugia.models import Message
-from blue_lugia.models.event import AssistantMessage, ExternalModuleChosenEvent, Payload, UserMessage
 from blue_lugia.models.file import ChunkList, FileList
 from blue_lugia.models.message import MessageList
 from blue_lugia.state import StateManager
@@ -183,4 +181,4 @@ app = App("Petal").configured(CustomConfig).register("hello", hello).handle(Comm
 # You can arbitrarily execute your module by mocking an event
 # Keep in mind that the app._conf which is a ModuleConfig, will be set with your environment variables.
 # Your .env should be set according to the APIs your want to use (local, next, neo, etc)
-# app.run(chat_id="chat_bp99pjgm4ngvq5v6qkco5a0g", assistant_id="assistant_y4j9d9h0yoa2f084qp9jknxi")
+# app.webhook(chat_id="chat_bp99pjgm4ngvq5v6qkco5a0g", assistant_id="assistant_y4j9d9h0yoa2f084qp9jknxi")
