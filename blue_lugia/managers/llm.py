@@ -14,7 +14,7 @@ from typing import Any, Callable, List, Literal, Tuple, Type
 from pydantic import BaseModel
 
 from blue_lugia.enums import Role
-from blue_lugia.errors import ParserError
+from blue_lugia.errors import LanguageModelManagerError, ParserError
 from blue_lugia.managers.manager import Manager
 from blue_lugia.models import Embedding, EmbeddingList, Message, MessageList
 
@@ -297,6 +297,30 @@ class LanguageModelManager(Manager):
 
         return not_system_messages
 
+    def _verify_tools(self, tools: List[type[BaseModel]]) -> List[type[BaseModel]]:
+        # must inherit base model
+        for tool in tools:
+            if not issubclass(tool, BaseModel):
+                raise LanguageModelManagerError(f"BL::Manager::LLM::complete::InvalidToolBaseClass::{tool}")
+
+        # tool name must be under or equal to 64 chars
+        for tool in tools:
+            if len(tool.__name__) > 64:
+                raise LanguageModelManagerError(f"BL::Manager::LLM::complete::ToolNameTooLong::{tool}")
+
+        # maximum of 128 tools
+        if len(tools) > 128:
+            raise LanguageModelManagerError(f"BL::Manager::LLM::complete::TooManyTools::{len(tools)}")
+        elif len(tools) >= 10:
+            self.logger.warning(f"BL::Manager::LLM::complete::TooManyTools::{len(tools)}")
+
+        # tool description must be under or equal to 1024 chars
+        for tool in tools:
+            if tool.__doc__ and len(tool.__doc__) > 1024:
+                raise LanguageModelManagerError(f"BL::Manager::LLM::complete::ToolDescriptionTooLong::{tool}")
+
+        return tools
+
     def complete(
         self,
         messages: List[Message] | List[dict[str, Any]],
@@ -358,7 +382,7 @@ class LanguageModelManager(Manager):
                         "parameters": self._rm_titles(tool.model_json_schema()),
                     },
                 }
-                for tool in tools
+                for tool in self._verify_tools(tools)
             ]
 
         typed_messages = self._to_typed_messages(messages)  # Returns a MessageList with the correct LLM tokenization

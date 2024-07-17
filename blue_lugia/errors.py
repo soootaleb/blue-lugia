@@ -24,3 +24,7 @@ class ConfigError(ValueError):
 
 class ParserError(Exception):
     pass
+
+
+class LanguageModelManagerError(Exception):
+    pass
