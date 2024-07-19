@@ -651,6 +651,7 @@ class StateManager(ABC, Generic[ConfType]):
         start_text: str = "",
         tool_choice: type[BaseModel] | None = None,
         search_context: List[unique_sdk.Integrated.SearchResult] = [],
+        output_json: bool = False,
     ) -> Message:
         """
         Completes the processing of a message or a sequence within the current context by optionally involving tool interactions and language model outputs.
@@ -661,6 +662,7 @@ class StateManager(ABC, Generic[ConfType]):
             start_text (str): Initial text to set the context or prompt for language model generation.
             tool_choice (type[BaseModel] | None): If specified, forces the use of a particular tool for this operation.
             search_context (List[unique_sdk.Integrated.SearchResult]): Contextual data to assist in generating responses.
+            output_json (bool): If True, returns the output in JSON format. Passed to LLM.complete()
 
         Returns:
             Message: The message generated or modified as a result of the completion process.
@@ -693,6 +695,7 @@ class StateManager(ABC, Generic[ConfType]):
             start_text=start_text,
             tool_choice=tool_choice,
             search_context=search_context,
+            output_json=output_json,
         )
 
         self.logger.debug(f"BL::StateManager::complete::Appending completion to context: {completion.role if completion else "None"}")
@@ -710,6 +713,7 @@ class StateManager(ABC, Generic[ConfType]):
         search_context: List[unique_sdk.Integrated.SearchResult] = [],
         raise_on_max_iterations: bool = False,
         raise_on_missing_tool: bool = False,
+        output_json: bool = False,
     ) -> List[Tuple[Message, List[ToolCalled], List[ToolNotCalled]]]:
         """
         Executes a loop of message processing and tool interactions to handle complex scenarios that require iterative processing.
@@ -722,6 +726,7 @@ class StateManager(ABC, Generic[ConfType]):
             search_context (List[unique_sdk.Integrated.SearchResult]): Additional search context for the language model.
             raise_on_max_iterations (bool): If True, raises an exception when the maximum number of iterations is reached.
             raise_on_missing_tool (bool): If True, raises an exception when a required tool is missing.
+            output_json (bool): If True, returns the output in JSON format. Passed to LLM.complete()
 
         Returns:
             List[Tuple[Message, List[ToolCalled], List[ToolNotCalled]]]: A list of results from each iteration, including messages and tool interaction outcomes.
@@ -744,7 +749,7 @@ class StateManager(ABC, Generic[ConfType]):
         while complete and loop_iteration < self.config.FUNCTION_CALL_MAX_ITERATIONS:
             self.logger.debug(f"Completing iteration {loop_iteration}.")
 
-            completion = self.complete(message, out=out, start_text=start_text, tool_choice=tool_choice, search_context=search_context)
+            completion = self.complete(message, out=out, start_text=start_text, tool_choice=tool_choice, search_context=search_context, output_json=output_json)
 
             self.logger.debug(f"BL::StateManager::loop::Calling tools for completion {completion.role}.")
 
@@ -771,7 +776,7 @@ class StateManager(ABC, Generic[ConfType]):
 
         return completions
 
-    def stream(self, message: Message | None = None, out: Message | None = None, start_text: str = "") -> Message:
+    def stream(self, message: Message | None = None, out: Message | None = None, start_text: str = "", output_json: bool = False) -> Message:
         """
         Streams processing of messages, potentially in a real-time environment, handling one message at a time.
 
@@ -779,6 +784,7 @@ class StateManager(ABC, Generic[ConfType]):
             message (Message | None): The message to start streaming processing for.
             out (Message | None): An output message that may be continuously updated.
             start_text (str): Initial text to prime the language model or processing logic.
+            output_json (bool): If True, returns the output in JSON format. Passed to LLM.complete()
 
         Returns:
             Message: The updated message after processing the input or current context.
@@ -787,7 +793,7 @@ class StateManager(ABC, Generic[ConfType]):
             Used in scenarios where messages need to be processed in a streaming or ongoing fashion, adapting to incoming data in real-time or near-real-time.
         """
         self.logger.debug(f"BL::StateManager::stream::Starting stream with message {message.role if message else "None"}.")
-        return self.complete(message, out=out or self.last_ass_message, start_text=start_text)
+        return self.complete(message, out=out or self.last_ass_message, start_text=start_text, output_json=output_json)
 
     def clear(self) -> int:
         """
