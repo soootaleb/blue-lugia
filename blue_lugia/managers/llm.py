@@ -331,6 +331,7 @@ class LanguageModelManager(Manager):
         search_context: List[unique_sdk.Integrated.SearchResult] = [],
         debug_info: dict[str, Any] | None = None,
         start_text: str = "",
+        output_json: bool = False,
         *args,
         **kwargs,
     ) -> Message:
@@ -349,6 +350,7 @@ class LanguageModelManager(Manager):
             search_context (List[unique_sdk.Integrated.SearchResult]): Contextual data for search or reference during the completion.
             debug_info (dict[str, Any] | None): Additional debug information to pass through or generate during the process.
             start_text (str): Initial text to prepend to any generated content, setting the context or continuation tone.
+            output_json (bool): Flag to indicate if the output should be in JSON format. Relies on OpenAI response_format option.
             *args: Variable length argument list.
             **kwargs: Arbitrary keyword arguments.
 
@@ -400,6 +402,14 @@ class LanguageModelManager(Manager):
         if max_tokens is not None:
             options["maxTokens"] = max_tokens
 
+        if output_json:
+            messages_contents = "\n".join([message["content"].lower() for message in formated_messages])
+
+            if "json" in messages_contents:
+                options["response_format"] = {"type": "json_object"}
+            else:
+                raise LanguageModelManagerError("BL::Manager::LLM::complete::JSONPromptMissing::The word 'json' must be present in the messages when you use the output_json flag.")
+
         self.logger.debug(f"BL::Manager::LLM::complete::Model::{self._model}")
 
         if self._use_open_ai:
@@ -410,6 +420,7 @@ class LanguageModelManager(Manager):
                 tools=options.get("tools", NotGiven()),
                 tool_choice=options.get("toolChoice", NotGiven()),
                 max_tokens=options.get("max_tokens", NotGiven()),
+                response_format=options.get("response_format", NotGiven()),
                 temperature=self._temperature,
             )
 
