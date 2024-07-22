@@ -208,7 +208,7 @@ class FileManager(Manager):
             }
         elif len(self._filters) > 1:
             metadata_filters = {
-                self._filters_operator.value: [
+                self._filters_operator.value.lower(): [
                     {
                         "path": [x[0]],
                         "operator": (self._mapped_operators[x[1]] if x[1] in self._mapped_operators else x[1]),
