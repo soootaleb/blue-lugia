@@ -199,12 +199,23 @@ class FileManager(Manager):
 
         metadata_filters = None
 
-        if self._filters:
-            last_filter = self._filters[-1]
+        if len(self._filters) == 1:
+            last_filter = self._filters[0]
             metadata_filters = {
                 "path": [last_filter[0]],
                 "operator": (self._mapped_operators[last_filter[1]] if last_filter[1] in self._mapped_operators else last_filter[1]),
                 "value": last_filter[2],
+            }
+        elif len(self._filters) > 1:
+            metadata_filters = {
+                self._filters_operator.value: [
+                    {
+                        "path": [x[0]],
+                        "operator": (self._mapped_operators[x[1]] if x[1] in self._mapped_operators else x[1]),
+                        "value": x[2],
+                    }
+                    for x in self._filters
+                ]
             }
 
         # while found_count > 0 and len(found_all) < limit:
