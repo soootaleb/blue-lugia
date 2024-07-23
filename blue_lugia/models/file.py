@@ -2,7 +2,7 @@ import datetime
 import logging
 import re
 from io import BytesIO
-from typing import Any, Callable, Iterable, List
+from typing import Any, Callable, Iterable, List, Optional
 
 import requests
 import tiktoken
@@ -22,6 +22,8 @@ class Chunk(Model):
     end_page: int
     created_at: datetime.datetime
     updated_at: datetime.datetime
+    metadata: dict[str, Any]
+    url: Optional[str]
 
     _file: "File"
     _tokenizer: tiktoken.Encoding | None
@@ -37,6 +39,8 @@ class Chunk(Model):
         updated_at: datetime.datetime,
         tokenizer: tiktoken.Encoding | None,
         file: "File",
+        metadata: dict[str, Any] | None = None,
+        url: Optional[str] = None,
         **kwargs: logging.Logger,
     ) -> None:
         super().__init__(**kwargs)
@@ -47,6 +51,8 @@ class Chunk(Model):
         self.end_page = end_page
         self.created_at = created_at
         self.updated_at = updated_at
+        self.metadata = metadata or {}
+        self.url = url
         self._tokenizer = tokenizer
         self._file = file
 
@@ -294,6 +300,8 @@ class ChunkList(List[Chunk], Model):
                             updated_at=chunk.updated_at,
                             tokenizer=chunk._tokenizer,
                             file=files_map[chunk.file.id],
+                            metadata=chunk.metadata,
+                            url=chunk.url,
                             logger=chunk.logger,
                         ).truncate(remaining_tokens)  # remaining tokens > 0
                     )
@@ -350,7 +358,7 @@ class ChunkList(List[Chunk], Model):
                     chunkId=chunk.id,
                     key=key,
                     # title=chunk.file.name, # Setting a static title breaks sources indexes and the link
-                    url=f"unique://content/{chunk.file.id}",
+                    url=chunk.url or f"unique://content/{chunk.file.id}",
                 )
             )
 
@@ -615,6 +623,8 @@ class File(Model):
                     end_page=0,
                     created_at=datetime.datetime.now(),
                     updated_at=datetime.datetime.now(),
+                    metadata={},
+                    url=None,
                     tokenizer=self._tokenizer,
                     logger=self.logger.getChild(Chunk.__name__),
                     file=self,
