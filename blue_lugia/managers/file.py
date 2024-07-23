@@ -307,11 +307,36 @@ class FileManager(Manager):
 
         for full_key, value in kwargs.items():
             if "__" in full_key:
-                key, operation = full_key.split("__")
+                splited = full_key.split("__")
+
+                if len(splited) == 2:
+                    key, operation = splited[0], splited[1]
+
+                elif len(splited) == 3:
+                    key, operation, potential_in = splited[0], splited[1], splited[2]
+
+                    if potential_in == "in":
+                        operations = []
+
+                        if isinstance(value, list):
+                            for v in value:
+                                operations.append([key, operation, v])
+                        else:
+                            raise ChatFileManagerError(f"BL::Manager::ChatFile::filter::InvalidValue::{value}")
+
+                        key, operation = operations, "sub_filter"
+                    else:
+                        raise ChatFileManagerError(f"BL::Manager::ChatFile::filter::InvalidKey::{full_key}")
+                else:
+                    raise ChatFileManagerError(f"BL::Manager::ChatFile::filter::InvalidKey::{full_key}")
             else:
                 key, operation = full_key, "eq"
 
-            file_manager._filters.append([key, operation, value])
+            if operation == "sub_filter":
+                for sub_filter in key:
+                    file_manager._filters.append(sub_filter)
+            else:
+                file_manager._filters.append([key, operation, value])
 
         return file_manager
 
