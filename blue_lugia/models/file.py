@@ -81,7 +81,7 @@ class Chunk(Model):
             order='{self.order}'
             start_page='{self.start_page}'
             end_page='{self.end_page}'
-            {extra_args}>
+            {extra_attrs}>
             {self.content}
         </source>
         """
@@ -100,6 +100,25 @@ class Chunk(Model):
                     end_page='{self.end_page}' {extra_attrs_str}>
                     {self.content}
                 </source>"""
+
+    def as_context(self) -> unique_sdk.Integrated.SearchResult:
+        pages = []
+        for page in range(self.start_page, self.end_page + 1):
+            if self.start_page > -1:
+                pages.append(str(page))
+
+        key = self.file.key
+
+        if pages:
+            key += f" : {','.join(pages)}"
+
+        # Setting a static title breaks sources indexes and the link because Unique groups by title
+        return unique_sdk.Integrated.SearchResult(
+            id=self.file.id,
+            chunkId=self.id,
+            key=key,
+            url=self.url or f"unique://content/{self.file.id}",
+        )
 
     def _clean_content(self, _content: str) -> str:
         _content = re.sub(r"<\|document\|>.*?<\|\/document\|>", "", _content, flags=re.DOTALL)
@@ -173,7 +192,7 @@ class ChunkList(List[Chunk], Model):
         Structure is :
 
         <sources>
-            <source{index} id='{chunk.id}' order='{chunk.order}' start_page='{chunk.start_page}' end_page='{chunk.end_page}' {extra_args}>
+            <source{index} id='{chunk.id}' order='{chunk.order}' start_page='{chunk.start_page}' end_page='{chunk.end_page}' {extra_attrs}>
                 {chunk.content}
             </source{index}>
         </sources>
@@ -367,32 +386,8 @@ class ChunkList(List[Chunk], Model):
         of pages the chunk spans. This key is used along with other chunk information to populate the SearchResult.
         The method ensures that each chunk's context is uniquely represented and accessible through a formatted URL.
         """
-        results = []
 
-        for chunk in self:
-            pages = []
-            for page in range(chunk.start_page, chunk.end_page + 1):
-                if chunk.start_page > -1:
-                    pages.append(str(page))
-            # pages = [str(page) for page in range(chunk.start_page, chunk.end_page + 1)]
-            key = chunk.file.key
-
-            if pages:
-                key += f" : {','.join(pages)}"
-
-            # key = f"{chunk.file.key} : {','.join([str(page) for page in range(chunk.start_page, chunk.end_page + 1)])}"
-
-            results.append(
-                unique_sdk.Integrated.SearchResult(
-                    id=chunk.file.id,
-                    chunkId=chunk.id,
-                    key=key,
-                    # title=chunk.file.name, # Setting a static title breaks sources indexes and the link
-                    url=chunk.url or f"unique://content/{chunk.file.id}",
-                )
-            )
-
-        return results
+        return [chunk.as_context() for chunk in self]
 
 
 class File(Model):
