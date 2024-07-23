@@ -134,9 +134,7 @@ class StateManager(ABC, Generic[ConfType]):
         self._tools = []
 
         # we filter empty messages notably the ASSISTANT empty message created by the API
-        self._ctx = (
-            self.messages.all().fork().filter(lambda x: bool(x.content) or bool(x.tool_calls)).expand(self._key if hasattr(self, "_key") else "state_manager_tool_calls")  # type: ignore
-        )
+        self._ctx = self.messages.all().fork().filter(lambda x: bool(x.content) or bool(x.tool_calls)).expand("state_manager_tool_calls")
 
         self._app = app
         self._extra = {}
@@ -823,3 +821,53 @@ class StateManager(ABC, Generic[ConfType]):
         Will run even if the module raises and error.
         """
         pass
+
+    def reset(self) -> "StateManager":
+        """
+        Reset extra, tools and context.
+        If you want to reset the managers, you should use the fork method.
+        When using the state from within a tool, you should use the fork method to avoid side effects.
+        """
+
+        self.logger.info("BL::StateManager::reset::Resetting StateManager.")
+
+        self._messages = self._MessageManager(
+            event=self.event,
+            tokenizer=self.config.LLM_TOKENIZER,
+            logger=self.logger.getChild(self._MessageManager.__name__),
+        )
+
+        self._llm = self._LanguageModelManager(
+            event=self.event,
+            model=self.cfg.languageModel,
+            timeout=self.cfg.LLM_TIMEOUT,
+            logger=self.logger.getChild(self._LanguageModelManager.__name__),
+        )
+
+        self._files = self._FileManager(
+            event=self.event,
+            tokenizer=self.cfg.LLM_TOKENIZER,
+            logger=self.logger.getChild(self._FileManager.__name__),
+        )
+
+        self._storage = self._StorageManager(
+            event=self.event,
+            store=self.messages.first() or self.messages.create(Message.ASSISTANT("")),
+            logger=self.logger.getChild(self._StorageManager.__name__),
+        )
+
+        self._extra = {}
+        self._tools = []
+        self._ctx = self.messages.all(force_refresh=True).fork().filter(lambda x: bool(x.content) or bool(x.tool_calls)).expand("state_manager_tool_calls")
+        return self
+
+    def fork(self) -> "StateManager":
+        """
+        Fork the current state manager.
+        Based on same event, it'll create a new instance of the state manager with the same configuration.
+        Hence, managers will be reset, as well as the context and the tools.
+
+        When using the state from within a tool, you should use this method to avoid side effects.
+        If you just want to reset the context and the tools, you can use the reset method.
+        """
+        return self.__class__(event=self.event, conf=self.conf, logger=self.logger, managers=self._managers, app=self.app)

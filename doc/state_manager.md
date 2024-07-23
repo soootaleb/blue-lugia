@@ -208,6 +208,8 @@ An abstract base class defining the interface for state management. It initializ
 - `notify(content: str, message_id: str | None = None) -> None`: Posts a notification for the user.
 - `modify(content: str, message_id: str | None = None) -> None`: Modifies a message.
 - `list() -> list[unique_sdk.Message]`: Lists messages and handles postprocessing.
+- `reset() -> None`: Resets the state manager. Use it to clear the context, messages and tools. Context will however be reset based on the chat state.
+- `fork() -> StateManager`: Forks the state manager. Use it from within a tool to create a new state manager with the same configuration and context and avoid side effects.
 
 ### StateManager
 
