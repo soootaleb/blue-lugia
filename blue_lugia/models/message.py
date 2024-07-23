@@ -59,6 +59,7 @@ class Message(Model):
             event: Retrieves the event tied to this remote session.
             debug: Accesses the debug information associated with this remote session.
         """
+
         _id: str
         _event: ExternalModuleChosenEvent
         _debug: dict[str, Any]
@@ -89,6 +90,7 @@ class Message(Model):
             pprint: Returns a pretty-printed version of the JSON content.
             __getitem__: Allows slicing and indexing on the content, returning processed subsections as new _Content instances.
         """
+
         def json(self) -> dict[str, Any]:
             self = self.replace("\n", "").strip("`")
             if self.startswith("json"):
@@ -104,6 +106,7 @@ class Message(Model):
 
     _role: Role
     _content: Optional[_Content]
+    _original_content: Optional[_Content]
 
     _tool_calls: List[dict[str, Any]]
     _tool_call_id: Optional[str]
@@ -117,6 +120,7 @@ class Message(Model):
         remote: _Remote | None = None,
         tool_call_id: Optional[str] = None,
         tool_calls: List[dict[str, Any]] | None = None,
+        original_content: Optional[str | _Content] = None,
         **kwargs: logging.Logger,
     ) -> None:
         """
@@ -145,6 +149,7 @@ class Message(Model):
         else:
             self._role = role
             self.content = content if content else None
+            self.original_content = original_content if original_content else self.content
 
         if self.role == Role.TOOL and not self._tool_call_id:
             raise MessageFormatError("BL::Model::Message::init::ToolMessageWithoutToolCallId")
@@ -168,9 +173,17 @@ class Message(Model):
     def content(self) -> Optional[_Content]:
         return self._content
 
+    @property
+    def original_content(self) -> Optional[_Content]:
+        return self._original_content
+
     @content.setter
     def content(self, value: str | _Content | None) -> None:
         self._content = Message._Content(value) if value is not None else None
+
+    @original_content.setter
+    def original_content(self, value: str | _Content | None) -> None:
+        self._original_content = Message._Content(value) if value is not None else None
 
     @property
     def id(self) -> str | None:

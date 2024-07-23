@@ -460,6 +460,7 @@ class LanguageModelManager(Manager):
                 )
 
                 out.content = completion.message.text
+                out.original_content = completion.message.originalText
 
                 out_tool_calls_ids = [call["id"] for call in out._tool_calls]
                 out._tool_calls = out._tool_calls + [
@@ -494,6 +495,7 @@ class LanguageModelManager(Manager):
                         }
                         for call in completion.toolCalls
                     ],
+                    original_content=completion.message.originalText,
                     logger=self.logger.getChild(Message.__name__),
                 )
 
