@@ -99,7 +99,7 @@ class FileManager(Manager):
                 files_map[file_id] = File(
                     event=self._event,
                     id=file_id,
-                    name=chunk["key"],
+                    name=chunk["title"] if "title" in chunk and chunk["title"] else chunk["key"],
                     mime_type=(chunk.get("metadata", {}) or {}).get("mimeType", "text/plain"),
                     chunks=ChunkList(logger=self.logger.getChild(ChunkList.__name__)),
                     tokenizer=self.tokenizer,
@@ -144,7 +144,7 @@ class FileManager(Manager):
                 files_map[file_id] = File(
                     event=self._event,
                     id=file_id,
-                    name=found_file["key"],
+                    name=found_file["title"] if "title" in found_file and found_file["title"] else found_file["key"],
                     mime_type=(found_file.get("metadata", {}) or {}).get("mimeType", "text/plain"),
                     chunks=ChunkList(logger=self.logger.getChild(ChunkList.__name__)),
                     tokenizer=self.tokenizer,

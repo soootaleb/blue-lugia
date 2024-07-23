@@ -350,7 +350,17 @@ class ChunkList(List[Chunk], Model):
         results = []
 
         for chunk in self:
-            key = f"{chunk.file.key} : {','.join([str(page) for page in range(chunk.start_page, chunk.end_page + 1)])}"
+            pages = []
+            for page in range(chunk.start_page, chunk.end_page + 1):
+                if chunk.start_page > -1:
+                    pages.append(str(page))
+            # pages = [str(page) for page in range(chunk.start_page, chunk.end_page + 1)]
+            key = chunk.file.key
+
+            if pages:
+                key += f" : {','.join(pages)}"
+
+            # key = f"{chunk.file.key} : {','.join([str(page) for page in range(chunk.start_page, chunk.end_page + 1)])}"
 
             results.append(
                 unique_sdk.Integrated.SearchResult(
