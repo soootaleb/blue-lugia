@@ -576,12 +576,13 @@ class StateManager(ABC, Generic[ConfType]):
 
         debug_store = self.messages.filter(lambda x: x.role == Role.USER and bool(x._remote)).last()
 
-        if debug_store:
+        if debug_store and message.tool_calls:
             debug_store.update(
                 debug_store.content,
                 debug={
                     **debug_store.debug,
-                    "_tool_calls": [
+                    "_tool_calls": debug_store.debug.get("_tool_calls", [])
+                    + [
                         {
                             "role": message.role.value,
                             "content": message.content,
