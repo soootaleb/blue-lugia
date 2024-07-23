@@ -69,7 +69,7 @@ class Chunk(Model):
     def file(self) -> "File":
         return self._file
 
-    def xml(self, extra: dict[str, Any] | Callable[["Chunk"], dict[str, Any]] | None = None) -> str:
+    def xml(self, extra_attrs: dict[str, Any] | Callable[["Chunk"], dict[str, Any]] | None = None) -> str:
         """
         An XML representation of the chunk.
         Mainly used for RAG, you can pass it as a system message's content.
@@ -86,16 +86,18 @@ class Chunk(Model):
         </source>
         """
 
-        if callable(extra):
-            extra_attrs = " ".join([f"{k}='{v}'" for k, v in extra(self).items()])
-        elif isinstance(extra, dict):
-            extra_attrs = " ".join([f"{k}='{v}'" for k, v in extra.items()])
+        if callable(extra_attrs):
+            extra_attrs_str = " ".join([f"{k}='{v}'" for k, v in extra_attrs(self).items()])
+        elif isinstance(extra_attrs, dict):
+            extra_attrs_str = " ".join([f"{k}='{v}'" for k, v in extra_attrs.items()])
+        else:
+            extra_attrs_str = ""
 
         return f"""<source
                     id='{self.id}'
                     order='{self.order}'
                     start_page='{self.start_page}'
-                    end_page='{self.end_page}' {extra_attrs}>
+                    end_page='{self.end_page}' {extra_attrs_str}>
                     {self.content}
                 </source>"""
 
@@ -161,8 +163,8 @@ class ChunkList(List[Chunk], Model):
     def xml(
         self,
         offset: int = 0,
-        chunk_extra_args: dict[str, Any] | Callable[["Chunk"], dict[str, Any]] | None = None,
-        chunklist_extra_args: dict[str, Any] | Callable[["ChunkList"], dict[str, Any]] | None = None,
+        chunk_extra_attrs: dict[str, Any] | Callable[["Chunk"], dict[str, Any]] | None = None,
+        chunklist_extra_attrs: dict[str, Any] | Callable[["ChunkList"], dict[str, Any]] | None = None,
     ) -> str:
         """
         An XML representation of the chunk list.
@@ -179,18 +181,20 @@ class ChunkList(List[Chunk], Model):
 
         xml = "<sources>"
 
-        if callable(chunklist_extra_args):
-            extra_args = " ".join([f"{k}='{v}'" for k, v in chunklist_extra_args(self).items()])
-        elif isinstance(chunklist_extra_args, dict):
-            extra_args = " ".join([f"{k}='{v}'" for k, v in chunklist_extra_args.items()])
+        if callable(chunklist_extra_attrs):
+            extra_attrs = " ".join([f"{k}='{v}'" for k, v in chunklist_extra_attrs(self).items()])
+        elif isinstance(chunklist_extra_attrs, dict):
+            extra_attrs = " ".join([f"{k}='{v}'" for k, v in chunklist_extra_attrs.items()])
+        else:
+            extra_attrs = ""
 
         for index, chunk in enumerate(self):
             chunk = self[index]
             i = index + offset
 
-            xml += f"""<source{i} id='{chunk.id}' order='{chunk.order}' start_page='{chunk.start_page}' end_page='{chunk.end_page}' {extra_args}>
+            xml += f"""<source{i} id='{chunk.id}' order='{chunk.order}' start_page='{chunk.start_page}' end_page='{chunk.end_page}' {extra_attrs}>
 
-                        {chunk.xml(extra=chunk_extra_args)}
+                        {chunk.xml(extra_attrs=chunk_extra_attrs)}
 
                     </source{i}>"""
 
@@ -492,9 +496,9 @@ class File(Model):
     def xml(
         self,
         chunks_offset: int = 0,
-        file_extra_args: dict[str, Any] | Callable[["File"], dict[str, Any]] | None = None,
-        chunk_extra_args: dict[str, Any] | Callable[["Chunk"], dict[str, Any]] | None = None,
-        chunklist_extra_args: dict[str, Any] | Callable[["ChunkList"], dict[str, Any]] | None = None,
+        file_extra_attrs: dict[str, Any] | Callable[["File"], dict[str, Any]] | None = None,
+        chunk_extra_attrs: dict[str, Any] | Callable[["Chunk"], dict[str, Any]] | None = None,
+        chunklist_extra_attrs: dict[str, Any] | Callable[["ChunkList"], dict[str, Any]] | None = None,
     ) -> str:
         """
         Generates an XML string representation of the file and its chunks.
@@ -506,13 +510,15 @@ class File(Model):
             str: An XML representation of the file and its content chunks.
         """
 
-        if callable(file_extra_args):
-            extra_args = " ".join([f"{k}='{v}'" for k, v in file_extra_args(self).items()])
-        elif isinstance(file_extra_args, dict):
-            extra_args = " ".join([f"{k}='{v}'" for k, v in file_extra_args.items()])
+        if callable(file_extra_attrs):
+            extra_attrs = " ".join([f"{k}='{v}'" for k, v in file_extra_attrs(self).items()])
+        elif isinstance(file_extra_attrs, dict):
+            extra_attrs = " ".join([f"{k}='{v}'" for k, v in file_extra_attrs.items()])
+        else:
+            extra_attrs = ""
 
-        xml = f"<document name='{self.name}' id='{self.id}' {extra_args}>"
-        xml += self.chunks.xml(offset=chunks_offset, chunk_extra_args=chunk_extra_args, chunklist_extra_args=chunklist_extra_args)
+        xml = f"<document name='{self.name}' id='{self.id}' {extra_attrs}>"
+        xml += self.chunks.xml(offset=chunks_offset, chunk_extra_attrs=chunk_extra_attrs, chunklist_extra_attrs=chunklist_extra_attrs)
         xml += "</document>"
         return xml
 
@@ -800,10 +806,10 @@ class FileList(List[File], Model):
     def xml(
         self,
         offset: int = 0,
-        file_list_extra_args: dict[str, Any] | Callable[["FileList"], dict[str, Any]] | None = None,
-        file_extra_args: dict[str, Any] | Callable[["File"], dict[str, Any]] | None = None,
-        chunk_extra_args: dict[str, Any] | Callable[["Chunk"], dict[str, Any]] | None = None,
-        chunklist_extra_args: dict[str, Any] | Callable[["ChunkList"], dict[str, Any]] | None = None,
+        file_extra_attrs: dict[str, Any] | Callable[["File"], dict[str, Any]] | None = None,
+        chunk_extra_attrs: dict[str, Any] | Callable[["Chunk"], dict[str, Any]] | None = None,
+        file_list_extra_attrs: dict[str, Any] | Callable[["FileList"], dict[str, Any]] | None = None,
+        chunklist_extra_attrs: dict[str, Any] | Callable[["ChunkList"], dict[str, Any]] | None = None,
     ) -> str:
         """
         Generates an XML representation of the files in the list. Each file is represented as a separate document within the XML structure.
@@ -817,17 +823,19 @@ class FileList(List[File], Model):
         xml = "<documents>"
         chunks_offset = 0
 
-        if callable(file_list_extra_args):
-            extra_args = " ".join([f"{k}='{v}'" for k, v in file_list_extra_args(self).items()])
-        elif isinstance(file_list_extra_args, dict):
-            extra_args = " ".join([f"{k}='{v}'" for k, v in file_list_extra_args.items()])
+        if callable(file_list_extra_attrs):
+            extra_attrs = " ".join([f"{k}='{v}'" for k, v in file_list_extra_attrs(self).items()])
+        elif isinstance(file_list_extra_attrs, dict):
+            extra_attrs = " ".join([f"{k}='{v}'" for k, v in file_list_extra_attrs.items()])
+        else:
+            extra_attrs = ""
 
         for i in range(offset, len(self)):
             file = self[i]
 
-            xml += f"""<document{i} name='{file.name}' id='{file.id}' {extra_args}>
+            xml += f"""<document{i} name='{file.name}' id='{file.id}' {extra_attrs}>
 
-                    {file.xml(chunks_offset=chunks_offset, file_extra_args=file_extra_args, chunk_extra_args=chunk_extra_args, chunklist_extra_args=chunklist_extra_args)}
+                    {file.xml(chunks_offset=chunks_offset, file_extra_attrs=file_extra_attrs, chunk_extra_attrs=chunk_extra_attrs, chunklist_extra_attrs=chunklist_extra_attrs)}
 
                 </document{i}>"""
 
