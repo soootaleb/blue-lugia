@@ -69,7 +69,7 @@ class Chunk(Model):
     def file(self) -> "File":
         return self._file
 
-    def xml(self, extra_attrs: dict[str, Any] | Callable[["Chunk"], dict[str, Any]] | None = None) -> str:
+    def xml(self, i: int = 0, extra_attrs: dict[str, Any] | Callable[["Chunk"], dict[str, Any]] | None = None) -> str:
         """
         An XML representation of the chunk.
         Mainly used for RAG, you can pass it as a system message's content.
@@ -81,6 +81,8 @@ class Chunk(Model):
             order='{self.order}'
             start_page='{self.start_page}'
             end_page='{self.end_page}'
+            label='{key}'
+            url='{self.url or f"unique://content/{self.file.id}"}'
             {extra_attrs}>
             {self.content}
         </source>
@@ -93,15 +95,6 @@ class Chunk(Model):
         else:
             extra_attrs_str = ""
 
-        return f"""<source
-                    id='{self.id}'
-                    order='{self.order}'
-                    start_page='{self.start_page}'
-                    end_page='{self.end_page}' {extra_attrs_str}>
-                    {self.content}
-                </source>"""
-
-    def as_context(self) -> unique_sdk.Integrated.SearchResult:
         pages = []
         for page in range(self.start_page, self.end_page + 1):
             if self.start_page > -1:
@@ -112,13 +105,15 @@ class Chunk(Model):
         if pages:
             key += f" : {','.join(pages)}"
 
-        # Setting a static title breaks sources indexes and the link because Unique groups by title
-        return unique_sdk.Integrated.SearchResult(
-            id=self.file.id,
-            chunkId=self.id,
-            key=key,
-            url=self.url or f"unique://content/{self.file.id}",
-        )
+        return f"""<source{i}
+                    id='{self.id}'
+                    order='{self.order}'
+                    start_page='{self.start_page}'
+                    label='{key}'
+                    url='{self.url or f"unique://content/{self.file.id}"}'
+                    end_page='{self.end_page}' {extra_attrs_str}>
+                    {self.content}
+                </source{i}>"""
 
     def _clean_content(self, _content: str) -> str:
         _content = re.sub(r"<\|document\|>.*?<\|\/document\|>", "", _content, flags=re.DOTALL)
@@ -183,7 +178,6 @@ class ChunkList(List[Chunk], Model):
         self,
         offset: int = 0,
         chunk_extra_attrs: dict[str, Any] | Callable[["Chunk"], dict[str, Any]] | None = None,
-        chunklist_extra_attrs: dict[str, Any] | Callable[["ChunkList"], dict[str, Any]] | None = None,
     ) -> str:
         """
         An XML representation of the chunk list.
@@ -191,33 +185,20 @@ class ChunkList(List[Chunk], Model):
 
         Structure is :
 
-        <sources>
-            <source{index} id='{chunk.id}' order='{chunk.order}' start_page='{chunk.start_page}' end_page='{chunk.end_page}' {extra_attrs}>
-                {chunk.content}
-            </source{index}>
-        </sources>
+        <source{index} id='{chunk.id}' order='{chunk.order}' start_page='{chunk.start_page}' end_page='{chunk.end_page}' {extra_attrs}>
+            {chunk.content}
+        </source{index}>
         """
 
-        xml = "<sources>"
-
-        if callable(chunklist_extra_attrs):
-            extra_attrs = " ".join([f"{k}='{v}'" for k, v in chunklist_extra_attrs(self).items()])
-        elif isinstance(chunklist_extra_attrs, dict):
-            extra_attrs = " ".join([f"{k}='{v}'" for k, v in chunklist_extra_attrs.items()])
-        else:
-            extra_attrs = ""
+        xml = ""
 
         for index, chunk in enumerate(self):
             chunk = self[index]
             i = index + offset
 
-            xml += f"""<source{i} id='{chunk.id}' order='{chunk.order}' start_page='{chunk.start_page}' end_page='{chunk.end_page}' {extra_attrs}>
+            xml += chunk.xml(i=i, extra_attrs=chunk_extra_attrs)
 
-                        {chunk.xml(extra_attrs=chunk_extra_attrs)}
-
-                    </source{i}>"""
-
-        return xml + "</sources>"
+        return xml
 
     def first(self, lookup: Callable[[Chunk], bool] | None = None) -> Chunk | None:
         """
@@ -372,23 +353,6 @@ class ChunkList(List[Chunk], Model):
 
         return files
 
-    def as_context(self) -> List[unique_sdk.Integrated.SearchResult]:
-        """
-        Converts the collection of chunks into a list of search results based on their content and metadata.
-        The result is designed to be used as a search_context when using LLM.complete()
-
-        Returns:
-            List[unique_sdk.Integrated.SearchResult]: A list of SearchResult objects that represent each chunk.
-                                                    Each result contains the chunk's file ID, chunk ID,
-                                                    a key representing the file and page range, and a URL to access the chunk.
-
-        This method constructs a SearchResult for each chunk by forming a key from the file key and the range
-        of pages the chunk spans. This key is used along with other chunk information to populate the SearchResult.
-        The method ensures that each chunk's context is uniquely represented and accessible through a formatted URL.
-        """
-
-        return [chunk.as_context() for chunk in self]
-
 
 class File(Model):
     """
@@ -415,7 +379,6 @@ class File(Model):
         truncate: Truncates the file's content to a specified token limit.
         write: Writes new content to the file and updates its chunks.
         as_message: Constructs a system message containing the file's content.
-        as_context: Converts the file into search results based on its chunks.
         __str__: Returns the name of the file as its string representation.
         __repr__: Returns the name of the file as its official string representation.
     """
@@ -491,9 +454,7 @@ class File(Model):
     def xml(
         self,
         chunks_offset: int = 0,
-        file_extra_attrs: dict[str, Any] | Callable[["File"], dict[str, Any]] | None = None,
         chunk_extra_attrs: dict[str, Any] | Callable[["Chunk"], dict[str, Any]] | None = None,
-        chunklist_extra_attrs: dict[str, Any] | Callable[["ChunkList"], dict[str, Any]] | None = None,
     ) -> str:
         """
         Generates an XML string representation of the file and its chunks.
@@ -505,17 +466,7 @@ class File(Model):
             str: An XML representation of the file and its content chunks.
         """
 
-        if callable(file_extra_attrs):
-            extra_attrs = " ".join([f"{k}='{v}'" for k, v in file_extra_attrs(self).items()])
-        elif isinstance(file_extra_attrs, dict):
-            extra_attrs = " ".join([f"{k}='{v}'" for k, v in file_extra_attrs.items()])
-        else:
-            extra_attrs = ""
-
-        xml = f"<document name='{self.name}' id='{self.id}' {extra_attrs}>"
-        xml += self.chunks.xml(offset=chunks_offset, chunk_extra_attrs=chunk_extra_attrs, chunklist_extra_attrs=chunklist_extra_attrs)
-        xml += "</document>"
-        return xml
+        return self.chunks.xml(offset=chunks_offset, chunk_extra_attrs=chunk_extra_attrs)
 
     @property
     def tokens(self) -> list[int]:
@@ -690,16 +641,6 @@ class File(Model):
             logger=self.logger.getChild(Message.__name__),
         )
 
-    def as_context(self) -> List[unique_sdk.Integrated.SearchResult]:
-        """
-        Converts the file into search results based on its chunks.
-        Designed to be passed as a search_context in LLM.complete()
-
-        Returns:
-            List[unique_sdk.Integrated.SearchResult]: A list of search results, each representing a chunk of the file.
-        """
-        return self.chunks.as_context()
-
     def __str__(self) -> str:
         return self.name
 
@@ -728,7 +669,6 @@ class FileList(List[File], Model):
         extend: Extends the list by appending elements from another iterable of File objects.
         as_messages: Converts the list of files into a list of messages.
         truncate: Truncates the content of all files in the list to a specified token limit, optionally in place.
-        as_context: Converts the list of files into a list of search results based on their content and metadata.
     """
 
     _tokenizer: str | tiktoken.Encoding | None
@@ -801,10 +741,7 @@ class FileList(List[File], Model):
     def xml(
         self,
         offset: int = 0,
-        file_extra_attrs: dict[str, Any] | Callable[["File"], dict[str, Any]] | None = None,
         chunk_extra_attrs: dict[str, Any] | Callable[["Chunk"], dict[str, Any]] | None = None,
-        file_list_extra_attrs: dict[str, Any] | Callable[["FileList"], dict[str, Any]] | None = None,
-        chunklist_extra_attrs: dict[str, Any] | Callable[["ChunkList"], dict[str, Any]] | None = None,
     ) -> str:
         """
         Generates an XML representation of the files in the list. Each file is represented as a separate document within the XML structure.
@@ -815,28 +752,20 @@ class FileList(List[File], Model):
         Returns:
             str: An XML string representing the files in the list from the specified offset onwards.
         """
-        xml = "<documents>"
+        xml = ""
         chunks_offset = 0
-
-        if callable(file_list_extra_attrs):
-            extra_attrs = " ".join([f"{k}='{v}'" for k, v in file_list_extra_attrs(self).items()])
-        elif isinstance(file_list_extra_attrs, dict):
-            extra_attrs = " ".join([f"{k}='{v}'" for k, v in file_list_extra_attrs.items()])
-        else:
-            extra_attrs = ""
 
         for i in range(offset, len(self)):
             file = self[i]
 
-            xml += f"""<document{i} name='{file.name}' id='{file.id}' {extra_attrs}>
+            if i:
+                xml += "\n"
 
-                    {file.xml(chunks_offset=chunks_offset, file_extra_attrs=file_extra_attrs, chunk_extra_attrs=chunk_extra_attrs, chunklist_extra_attrs=chunklist_extra_attrs)}
-
-                </document{i}>"""
+            xml += file.xml(chunks_offset=chunks_offset, chunk_extra_attrs=chunk_extra_attrs)
 
             chunks_offset += len(file.chunks)
 
-        return xml + "</documents>"
+        return xml
 
     def using(self, tokenizer: str | tiktoken.Encoding) -> "FileList":
         """
@@ -994,17 +923,3 @@ class FileList(List[File], Model):
             return self
         else:
             return FileList([file.truncate(file_token_limit) for file in self], logger=self.logger.getChild(FileList.__name__))
-
-    def as_context(self) -> List[unique_sdk.Integrated.SearchResult]:
-        """
-        Converts the list of files into a list of search results based on their content and metadata.
-
-        Returns:
-            List[unique_sdk.Integrated.SearchResult]: A list of search results, each representing a file in the list.
-        """
-        results = []
-
-        for file in self:
-            results.extend(file.as_context())
-
-        return results

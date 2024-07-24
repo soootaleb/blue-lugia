@@ -1,6 +1,8 @@
 import contextlib
 import json
 import logging
+import re
+import xml.etree.ElementTree as ET  # noqa: N817
 
 import tiktoken
 import unique_sdk
@@ -297,6 +299,57 @@ class LanguageModelManager(Manager):
 
         return not_system_messages
 
+    def _rereference(self, messages: MessageList) -> Tuple[MessageList, List[unique_sdk.Integrated.SearchResult]]:
+        processed_messages = messages.fork()
+        source_structures = []
+
+        for message in processed_messages:
+            string = message.content or ""
+            # Find all source tags in the string
+            sources = re.findall(r"<source\d+[^>]*>.*?</source\d+>", string)
+
+            # Dictionary to store processed sources for reconstruction
+            processed_sources = {}
+            to_replace = []
+            # List for capturing source details
+            source_list = []
+
+            # Process each source tag
+            for i, source in enumerate(sources):
+                # Parse the source XML
+                elem = ET.fromstring(source)
+                # Create a new tag with the new index
+                new_tag = f"source{i}"
+                # Update element tag
+                elem.tag = new_tag
+
+                processed_source = ET.tostring(elem, encoding="unicode")
+                # Store the processed source
+                processed_sources[new_tag] = processed_source
+
+                # Replace the old tag with the new tag
+                to_replace.append((source, processed_source))
+
+                # Extract attributes and content
+                source_list.append(
+                    {
+                        "id": elem.get("id", f"source_{i}"),
+                        "chunkId": elem.get("chunkId", elem.get("id", f"source_{i}")),
+                        "key": elem.get("label", elem.get("display", elem.get("key", elem.get("title", f"source_{i}")))),
+                        "url": elem.get("url", f'unique://content/{elem.get("id", f"source_{i}")}'),
+                    }
+                )
+
+            # Replace old tags with new tags in the original string
+            new_string = string
+            for old, new in to_replace:
+                new_string = new_string.replace(old, new)
+
+            message.content = new_string
+            source_structures.extend(source_list)
+
+        return processed_messages, source_structures
+
     def _verify_tools(self, tools: List[type[BaseModel]]) -> List[type[BaseModel]]:
         # must inherit base model
         for tool in tools:
@@ -391,6 +444,8 @@ class LanguageModelManager(Manager):
 
         context = self._reformat(typed_messages)
 
+        context, references = self._rereference(context)
+
         formated_messages = self._to_dict_messages(context, oai=self._use_open_ai)
 
         if tool_choice:
@@ -450,7 +505,7 @@ class LanguageModelManager(Manager):
                     userMessageId=self._event.payload.user_message.id,
                     messages=formated_messages,
                     chatId=self._event.payload.chat_id,
-                    searchContext=search_context,
+                    searchContext=references,
                     debugInfo=debug_info,
                     startText=start_text,
                     model=self._model,
