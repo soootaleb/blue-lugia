@@ -373,6 +373,7 @@ class Message(Model):
         return Message(
             role=Role(self.role.value),
             content=Message._Content(self.content) if self.content else None,
+            original_content=Message._Content(self.original_content) if self.original_content else None,
             remote=(Message._Remote(self._remote._event, self._remote._id, self.debug.copy()) if self._remote else None),
             tool_call_id=self._tool_call_id,
             tool_calls=[tc.copy() for tc in self._tool_calls],
@@ -600,7 +601,8 @@ class MessageList(List[Message], Model):
                         self[message_index + 1 : message_index + 1] = [
                             Message(
                                 role=Role(value=tc["role"]),
-                                content=(Message._Content(tc["content"]) if tc["content"] else None),
+                                content=tc.get("content", None),
+                                original_content=tc.get("original_content", None),
                                 tool_calls=tc.get("tools_called", []),
                                 tool_call_id=tc.get("tool_call_id", None),
                                 logger=self.logger.getChild(Message.__name__),
@@ -615,7 +617,8 @@ class MessageList(List[Message], Model):
                         self[message_index + 1 : message_index + 1] = [
                             Message(
                                 role=Role(value=tc["role"]),
-                                content=(Message._Content(tc["content"]) if tc["content"] else None),
+                                content=tc.get("content", None),
+                                original_content=tc.get("original_content", None),
                                 tool_calls=[
                                     {
                                         "id": tcall["id"],

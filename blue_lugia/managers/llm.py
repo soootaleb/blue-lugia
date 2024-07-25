@@ -187,7 +187,7 @@ class LanguageModelManager(Manager):
             if isinstance(message, Message):
                 message_to_append = {
                     "role": message.role.value,
-                    "content": message.content or "",
+                    "content": message.original_content or message.content or "",
                 }
 
                 if message.tool_calls:
@@ -314,6 +314,9 @@ class LanguageModelManager(Manager):
 
                 if message.content:
                     message.content = message.content.replace(source, ET.tostring(elem, encoding="unicode"))
+
+                    if message.original_content:
+                        message.original_content = message.original_content.replace(source, ET.tostring(elem, encoding="unicode"))
 
                 references.append(
                     {
@@ -490,10 +493,17 @@ class LanguageModelManager(Manager):
                     temperature=self._temperature,
                 )
 
+                completion_sources = re.findall(r"\[source\d+\]", completion.message.originalText or "", re.DOTALL)
+                debug_sources = {}
+                source_index = 1
+                for source in completion_sources:
+                    if source not in debug_sources:
+                        debug_sources[source] = source_index
+
                 out.content = completion.message.text
                 out.original_content = completion.message.originalText
+                out.debug["_sources"] = debug_sources
 
-                out_tool_calls_ids = [call["id"] for call in out._tool_calls]
                 out._tool_calls = out._tool_calls + [
                     {
                         "id": call.id,
@@ -504,12 +514,13 @@ class LanguageModelManager(Manager):
                         },
                     }
                     for call in completion.toolCalls
-                    if call.id not in out_tool_calls_ids
+                    if call.id not in [call["id"] for call in out._tool_calls]
                 ]
 
-                return Message(
+                typed_message = Message(
                     role=Role(completion.message.role.lower()),
                     content=(Message._Content(completion.message.text) if completion.message.text else None),
+                    original_content=completion.message.originalText,
                     remote=Message._Remote(
                         event=self._event,
                         id=completion.message.id,
@@ -526,9 +537,12 @@ class LanguageModelManager(Manager):
                         }
                         for call in completion.toolCalls
                     ],
-                    original_content=completion.message.originalText,
                     logger=self.logger.getChild(Message.__name__),
                 )
+
+                typed_message.update(content=typed_message.content, debug={"_sources": debug_sources})
+
+                return typed_message
 
             else:
                 completion = unique_sdk.ChatCompletion.create(

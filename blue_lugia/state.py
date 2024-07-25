@@ -584,6 +584,7 @@ class StateManager(ABC, Generic[ConfType]):
                         {
                             "role": message.role.value,
                             "content": message.content,
+                            "original_content": message.original_content,
                             "tools_called": message.tool_calls,
                         }
                     ]
@@ -591,6 +592,7 @@ class StateManager(ABC, Generic[ConfType]):
                         {
                             "role": m.role.value,
                             "content": m.content,
+                            "original_content": message.original_content,
                             "tool_call_id": m.tool_call_id,
                         }
                         for m in extension
@@ -598,7 +600,7 @@ class StateManager(ABC, Generic[ConfType]):
                 },
             )
 
-        else:
+        elif message.tool_calls:
             self.logger.warning(
                 """BL::StateManager::_process_tools_called::No user message found in context.
                 \nCannot update debug information for tool calls.
@@ -736,8 +738,7 @@ class StateManager(ABC, Generic[ConfType]):
         completions: List[Tuple[Message, List[ToolCalled], List[ToolNotCalled]]] = []
 
         self.logger.debug(
-            f"""BL::StateManager::loop::Starting completion loop with message {message.role if message else "None"}.
-            Max {self.config.FUNCTION_CALL_MAX_ITERATIONS} iterations."""
+            f"""BL::StateManager::loop::Starting completion loop with message {message.role if message else "None"}. Max {self.config.FUNCTION_CALL_MAX_ITERATIONS} iterations."""
         )
 
         while complete and loop_iteration < self.config.FUNCTION_CALL_MAX_ITERATIONS:

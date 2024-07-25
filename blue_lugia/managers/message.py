@@ -60,10 +60,22 @@ class MessageManager(Manager):
                 retrieved = []
 
             for m in retrieved:
+                original_sources = (m.debugInfo or {}).get("_sources", {})
+
+                if m.text and original_sources:
+                    original_content = m.text
+
+                    for original_source, sup in original_sources.items():
+                        original_content = original_content.replace(f"<sup>{sup}</sup>", original_source)
+
+                else:
+                    original_content = None
+
                 try:
                     created = Message(
                         role=Role(m.role.lower()),
                         content=m.text,
+                        original_content=original_content,
                         remote=Message._Remote(self._event, m.id, m.debugInfo),  # type: ignore
                         logger=self.logger.getChild(Message.__name__),
                     )
@@ -131,14 +143,11 @@ class MessageManager(Manager):
         elif flat and len(args) == 0:
             return [item for item in mapped]
         elif flat and len(args) > 1:
-            raise ChatMessageManagerError(
-                "BL::Manager::ChatMessage::values::InvalidArgs::flat=True requires at most one argument."
-            )
+            raise ChatMessageManagerError("BL::Manager::ChatMessage::values::InvalidArgs::flat=True requires at most one argument.")
         else:
             return mapped
 
     def create(self, role_or_message: Role | Message, text: str = "", debug: dict[str, Any] | None = None) -> Message:
-
         if debug is None:
             debug = {}
 
@@ -149,9 +158,7 @@ class MessageManager(Manager):
             role = role_or_message
             content = text
         else:
-            raise ChatMessageManagerError(
-                "BL::Manager::ChatMessage::create::TypeError::role_or_message must be of type Role or Message"
-            )
+            raise ChatMessageManagerError("BL::Manager::ChatMessage::create::TypeError::role_or_message must be of type Role or Message")
 
         try:
             created = unique_sdk.Message.create(
