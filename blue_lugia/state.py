@@ -649,7 +649,6 @@ class StateManager(ABC, Generic[ConfType]):
         out: Message | None = None,
         start_text: str = "",
         tool_choice: type[BaseModel] | None = None,
-        search_context: List[unique_sdk.Integrated.SearchResult] = [],
         output_json: bool = False,
     ) -> Message:
         """
@@ -660,7 +659,6 @@ class StateManager(ABC, Generic[ConfType]):
             out (Message | None): An optional message that may be updated with the completion results.
             start_text (str): Initial text to set the context or prompt for language model generation.
             tool_choice (type[BaseModel] | None): If specified, forces the use of a particular tool for this operation.
-            search_context (List[unique_sdk.Integrated.SearchResult]): Contextual data to assist in generating responses.
             output_json (bool): If True, returns the output in JSON format. Passed to LLM.complete()
 
         Returns:
@@ -693,7 +691,6 @@ class StateManager(ABC, Generic[ConfType]):
             out=out,
             start_text=start_text,
             tool_choice=tool_choice,
-            search_context=search_context,
             output_json=output_json,
         )
 
@@ -709,7 +706,6 @@ class StateManager(ABC, Generic[ConfType]):
         out: Message | None = None,
         start_text: str = "",
         tool_choice: type[BaseModel] | None = None,
-        search_context: List[unique_sdk.Integrated.SearchResult] = [],
         raise_on_max_iterations: bool = False,
         raise_on_missing_tool: bool = False,
         output_json: bool = False,
@@ -722,7 +718,6 @@ class StateManager(ABC, Generic[ConfType]):
             out (Message | None): An optional message to collect outputs.
             start_text (str): Initial text to prompt processing in each iteration.
             tool_choice (type[BaseModel] | None): Specifies a particular tool to use throughout the iterations.
-            search_context (List[unique_sdk.Integrated.SearchResult]): Additional search context for the language model.
             raise_on_max_iterations (bool): If True, raises an exception when the maximum number of iterations is reached.
             raise_on_missing_tool (bool): If True, raises an exception when a required tool is missing.
             output_json (bool): If True, returns the output in JSON format. Passed to LLM.complete()
@@ -748,7 +743,7 @@ class StateManager(ABC, Generic[ConfType]):
         while complete and loop_iteration < self.config.FUNCTION_CALL_MAX_ITERATIONS:
             self.logger.debug(f"Completing iteration {loop_iteration}.")
 
-            completion = self.complete(message, out=out, start_text=start_text, tool_choice=tool_choice, search_context=search_context, output_json=output_json)
+            completion = self.complete(message, out=out, start_text=start_text, tool_choice=tool_choice, output_json=output_json)
 
             self.logger.debug(f"BL::StateManager::loop::Calling tools for completion {completion.role}.")
 

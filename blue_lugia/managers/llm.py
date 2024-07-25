@@ -301,37 +301,21 @@ class LanguageModelManager(Manager):
 
     def _rereference(self, messages: MessageList) -> Tuple[MessageList, List[unique_sdk.Integrated.SearchResult]]:
         processed_messages = messages.fork()
-        source_structures = []
+        references = []
+
+        i = 0
 
         for message in processed_messages:
-            string = message.content or ""
-            # Find all source tags in the string
-            sources = re.findall(r"<source\d+[^>]*>.*?</source\d+>", string)
+            sources = re.findall(r"<source\d+[^>]*>.*?</source\d+>", message.content or "", re.DOTALL)
 
-            # Dictionary to store processed sources for reconstruction
-            processed_sources = {}
-            to_replace = []
-            # List for capturing source details
-            source_list = []
-
-            # Process each source tag
-            for i, source in enumerate(sources):
-                # Parse the source XML
+            for source in sources:
                 elem = ET.fromstring(source)
-                # Create a new tag with the new index
-                new_tag = f"source{i}"
-                # Update element tag
-                elem.tag = new_tag
+                elem.tag = f"source{i}"
 
-                processed_source = ET.tostring(elem, encoding="unicode")
-                # Store the processed source
-                processed_sources[new_tag] = processed_source
+                if message.content:
+                    message.content = message.content.replace(source, ET.tostring(elem, encoding="unicode"))
 
-                # Replace the old tag with the new tag
-                to_replace.append((source, processed_source))
-
-                # Extract attributes and content
-                source_list.append(
+                references.append(
                     {
                         "id": elem.get("id", f"source_{i}"),
                         "chunkId": elem.get("chunkId", elem.get("id", f"source_{i}")),
@@ -340,15 +324,9 @@ class LanguageModelManager(Manager):
                     }
                 )
 
-            # Replace old tags with new tags in the original string
-            new_string = string
-            for old, new in to_replace:
-                new_string = new_string.replace(old, new)
+                i += 1
 
-            message.content = new_string
-            source_structures.extend(source_list)
-
-        return processed_messages, source_structures
+        return processed_messages, references
 
     def _verify_tools(self, tools: List[type[BaseModel]]) -> List[type[BaseModel]]:
         # must inherit base model
@@ -381,7 +359,6 @@ class LanguageModelManager(Manager):
         tool_choice: type[BaseModel] | None = None,
         max_tokens: int | Literal["auto"] | None = None,
         out: Message | None = None,
-        search_context: List[unique_sdk.Integrated.SearchResult] = [],
         debug_info: dict[str, Any] | None = None,
         start_text: str = "",
         output_json: bool = False,
@@ -400,7 +377,6 @@ class LanguageModelManager(Manager):
             tool_choice (type[BaseModel] | None): Specific tool (model class) selected for applying in the completion process.
             max_tokens (int | Literal["auto"] | None): The maximum number of tokens to generate or process; 'auto' for automatic determination based on context.
             out (Message | None): Optional existing message object to update with the completion result.
-            search_context (List[unique_sdk.Integrated.SearchResult]): Contextual data for search or reference during the completion.
             debug_info (dict[str, Any] | None): Additional debug information to pass through or generate during the process.
             start_text (str): Initial text to prepend to any generated content, setting the context or continuation tone.
             output_json (bool): Flag to indicate if the output should be in JSON format. Relies on OpenAI response_format option.

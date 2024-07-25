@@ -153,7 +153,6 @@ class SummarizeTool(BaseModel):
                 Message.SYSTEM("Your role is to summarize the document."),
                 Message.USER(document.content),
             ],
-            search_context=document.as_context(),
             out=out if extra["break_loop"] else None,
         )
 
@@ -219,7 +218,6 @@ def play(state: StateManager, args: list[str] = []) -> None:
     #         Message.USER("Provide one quote from the Earth and cite a source."),
     #     ],
     #     out=state.last_ass_message,
-    #     search_context=files.as_context(),
     # )
 
     return

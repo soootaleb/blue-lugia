@@ -1,6 +1,8 @@
 import datetime
 import logging
+import random
 import re
+import string
 from io import BytesIO
 from typing import Any, Callable, Iterable, List, Optional
 
@@ -451,6 +453,21 @@ class File(Model):
 
         return BytesIO(response.content)
 
+    @property
+    def tokens(self) -> list[int]:
+        """
+        Encodes the file's content into tokens using a tokenizer.
+
+        Returns:
+            list[int]: A list of token ids representing the file content.
+
+        Raises:
+            ValueError: If no tokenizer is set for the file.
+        """
+        if not self._tokenizer:
+            raise ValueError("No tokenizer set for the file")
+        return self._tokenizer.encode(self.content)
+
     def xml(
         self,
         chunks_offset: int = 0,
@@ -468,20 +485,35 @@ class File(Model):
 
         return self.chunks.xml(offset=chunks_offset, chunk_extra_attrs=chunk_extra_attrs)
 
-    @property
-    def tokens(self) -> list[int]:
-        """
-        Encodes the file's content into tokens using a tokenizer.
+    @classmethod
+    def create(cls, event: ExternalModuleChosenEvent, name: str, content: str, **kwargs: Any) -> "File":
+        random_string = "".join(random.choices(string.ascii_lowercase + string.digits, k=10))
 
-        Returns:
-            list[int]: A list of token ids representing the file content.
+        file = cls(
+            event=event,
+            id=kwargs.get("id", f"cont_{random_string}"),
+            name=name,
+            mime_type=kwargs.get("mime_type", "text/plain"),
+            chunks=ChunkList(logger=logging.getLogger(ChunkList.__name__)),
+            created_at=datetime.datetime.now(),
+            updated_at=datetime.datetime.now(),
+        )
 
-        Raises:
-            ValueError: If no tokenizer is set for the file.
-        """
-        if not self._tokenizer:
-            raise ValueError("No tokenizer set for the file")
-        return self._tokenizer.encode(self.content)
+        Chunk(
+            id=kwargs.get("id", f"chunk_{random_string}"),
+            order=kwargs.get("order", 0),
+            content=content,
+            start_page=kwargs.get("start_page", -1),
+            end_page=kwargs.get("end_page", -1),
+            created_at=datetime.datetime.now(),
+            updated_at=datetime.datetime.now(),
+            file=file,
+            metadata=kwargs.get("metadata", {}),
+            url=kwargs.get("url", None),
+            tokenizer=file._tokenizer,
+        )
+
+        return file
 
     def __lt__(self, other: "File") -> bool:
         """
