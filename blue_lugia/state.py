@@ -16,6 +16,7 @@ from blue_lugia.managers import (
     StorageManager,
 )
 from blue_lugia.models import ExternalModuleChosenEvent, File, FileList, Message, MessageList, ToolCalled, ToolNotCalled
+from blue_lugia.models.store import Store
 
 
 class StateManager(ABC, Generic[ConfType]):
@@ -90,6 +91,8 @@ class StateManager(ABC, Generic[ConfType]):
     _commands: dict[str, Callable]
     _app: Any
 
+    _data: Store
+
     def __init__(
         self,
         event: ExternalModuleChosenEvent,
@@ -138,6 +141,7 @@ class StateManager(ABC, Generic[ConfType]):
 
         self._app = app
         self._extra = {}
+        self._data = Store()
 
     @property
     def _FileManager(self) -> type[FileManager]:  # noqa: N802
@@ -198,6 +202,10 @@ class StateManager(ABC, Generic[ConfType]):
     @property
     def logger(self) -> logging.Logger:
         return self._logger or logging.getLogger(__name__.lower())
+
+    @property
+    def data(self) -> Store:
+        return self._data
 
     @property
     def app(self) -> Any:
@@ -857,6 +865,7 @@ class StateManager(ABC, Generic[ConfType]):
         )
 
         self._extra = {}
+        self._data = Store()
         self._tools = []
         self._ctx = self.messages.all(force_refresh=True).fork().filter(lambda x: bool(x.content) or bool(x.tool_calls)).expand("state_manager_tool_calls")
         return self
