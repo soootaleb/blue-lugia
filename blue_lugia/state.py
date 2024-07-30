@@ -520,8 +520,7 @@ class StateManager(ABC, Generic[ConfType]):
 
             if isinstance(post_run, bool) and not post_run:
                 self.logger.debug(
-                    f"""BL::StateManager::_process_tools_called::Tool post_run_hook {tool.__class__.__name__} returned False.
-                    Stoping loop over tool calls."""
+                    f"""BL::StateManager::_process_tools_called::Tool post_run_hook {tool.__class__.__name__} returned False. Stoping loop over tool calls."""
                 )
                 complete = False
 
