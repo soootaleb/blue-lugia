@@ -503,7 +503,7 @@ class LanguageModelManager(Manager):
                 for source in completion_sources:
                     if source not in debug_sources:
                         debug_sources[source] = source_index
-                    source_index += 1
+                        source_index += 1
 
                 out.content = completion.message.text
                 out.original_content = completion.message.originalText
