@@ -215,6 +215,7 @@ class Message(Model):
         base = {
             "role": self.role.value,
             "content": self.content,
+            "original_content": self.original_content,
         }
 
         if self._tool_calls:
