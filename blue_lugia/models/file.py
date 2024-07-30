@@ -5,6 +5,7 @@ import re
 import string
 from io import BytesIO
 from typing import Any, Callable, Iterable, List, Optional
+from xml.sax.saxutils import escape
 
 import requests
 import tiktoken
@@ -91,9 +92,9 @@ class Chunk(Model):
         """
 
         if callable(extra_attrs):
-            extra_attrs_str = " ".join([f"{k}='{v}'" for k, v in extra_attrs(self).items()])
+            extra_attrs_str = " ".join([f'{k}="{v}"' for k, v in extra_attrs(self).items()])
         elif isinstance(extra_attrs, dict):
-            extra_attrs_str = " ".join([f"{k}='{v}'" for k, v in extra_attrs.items()])
+            extra_attrs_str = " ".join([f'{k}="{v}"' for k, v in extra_attrs.items()])
         else:
             extra_attrs_str = ""
 
@@ -108,13 +109,13 @@ class Chunk(Model):
             key += f" : {','.join(pages)}"
 
         return f"""<source{i}
-                    id='{self.id}'
-                    order='{self.order}'
-                    start_page='{self.start_page}'
-                    label='{key}'
-                    url='{self.url or f"unique://content/{self.file.id}"}'
-                    end_page='{self.end_page}' {extra_attrs_str}>
-                    {self.content}
+                    id="{self.id}"
+                    order="{self.order}"
+                    start_page="{self.start_page}"
+                    label="{key}"
+                    url="{self.url or f"unique://content/{self.file.id}"}"
+                    end_page="{self.end_page}" {extra_attrs_str}>
+                    {escape(self.content)}
                 </source{i}>"""
 
     def _clean_content(self, _content: str) -> str:
