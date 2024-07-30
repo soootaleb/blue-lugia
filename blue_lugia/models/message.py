@@ -99,7 +99,7 @@ class Message(Model):
             return json.loads(self)
 
         def pprint(self, indent: int = 2) -> str:
-            return "```json{}{}{}```".format("\n", json.dumps(self.json(), indent=indent), "\n")
+            return "```json{}{}{}```".format("\n", json.dumps(self.json(), indent=indent, ensure_ascii=False), "\n")
 
         def __getitem__(self, key: SupportsIndex | slice) -> "Message._Content":
             return Message._Content(super().__getitem__(key))
@@ -232,7 +232,7 @@ class Message(Model):
         return base
 
     def to_json(self, indent: int = 2) -> str:
-        return json.dumps(self.to_dict(), indent=indent)
+        return json.dumps(self.to_dict(), indent=indent, ensure_ascii=False)
 
     def update(self, content: str | _Content | None, debug: dict[str, Any] | None = None) -> "Message":
         """
@@ -488,7 +488,7 @@ class MessageList(List[Message], Model):
                 if message.content:
                     all_tokens += self.tokenizer.encode(message.content)
                 if message.tool_calls:
-                    all_tokens += self.tokenizer.encode(json.dumps(message.tool_calls))
+                    all_tokens += self.tokenizer.encode(json.dumps(message.tool_calls, ensure_ascii=False))
                 if message.tool_call_id:
                     all_tokens += self.tokenizer.encode(message.tool_call_id)
         return all_tokens
@@ -501,7 +501,7 @@ class MessageList(List[Message], Model):
         }
 
     def to_json(self, indent: int = 2) -> str:
-        return json.dumps(self.to_dict(), indent=indent)
+        return json.dumps(self.to_dict(), indent=indent, ensure_ascii=False)
 
     def fork(self) -> "MessageList":
         """

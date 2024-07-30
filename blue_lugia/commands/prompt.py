@@ -16,4 +16,4 @@ def prompt(state: StateManager[ModuleConfig], args: list[str] = []) -> None:
 
     stored = state.storage.set("prompt_version", args[0]) if len(args) else state.storage.get("prompt_version")
 
-    state.last_ass_message.update(f"""```\n{json.dumps(stored, indent=2)}""")
+    state.last_ass_message.update(f"""```\n{json.dumps(stored, indent=2, ensure_ascii=False)}""")

@@ -8,4 +8,4 @@ class Store(dict[str, Any]):
         return self
 
     def json(self, indent: int = 2) -> str:
-        return json.dumps(self, indent=indent)
+        return json.dumps(self, indent=indent, ensure_ascii=False)

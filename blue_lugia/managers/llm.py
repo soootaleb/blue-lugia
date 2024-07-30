@@ -135,7 +135,7 @@ class LanguageModelManager(Manager):
                         "type": "function",
                         "function": {
                             "name": call["function"]["name"],
-                            "arguments": json.dumps(call["function"]["arguments"]),
+                            "arguments": json.dumps(call["function"]["arguments"], ensure_ascii=False),
                         },
                     }
                     for call in message_tool_calls
@@ -196,7 +196,7 @@ class LanguageModelManager(Manager):
                             "type": "function",
                             "function": {
                                 "name": call["function"]["name"],
-                                "arguments": json.dumps(call["function"]["arguments"]),
+                                "arguments": json.dumps(call["function"]["arguments"], ensure_ascii=False),
                             },
                         }
                         for call in message.tool_calls

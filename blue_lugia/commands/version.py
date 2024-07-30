@@ -40,4 +40,4 @@ def version(state: StateManager[ModuleConfig], *args: list[str]) -> None:
             state.logger.debug(f"Could not find pyproject.toml in {parent}")
             pass
 
-    state.last_ass_message.append(f"```json\n{json.dumps(version, indent=2)}")
+    state.last_ass_message.append(f"```json\n{json.dumps(version, indent=2, ensure_ascii=False)}")
