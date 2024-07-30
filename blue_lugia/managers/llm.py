@@ -444,7 +444,9 @@ class LanguageModelManager(Manager):
             if "json" in messages_contents:
                 options["response_format"] = {"type": "json_object"}
             else:
-                raise LanguageModelManagerError(f"BL::Manager::LLM::complete({completion_name})::JSONPromptMissing::The word 'json' must be present in the messages when you use the output_json flag.")
+                raise LanguageModelManagerError(
+                    f"BL::Manager::LLM::complete({completion_name})::JSONPromptMissing::The word 'json' must be present in the messages when you use the output_json flag."
+                )
 
         self.logger.debug(f"BL::Manager::LLM::complete({completion_name})::Model::{self._model}")
 
@@ -501,6 +503,7 @@ class LanguageModelManager(Manager):
                 for source in completion_sources:
                     if source not in debug_sources:
                         debug_sources[source] = source_index
+                    source_index += 1
 
                 out.content = completion.message.text
                 out.original_content = completion.message.originalText
