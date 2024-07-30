@@ -211,6 +211,29 @@ class Message(Model):
         params = json.loads(params)
         return params.get("language", "English")
 
+    def to_dict(self) -> dict:
+        base = {
+            "role": self.role.value,
+            "content": self.content,
+        }
+
+        if self._tool_calls:
+            base["tool_calls"] = self.tool_calls
+
+        if self._tool_call_id:
+            base["tool_call_id"] = self.tool_call_id
+
+        if self._remote:
+            base["remote"] = {
+                "id": self._remote._id,
+                "debug": self._remote._debug,
+            }
+
+        return base
+
+    def to_json(self, indent: int = 2) -> str:
+        return json.dumps(self.to_dict(), indent=indent)
+
     def update(self, content: str | _Content | None, debug: dict[str, Any] | None = None) -> "Message":
         """
         Updates the content of the message and optionally merges new debug information into the existing debug data.
@@ -469,6 +492,16 @@ class MessageList(List[Message], Model):
                 if message.tool_call_id:
                     all_tokens += self.tokenizer.encode(message.tool_call_id)
         return all_tokens
+
+    def to_dict(self) -> dict:
+        return {
+            "expanded": self._expanded,
+            "tokenizer": self._tokenizer,
+            "messages": [m.to_dict() for m in self],
+        }
+
+    def to_json(self, indent: int = 2) -> str:
+        return json.dumps(self.to_dict(), indent=indent)
 
     def fork(self) -> "MessageList":
         """
