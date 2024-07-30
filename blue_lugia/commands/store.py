@@ -13,7 +13,7 @@ def set(state: StateManager[ModuleConfig], args: list[str] = []) -> None:
 
     state.storage.set(args[0], args[1])
 
-    state.last_ass_message.update(f"""```\n{json.dumps(state.storage.data, indent=2)}""")
+    state.last_ass_message.update(f"""```\n{json.dumps(state.storage.data, indent=2, ensure_ascii=False)}""")
 
 
 def get(state: StateManager[ModuleConfig], args: list[str] = []) -> None:
@@ -29,4 +29,4 @@ def get(state: StateManager[ModuleConfig], args: list[str] = []) -> None:
 
     stored = state.storage.get(args[0]) if len(args) else state.storage.data
 
-    state.last_ass_message.update(f"""```\n{json.dumps(stored, indent=2)}""")
+    state.last_ass_message.update(f"""```\n{json.dumps(stored, indent=2, ensure_ascii=False)}""")

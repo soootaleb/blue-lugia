@@ -16,6 +16,7 @@ from blue_lugia.managers import (
     StorageManager,
 )
 from blue_lugia.models import ExternalModuleChosenEvent, File, FileList, Message, MessageList, ToolCalled, ToolNotCalled
+from blue_lugia.models.store import Store
 
 
 class StateManager(ABC, Generic[ConfType]):
@@ -90,6 +91,8 @@ class StateManager(ABC, Generic[ConfType]):
     _commands: dict[str, Callable]
     _app: Any
 
+    _data: Store
+
     def __init__(
         self,
         event: ExternalModuleChosenEvent,
@@ -138,6 +141,7 @@ class StateManager(ABC, Generic[ConfType]):
 
         self._app = app
         self._extra = {}
+        self._data = Store()
 
     @property
     def _FileManager(self) -> type[FileManager]:  # noqa: N802
@@ -198,6 +202,10 @@ class StateManager(ABC, Generic[ConfType]):
     @property
     def logger(self) -> logging.Logger:
         return self._logger or logging.getLogger(__name__.lower())
+
+    @property
+    def data(self) -> Store:
+        return self._data
 
     @property
     def app(self) -> Any:
@@ -511,10 +519,7 @@ class StateManager(ABC, Generic[ConfType]):
                 complete = False
 
             if isinstance(post_run, bool) and not post_run:
-                self.logger.debug(
-                    f"""BL::StateManager::_process_tools_called::Tool post_run_hook {tool.__class__.__name__} returned False.
-                    Stoping loop over tool calls."""
-                )
+                self.logger.debug(f"""BL::StateManager::_process_tools_called::Tool post_run_hook {tool.__class__.__name__} returned False. Stoping loop over tool calls.""")
                 complete = False
 
             # We add exactly one tool message for each tool call, mandatory
@@ -652,6 +657,7 @@ class StateManager(ABC, Generic[ConfType]):
         start_text: str = "",
         tool_choice: type[BaseModel] | None = None,
         output_json: bool = False,
+        completion_name: str = "",
     ) -> Message:
         """
         Completes the processing of a message or a sequence within the current context by optionally involving tool interactions and language model outputs.
@@ -662,6 +668,7 @@ class StateManager(ABC, Generic[ConfType]):
             start_text (str): Initial text to set the context or prompt for language model generation.
             tool_choice (type[BaseModel] | None): If specified, forces the use of a particular tool for this operation.
             output_json (bool): If True, returns the output in JSON format. Passed to LLM.complete()
+            completion_name (str): The name of the completion for logging purposes.
 
         Returns:
             Message: The message generated or modified as a result of the completion process.
@@ -694,6 +701,7 @@ class StateManager(ABC, Generic[ConfType]):
             start_text=start_text,
             tool_choice=tool_choice,
             output_json=output_json,
+            completion_name=completion_name,
         )
 
         self.logger.debug(f"BL::StateManager::complete::Appending completion to context: {completion.role if completion else "None"}")
@@ -711,6 +719,7 @@ class StateManager(ABC, Generic[ConfType]):
         raise_on_max_iterations: bool = False,
         raise_on_missing_tool: bool = False,
         output_json: bool = False,
+        completion_name: str = "",
     ) -> List[Tuple[Message, List[ToolCalled], List[ToolNotCalled]]]:
         """
         Executes a loop of message processing and tool interactions to handle complex scenarios that require iterative processing.
@@ -723,6 +732,7 @@ class StateManager(ABC, Generic[ConfType]):
             raise_on_max_iterations (bool): If True, raises an exception when the maximum number of iterations is reached.
             raise_on_missing_tool (bool): If True, raises an exception when a required tool is missing.
             output_json (bool): If True, returns the output in JSON format. Passed to LLM.complete()
+            completion_name (str): The name of the completion for logging purposes.
 
         Returns:
             List[Tuple[Message, List[ToolCalled], List[ToolNotCalled]]]: A list of results from each iteration, including messages and tool interaction outcomes.
@@ -744,7 +754,7 @@ class StateManager(ABC, Generic[ConfType]):
         while complete and loop_iteration < self.config.FUNCTION_CALL_MAX_ITERATIONS:
             self.logger.debug(f"Completing iteration {loop_iteration}.")
 
-            completion = self.complete(message, out=out, start_text=start_text, tool_choice=tool_choice, output_json=output_json)
+            completion = self.complete(message=message, out=out, start_text=start_text, tool_choice=tool_choice, output_json=output_json, completion_name=completion_name)
 
             self.logger.debug(f"BL::StateManager::loop::Calling tools for completion {completion.role}.")
 
@@ -771,7 +781,7 @@ class StateManager(ABC, Generic[ConfType]):
 
         return completions
 
-    def stream(self, message: Message | None = None, out: Message | None = None, start_text: str = "", output_json: bool = False) -> Message:
+    def stream(self, message: Message | None = None, out: Message | None = None, start_text: str = "", output_json: bool = False, completion_name: str = "") -> Message:
         """
         Streams processing of messages, potentially in a real-time environment, handling one message at a time.
 
@@ -780,6 +790,7 @@ class StateManager(ABC, Generic[ConfType]):
             out (Message | None): An output message that may be continuously updated.
             start_text (str): Initial text to prime the language model or processing logic.
             output_json (bool): If True, returns the output in JSON format. Passed to LLM.complete()
+            completion_name (str): The name of the completion for logging purposes.
 
         Returns:
             Message: The updated message after processing the input or current context.
@@ -788,7 +799,7 @@ class StateManager(ABC, Generic[ConfType]):
             Used in scenarios where messages need to be processed in a streaming or ongoing fashion, adapting to incoming data in real-time or near-real-time.
         """
         self.logger.debug(f"BL::StateManager::stream::Starting stream with message {message.role if message else "None"}.")
-        return self.complete(message, out=out or self.last_ass_message, start_text=start_text, output_json=output_json)
+        return self.complete(message=message, out=out or self.last_ass_message, start_text=start_text, output_json=output_json, completion_name=completion_name)
 
     def clear(self) -> int:
         """
@@ -853,6 +864,7 @@ class StateManager(ABC, Generic[ConfType]):
         )
 
         self._extra = {}
+        self._data = Store()
         self._tools = []
         self._ctx = self.messages.all(force_refresh=True).fork().filter(lambda x: bool(x.content) or bool(x.tool_calls)).expand("state_manager_tool_calls")
         return self

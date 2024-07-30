@@ -137,7 +137,7 @@ class LanguageModelManager(Manager):
                         "type": "function",
                         "function": {
                             "name": call["function"]["name"],
-                            "arguments": json.dumps(call["function"]["arguments"]),
+                            "arguments": json.dumps(call["function"]["arguments"], ensure_ascii=False),
                         },
                     }
                     for call in message_tool_calls
@@ -198,7 +198,7 @@ class LanguageModelManager(Manager):
                             "type": "function",
                             "function": {
                                 "name": call["function"]["name"],
-                                "arguments": json.dumps(call["function"]["arguments"]),
+                                "arguments": json.dumps(call["function"]["arguments"], ensure_ascii=False),
                             },
                         }
                         for call in message.tool_calls
@@ -279,9 +279,9 @@ class LanguageModelManager(Manager):
         input_tokens_limit = self.CONTEXT_WINDOW_SIZES.get(self._model, 0) - self.OUTPUT_MAX_TOKENS.get(self._model, 0) - system_tokens_count
 
         if input_tokens_limit <= 0:
-            raise ValueError(f"BL::Manager::LLM::complete::input_tokens_limit::{input_tokens_limit}")
+            raise ValueError(f"BL::Manager::LLM::reformat::input_tokens_limit::{input_tokens_limit}")
 
-        self.logger.debug(f"BL::Manager::LLM::complete::NonSystemMessagesTruncatedTo::{input_tokens_limit} tokens")
+        self.logger.debug(f"BL::Manager::LLM::reformat::NonSystemMessagesTruncatedTo::{input_tokens_limit} tokens")
 
         not_system_messages = not_system_messages.keep(input_tokens_limit)
 
@@ -295,7 +295,7 @@ class LanguageModelManager(Manager):
                 ),
             )
 
-        self.logger.debug(f"BL::Manager::LLM::complete::MessagesReformatedTo::{len(not_system_messages.tokens)} tokens.")
+        self.logger.debug(f"BL::Manager::LLM::reformat::MessagesReformatedTo::{len(not_system_messages.tokens)} tokens.")
 
         return not_system_messages
 
@@ -335,23 +335,23 @@ class LanguageModelManager(Manager):
         # must inherit base model
         for tool in tools:
             if not issubclass(tool, BaseModel):
-                raise LanguageModelManagerError(f"BL::Manager::LLM::complete::InvalidToolBaseClass::{tool}")
+                raise LanguageModelManagerError(f"BL::Manager::LLM::verify_tools::InvalidToolBaseClass::{tool}")
 
         # tool name must be under or equal to 64 chars
         for tool in tools:
             if len(tool.__name__) > 64:
-                raise LanguageModelManagerError(f"BL::Manager::LLM::complete::ToolNameTooLong::{tool}")
+                raise LanguageModelManagerError(f"BL::Manager::LLM::verify_tools::ToolNameTooLong::{tool}")
 
         # maximum of 128 tools
         if len(tools) > 128:
-            raise LanguageModelManagerError(f"BL::Manager::LLM::complete::TooManyTools::{len(tools)}")
+            raise LanguageModelManagerError(f"BL::Manager::LLM::verify_tools::TooManyTools::{len(tools)}")
         elif len(tools) >= 10:
-            self.logger.warning(f"BL::Manager::LLM::complete::TooManyTools::{len(tools)}")
+            self.logger.warning(f"BL::Manager::LLM::verify_tools::TooManyTools::{len(tools)}")
 
         # tool description must be under or equal to 1024 chars
         for tool in tools:
             if tool.__doc__ and len(tool.__doc__) > 1024:
-                raise LanguageModelManagerError(f"BL::Manager::LLM::complete::ToolDescriptionTooLong::{tool}")
+                raise LanguageModelManagerError(f"BL::Manager::LLM::verify_tools::ToolDescriptionTooLong::{tool}")
 
         return tools
 
@@ -365,6 +365,7 @@ class LanguageModelManager(Manager):
         debug_info: dict[str, Any] | None = None,
         start_text: str = "",
         output_json: bool = False,
+        completion_name: str = "",
         *args,
         **kwargs,
     ) -> Message:
@@ -383,6 +384,7 @@ class LanguageModelManager(Manager):
             debug_info (dict[str, Any] | None): Additional debug information to pass through or generate during the process.
             start_text (str): Initial text to prepend to any generated content, setting the context or continuation tone.
             output_json (bool): Flag to indicate if the output should be in JSON format. Relies on OpenAI response_format option.
+            completion_name (str): Optional name or identifier for the completion operation. It'll help debug in the logs.
             *args: Variable length argument list.
             **kwargs: Arbitrary keyword arguments.
 
@@ -442,9 +444,9 @@ class LanguageModelManager(Manager):
             if "json" in messages_contents:
                 options["response_format"] = {"type": "json_object"}
             else:
-                raise LanguageModelManagerError("BL::Manager::LLM::complete::JSONPromptMissing::The word 'json' must be present in the messages when you use the output_json flag.")
+                raise LanguageModelManagerError(f"BL::Manager::LLM::complete({completion_name})::JSONPromptMissing::The word 'json' must be present in the messages when you use the output_json flag.")
 
-        self.logger.debug(f"BL::Manager::LLM::complete::Model::{self._model}")
+        self.logger.debug(f"BL::Manager::LLM::complete({completion_name})::Model::{self._model}")
 
         if self._use_open_ai:
             client = OpenAI(api_key=self._open_ai_api_key)

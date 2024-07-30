@@ -197,8 +197,6 @@ class FileManager(Manager):
         return file_manager
 
     def search(self, query: str = "", limit: int = 1000) -> ChunkList:
-        page = 1
-        # found_count = limit
         found_all = []
 
         metadata_filters = None
@@ -222,24 +220,30 @@ class FileManager(Manager):
                 ]
             }
 
-        # while found_count > 0 and len(found_all) < limit:
+        extra_args = {}
+
+        if self._chat_only:
+            extra_args["chatOnly"] = True
+
+        if self._scopes:
+            extra_args["scopeIds"] = self._scopes
+
+        if metadata_filters:
+            extra_args["metaDataFilter"] = metadata_filters
+
+        if limit < 1000:
+            extra_args["limit"] = limit
+
         found = unique_sdk.Search.create(
             user_id=self._event.user_id,
             company_id=self._event.company_id,
             chatId=self._event.payload.chat_id,
-            chatOnly=self._chat_only,
             searchString=query,
-            page=page,
-            scopeIds=self._scopes or None,
             searchType=self._search_type.value,
-            metaDataFilter=metadata_filters,  # type: ignore
-            limit=limit,
+            **extra_args,
         )
 
-        # found_count = len(found["data"])
         found_all.extend(found["data"])
-
-        page += 1
 
         typed_search = self._cast_search(found_all)
 

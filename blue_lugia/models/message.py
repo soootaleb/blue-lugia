@@ -99,7 +99,7 @@ class Message(Model):
             return json.loads(self)
 
         def pprint(self, indent: int = 2) -> str:
-            return "```json{}{}{}```".format("\n", json.dumps(self.json(), indent=indent), "\n")
+            return "```json{}{}{}```".format("\n", json.dumps(self.json(), indent=indent, ensure_ascii=False), "\n")
 
         def __getitem__(self, key: SupportsIndex | slice) -> "Message._Content":
             return Message._Content(super().__getitem__(key))
@@ -210,6 +210,29 @@ class Message(Model):
         params = params.group() if params else "{}"
         params = json.loads(params)
         return params.get("language", "English")
+
+    def to_dict(self) -> dict:
+        base = {
+            "role": self.role.value,
+            "content": self.content,
+        }
+
+        if self._tool_calls:
+            base["tool_calls"] = self.tool_calls
+
+        if self._tool_call_id:
+            base["tool_call_id"] = self.tool_call_id
+
+        if self._remote:
+            base["remote"] = {
+                "id": self._remote._id,
+                "debug": self._remote._debug,
+            }
+
+        return base
+
+    def to_json(self, indent: int = 2) -> str:
+        return json.dumps(self.to_dict(), indent=indent, ensure_ascii=False)
 
     def update(self, content: str | _Content | None, debug: dict[str, Any] | None = None) -> "Message":
         """
@@ -466,10 +489,20 @@ class MessageList(List[Message], Model):
                 if message.content:
                     all_tokens += self.tokenizer.encode(message.content)
                 if message.tool_calls:
-                    all_tokens += self.tokenizer.encode(json.dumps(message.tool_calls))
+                    all_tokens += self.tokenizer.encode(json.dumps(message.tool_calls, ensure_ascii=False))
                 if message.tool_call_id:
                     all_tokens += self.tokenizer.encode(message.tool_call_id)
         return all_tokens
+
+    def to_dict(self) -> dict:
+        return {
+            "expanded": self._expanded,
+            "tokenizer": self._tokenizer,
+            "messages": [m.to_dict() for m in self],
+        }
+
+    def to_json(self, indent: int = 2) -> str:
+        return json.dumps(self.to_dict(), indent=indent, ensure_ascii=False)
 
     def fork(self) -> "MessageList":
         """
