@@ -513,7 +513,7 @@ class MessageList(List[Message], Model):
     def to_dict(self) -> dict:
         return {
             "expanded": self._expanded,
-            "tokenizer": self._tokenizer,
+            "tokenizer": str(self._tokenizer),
             "messages": [m.to_dict() for m in self],
         }
 
