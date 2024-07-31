@@ -109,22 +109,23 @@ class StateManager(ABC, Generic[ConfType]):
 
         self._managers = self._managers | (managers or {}) or {}
 
-        self._messages = self._MessageManager(
-            event=event,
-            tokenizer=self.config.LLM_TOKENIZER,
-            logger=self.logger.getChild(self._MessageManager.__name__),
-        )
-
         self._llm = self._LanguageModelManager(
             event=event,
-            model=self.cfg.languageModel,
+            model=self.cfg.languageModel or self.cfg.LLM_DEFAULT_MODEL,
             timeout=self.cfg.LLM_TIMEOUT,
+            context_max_tokens=self.cfg.CONTEXT_WINDOW_TOKEN_LIMIT,
             logger=self.logger.getChild(self._LanguageModelManager.__name__),
+        )
+
+        self._messages = self._MessageManager(
+            event=event,
+            tokenizer=self._llm.tokenizer,
+            logger=self.logger.getChild(self._MessageManager.__name__),
         )
 
         self._files = self._FileManager(
             event=event,
-            tokenizer=self.cfg.LLM_TOKENIZER,
+            tokenizer=self._llm.tokenizer,
             logger=self.logger.getChild(self._FileManager.__name__),
         )
 
@@ -846,22 +847,23 @@ class StateManager(ABC, Generic[ConfType]):
 
         self.logger.info("BL::StateManager::reset::Resetting StateManager.")
 
-        self._messages = self._MessageManager(
-            event=self.event,
-            tokenizer=self.config.LLM_TOKENIZER,
-            logger=self.logger.getChild(self._MessageManager.__name__),
-        )
-
         self._llm = self._LanguageModelManager(
             event=self.event,
-            model=self.cfg.languageModel,
+            model=self.cfg.languageModel or self.cfg.LLM_DEFAULT_MODEL,
             timeout=self.cfg.LLM_TIMEOUT,
+            context_max_tokens=self.cfg.CONTEXT_WINDOW_TOKEN_LIMIT,
             logger=self.logger.getChild(self._LanguageModelManager.__name__),
+        )
+
+        self._messages = self._MessageManager(
+            event=self.event,
+            tokenizer=self._llm.tokenizer,
+            logger=self.logger.getChild(self._MessageManager.__name__),
         )
 
         self._files = self._FileManager(
             event=self.event,
-            tokenizer=self.cfg.LLM_TOKENIZER,
+            tokenizer=self._llm.tokenizer,
             logger=self.logger.getChild(self._FileManager.__name__),
         )
 

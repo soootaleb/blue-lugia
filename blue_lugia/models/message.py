@@ -569,7 +569,7 @@ class MessageList(List[Message], Model):
         """
         return MessageList(filter(f, self), self._tokenizer, logger=self.logger)
 
-    def keep(self, max_tokens: int, in_place: bool = False) -> "MessageList":
+    def truncate(self, max_tokens: int, in_place: bool = False) -> "MessageList":
         """
         Reduces the list to fit within a specified maximum number of tokens, optionally modifying the original list.
 
@@ -608,7 +608,11 @@ class MessageList(List[Message], Model):
             return self
 
         else:
-            return self.fork().keep(max_tokens, in_place=True)
+            return self.fork().truncate(max_tokens, in_place=True)
+
+    def keep(self, max_tokens: int, in_place: bool = False) -> "MessageList":
+        self.logger.warning("BL::Model::MessageList::keep::Deprecated::Use truncate instead.")
+        return self.truncate(max_tokens, in_place)
 
     def expand(self, legacy_key: str = "state_manager_tool_calls", in_place: bool = False) -> "MessageList":
         """
