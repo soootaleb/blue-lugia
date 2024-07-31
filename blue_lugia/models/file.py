@@ -112,8 +112,8 @@ class Chunk(Model):
                     id="{self.id}"
                     order="{self.order}"
                     start_page="{self.start_page}"
-                    label="{key}"
-                    url="{self.url or f"unique://content/{self.file.id}"}"
+                    label="{escape(key)}"
+                    url="{escape(self.url or f"unique://content/{self.file.id}")}"
                     end_page="{self.end_page}" {extra_attrs_str}>
                     {escape(self.content)}
                 </source{i}>"""
