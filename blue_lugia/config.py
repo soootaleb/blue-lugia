@@ -31,7 +31,7 @@ class ModuleConfig(BaseSettings):
     ON_FAILURE_DISPLAY_ERROR: str | bool | None = None
 
     # Message history
-    CONTEXT_WINDOW_TOKEN_LIMIT: int = 16_000
+    CONTEXT_WINDOW_TOKEN_LIMIT: int | None = None
     CONTEXT_WINDOW_N_MIN_MESSAGES: int = 2
     CONTEXT_WINDOW_N_MAX_MESSAGES: int = 10
 
