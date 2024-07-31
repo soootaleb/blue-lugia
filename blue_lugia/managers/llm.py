@@ -553,7 +553,7 @@ class LanguageModelManager(Manager):
                     logger=self.logger.getChild(Message.__name__),
                 )
 
-                typed_message.update(content=typed_message.content, debug={"_sources": debug_sources})
+                typed_message.update(debug={"_sources": debug_sources})
 
                 return typed_message
 
