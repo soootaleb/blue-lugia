@@ -235,7 +235,7 @@ class Message(Model):
     def to_json(self, indent: int = 2) -> str:
         return json.dumps(self.to_dict(), indent=indent, ensure_ascii=False)
 
-    def update(self, content: str | _Content | None, debug: dict[str, Any] | None = None) -> "Message":
+    def update(self, content: str | _Content | None = None, debug: dict[str, Any] | None = None, references: List[Any] | None = None) -> "Message":
         """
         Updates the content of the message and optionally merges new debug information into the existing debug data.
 
@@ -246,20 +246,35 @@ class Message(Model):
         Returns:
             Message: The updated message instance, reflecting new content and debug information.
         """
+
         if debug is None:
             debug = {}
-        self.content = content
+
+        args = {}
+
+        if content is not None:
+            self.content = content
+            args["text"] = self.content
+
+        if references:
+            args["references"] = references
+
         if self._remote:
+
             self._remote._debug = (self._remote._debug or {}) | debug
+
             unique_sdk.Message.modify(
                 user_id=self._remote._event.user_id,
                 company_id=self._remote._event.company_id,
                 chatId=self._remote._event.payload.chat_id,
                 id=self._remote._id,
-                text=self.content or "",
                 debugInfo=self._remote._debug,
-                references=[],
+                **args,
             )
+
+        elif debug:
+            self.logger.warning("BL::Model::Message::update::NoRemoteCounterPart::Setting debug info on a message without a remote counterpart.")
+
         return self
 
     def append(self, content: str, new_line: bool = True) -> "Message":
@@ -571,7 +586,7 @@ class MessageList(List[Message], Model):
         """
         return MessageList(filter(f, self), self._tokenizer, logger=self.logger)
 
-    def keep(self, max_tokens: int, in_place: bool = False) -> "MessageList":
+    def truncate(self, max_tokens: int, in_place: bool = False) -> "MessageList":
         """
         Reduces the list to fit within a specified maximum number of tokens, optionally modifying the original list.
 
@@ -610,7 +625,11 @@ class MessageList(List[Message], Model):
             return self
 
         else:
-            return self.fork().keep(max_tokens, in_place=True)
+            return self.fork().truncate(max_tokens, in_place=True)
+
+    def keep(self, max_tokens: int, in_place: bool = False) -> "MessageList":
+        self.logger.warning("BL::Model::MessageList::keep::Deprecated::Use truncate instead.")
+        return self.truncate(max_tokens, in_place)
 
     def expand(self, legacy_key: str = "state_manager_tool_calls", in_place: bool = False) -> "MessageList":
         """

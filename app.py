@@ -99,7 +99,7 @@ def module(state: StateManager[ModuleConfig]) -> None:
     user_messages: MessageList = history.filter(lambda x: x.role == Role.USER)  # noqa: F841
     first_message: Message | None = history.first()  # noqa: F841
     first_system_message: Message | None = history.first(lambda x: x.role == Role.SYSTEM)  # noqa: F841
-    truncated_messages: MessageList = history.keep(1000)  # noqa: F841
+    truncated_messages: MessageList = history.truncate(1000)  # noqa: F841
 
     # And their properties
     messages_tokens = history.tokens  # noqa: F841

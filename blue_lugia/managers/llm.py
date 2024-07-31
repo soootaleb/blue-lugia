@@ -73,6 +73,7 @@ class LanguageModelManager(Manager):
     _model: str
     _timeout: int
     _temperature: float
+    _context_max_tokens: int | None
 
     _use_open_ai: bool
     _open_ai_api_key: str
@@ -84,6 +85,7 @@ class LanguageModelManager(Manager):
         model: str,
         temperature: float = 0.0,
         timeout: int = 600_000,
+        context_max_tokens: int | None = None,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
@@ -94,6 +96,7 @@ class LanguageModelManager(Manager):
         self._use_open_ai = False
         self._open_ai_api_key = ""
         self._parser = Parser(self)
+        self._context_max_tokens = context_max_tokens
 
     @property
     def tokenizer(self) -> tiktoken.Encoding:
@@ -257,7 +260,7 @@ class LanguageModelManager(Manager):
 
         TODO: Count also tools and leave some space for the output of the model
         """
-        self.logger.debug("Reformating context messages.")
+        self.logger.debug(f"BL::Manager::LLM::reformat::Reformating {len(messages)} messages")
 
         system_messages = messages.filter(lambda m: m.role == Role.SYSTEM)
         not_system_messages = messages.filter(lambda m: m.role != Role.SYSTEM)
@@ -265,39 +268,44 @@ class LanguageModelManager(Manager):
         unique_system_messages = MessageList([], tokenizer=self.tokenizer, logger=self.logger.getChild(MessageList.__name__))
 
         # deduplicate system messages by content
-
         for message in system_messages:
             if message.content and not unique_system_messages.first(lambda m: str(m.content) == str(message.content)):
                 unique_system_messages.append(message)
 
         system_tokens_count = len(unique_system_messages.tokens)
 
-        self.logger.debug(f"Found {system_tokens_count} tokens of system messages.")
+        self.logger.debug(f"BL::Manager::LLM::reformat::SystemMessageTokensFound::{system_tokens_count}")
 
-        # count tokens from system messages
+        context_window = self.CONTEXT_WINDOW_SIZES.get(self._model, 0)
 
-        input_tokens_limit = self.CONTEXT_WINDOW_SIZES.get(self._model, 0) - self.OUTPUT_MAX_TOKENS.get(self._model, 0) - system_tokens_count
+        if self._context_max_tokens:
+            if self._context_max_tokens <= context_window:
+                context_window = self._context_max_tokens
+            else:
+                self.logger.warning(f"BL::Manager::LLM::reformat::ContextMaxTokensExceedsModelLimit::{self._context_max_tokens}")
 
-        if input_tokens_limit <= 0:
-            raise ValueError(f"BL::Manager::LLM::reformat::input_tokens_limit::{input_tokens_limit}")
+        self.logger.debug(f"BL::Manager::LLM::reformat::ContextMaxTokensSet::{self._context_max_tokens}")
 
-        self.logger.debug(f"BL::Manager::LLM::reformat::NonSystemMessagesTruncatedTo::{input_tokens_limit} tokens")
+        history_tokens_limit = context_window - self.OUTPUT_MAX_TOKENS.get(self._model, 0) - system_tokens_count
 
-        not_system_messages = not_system_messages.keep(input_tokens_limit)
+        if history_tokens_limit <= 0:
+            raise ValueError(f"BL::Manager::LLM::reformat::input_tokens_limit::{history_tokens_limit}")
 
-        # prepend system messages to input messages
+        self.logger.debug(f"BL::Manager::LLM::reformat::NonSystemMessagesTruncatedTo::{history_tokens_limit} tokens")
+
+        final_history = not_system_messages.truncate(history_tokens_limit)
 
         if unique_system_messages:
-            not_system_messages.insert(
+            final_history.insert(
                 0,
                 Message.SYSTEM(
                     "\n".join([str(m.content) for m in unique_system_messages]),
                 ),
             )
 
-        self.logger.debug(f"BL::Manager::LLM::reformat::MessagesReformatedTo::{len(not_system_messages.tokens)} tokens.")
+        self.logger.debug(f"BL::Manager::LLM::reformat::ContextTruncatedTo::{len(final_history.tokens)} tokens.")
 
-        return not_system_messages
+        return final_history
 
     def _rereference(self, messages: MessageList) -> Tuple[MessageList, List[unique_sdk.Integrated.SearchResult]]:
         processed_messages = messages.fork()
