@@ -170,7 +170,7 @@ class App(Flask, Generic[ConfType]):
                         "()": "blue_lugia.logging.ColorFormatter",
                         "format": "%(asctime)s - %(name)s - %(levelname)-8s - %(message)s",
                         "datefmt": "%Y-%m-%d %H:%M:%S",
-                    }
+                    },
                 },
                 "handlers": {
                     "console": {
@@ -336,23 +336,23 @@ class App(Flask, Generic[ConfType]):
                 self.logger.error(f"BL::State::listen::Error processing event: {e.__class__.__name__}", exc_info=False)
 
     def webhook(
-            self,
-            chat_id: str,
-            assistant_id: str,
-            conf: dict | None = None,
-            description: str = "Mock event",
-            event_id: str = "evt_xyz",
-            version: str = "1.0.0",
-            event_type: str ="unique.chat.external-module.chosen",
-            user_message: str = "User message",
-            user_id: str | None = None,
-            user_message_id: str = "msg_xyz",
-            assistant_message_id: str = "msg_123",
-            company_id: str | None = None,
-            event_created_at: Callable[[], datetime.datetime] = datetime.datetime.now,
-            user_message_created_at: Callable[[], datetime.datetime] = datetime.datetime.now,
-            assistant_message_created_at: Callable[[], datetime.datetime] = datetime.datetime.now,
-        ) -> None:
+        self,
+        chat_id: str,
+        assistant_id: str,
+        conf: dict | None = None,
+        description: str = "Mock event",
+        event_id: str = "evt_xyz",
+        version: str = "1.0.0",
+        event_type: str = "unique.chat.external-module.chosen",
+        user_message: str = "User message",
+        user_id: str | None = None,
+        user_message_id: str = "msg_xyz",
+        assistant_message_id: str = "msg_123",
+        company_id: str | None = None,
+        event_created_at: Callable[[], datetime.datetime] = datetime.datetime.now,
+        user_message_created_at: Callable[[], datetime.datetime] = datetime.datetime.now,
+        assistant_message_created_at: Callable[[], datetime.datetime] = datetime.datetime.now,
+    ) -> None:
         """
         Execute the webhook using the provided user id and chat id.
 
@@ -425,7 +425,7 @@ class App(Flask, Generic[ConfType]):
             ),
         )
 
-    def _run_module(self, event: ExternalModuleChosenEvent) -> None:  # noqa: C901
+    def create_state(self, event: ExternalModuleChosenEvent) -> StateManager:
         if not self._state_manager:
             self._state_manager = StateManager[ConfType]
 
@@ -434,13 +434,16 @@ class App(Flask, Generic[ConfType]):
 
         self._conf = self._conf.model_copy(update=event.payload.configuration)
 
-        state = self._state_manager(
+        return self._state_manager(
             event=event,
             conf=self._conf,
             logger=self.logger.getChild(self._state_manager.__name__),
             managers=self._managers,
             app=self,
         )
+
+    def _run_module(self, event: ExternalModuleChosenEvent) -> None:  # noqa: C901
+        state = self.create_state(event)
 
         try:
             last_user_message = state.last_usr_message

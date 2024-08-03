@@ -409,14 +409,14 @@ class Message(Model):
         Returns:
             Message: A new message instance that is a deep copy of the current message.
         """
-        return Message(
+        return self.__class__(
             role=Role(self.role.value),
-            content=Message._Content(self.content) if self.content else None,
-            original_content=Message._Content(self.original_content) if self.original_content else None,
-            remote=(Message._Remote(self._remote._event, self._remote._id, self.debug.copy()) if self._remote else None),
+            content=self.__class__._Content(self.content) if self.content else None,
+            original_content=self.__class__._Content(self.original_content) if self.original_content else None,
+            remote=(self.__class__._Remote(self._remote._event, self._remote._id, self.debug.copy()) if self._remote else None),
             tool_call_id=self._tool_call_id,
             tool_calls=[tc.copy() for tc in self._tool_calls],
-            logger=self.logger.getChild(Message.__name__),
+            logger=self.logger.getChild(self.__class__.__name__),
         )
 
     def __str__(self) -> str:
@@ -527,7 +527,7 @@ class MessageList(List[Message], Model):
         Returns:
             MessageList: A new instance of MessageList with identical properties and contents.
         """
-        forked = MessageList([o.fork() for o in self], self._tokenizer, logger=self.logger)
+        forked = self.__class__([o.fork() for o in self], self._tokenizer, logger=self.logger)
         forked._expanded = self._expanded
         return forked
 

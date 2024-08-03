@@ -363,6 +363,143 @@ class LanguageModelManager(Manager):
 
         return tools
 
+    def _complete_openai(self, formated_messages: List[dict], options: dict[str, Any]) -> Message:
+        client = OpenAI(api_key=self._open_ai_api_key)
+        completion = client.chat.completions.create(
+            model=self._model,
+            messages=formated_messages,  # type: ignore
+            tools=options.get("tools", NotGiven()),
+            tool_choice=options.get("toolChoice", NotGiven()),
+            max_tokens=options.get("max_tokens", NotGiven()),
+            response_format=options.get("response_format", NotGiven()),
+            temperature=self._temperature,
+        )
+
+        return Message(
+            role=Role(completion.choices[0].message.role.lower()),
+            content=completion.choices[0].message.content,
+            tool_calls=[
+                {
+                    "id": call.id,
+                    "type": "function",
+                    "function": {
+                        "name": call.function.name,
+                        "arguments": json.loads(call.function.arguments),
+                    },
+                }
+                for call in completion.choices[0].message.tool_calls or []
+            ],
+            logger=self.logger.getChild(Message.__name__),
+        )
+
+    def _complete_streaming(
+        self,
+        formated_messages: List[dict],
+        options: dict[str, Any],
+        out: Message,
+        debug_info: dict[str, Any],
+        start_text: str,
+        references: List[unique_sdk.Integrated.SearchResult],
+    ) -> Message:
+        completion = unique_sdk.Integrated.chat_stream_completion(
+            user_id=self._event.user_id,
+            company_id=self._event.company_id,
+            assistantId=self._event.payload.assistant_id,
+            assistantMessageId=out.id,
+            userMessageId=self._event.payload.user_message.id,
+            messages=formated_messages,
+            chatId=self._event.payload.chat_id,
+            searchContext=references,
+            debugInfo=debug_info,
+            startText=start_text,
+            model=self._model,
+            timeout=self._timeout,
+            options=options,  # type: ignore
+            temperature=self._temperature,
+        )
+
+        completion_sources = re.findall(r"\[source\d+\]", completion.message.originalText or "", re.DOTALL)
+        debug_sources = {}
+        source_index = 1
+        for source in completion_sources:
+            if source not in debug_sources:
+                debug_sources[source] = source_index
+                source_index += 1
+
+        out.content = completion.message.text
+        out.original_content = completion.message.originalText
+        out.debug["_sources"] = debug_sources
+
+        out._tool_calls = out._tool_calls + [
+            {
+                "id": call.id,
+                "type": "function",
+                "function": {
+                    "name": call.name,
+                    "arguments": json.loads(call.arguments),
+                },
+            }
+            for call in completion.toolCalls
+            if call.id not in [call["id"] for call in out._tool_calls]
+        ]
+
+        typed_message = Message(
+            role=Role(completion.message.role.lower()),
+            content=(Message._Content(completion.message.text) if completion.message.text else None),
+            original_content=completion.message.originalText,
+            remote=Message._Remote(
+                event=self._event,
+                id=completion.message.id,
+                debug=completion.message.debugInfo,
+            ),
+            tool_calls=[
+                {
+                    "id": call.id,
+                    "type": "function",
+                    "function": {
+                        "name": call.name,
+                        "arguments": json.loads(call.arguments),
+                    },
+                }
+                for call in completion.toolCalls
+            ],
+            logger=self.logger.getChild(Message.__name__),
+        )
+
+        typed_message.update(debug={"_sources": debug_sources})
+
+        return typed_message
+
+    def _complete_basic(
+        self,
+        formated_messages: List[dict],
+        options: dict[str, Any],
+    ) -> Message:
+        completion = unique_sdk.ChatCompletion.create(
+            company_id=self._event.company_id,
+            model=self._model,
+            messages=formated_messages,
+            timeout=self._timeout,
+            options=options,  # type: ignore
+        )
+
+        return Message(
+            role=Role(completion.choices[0].message.role.lower()),
+            content=completion.choices[0].message.content,
+            tool_calls=[
+                {
+                    "id": call.id,
+                    "type": "function",
+                    "function": {
+                        "name": call.function.name,
+                        "arguments": json.loads(call.function.arguments),
+                    },
+                }
+                for call in completion.choices[0].message.toolCalls
+            ],
+            logger=self.logger.getChild(Message.__name__),
+        )
+
     def complete(
         self,
         messages: List[Message] | List[dict[str, Any]],
@@ -459,129 +596,11 @@ class LanguageModelManager(Manager):
         self.logger.debug(f"BL::Manager::LLM::complete({completion_name})::Model::{self._model}")
 
         if self._use_open_ai:
-            client = OpenAI(api_key=self._open_ai_api_key)
-            completion = client.chat.completions.create(
-                model=self._model,
-                messages=formated_messages,  # type: ignore
-                tools=options.get("tools", NotGiven()),
-                tool_choice=options.get("toolChoice", NotGiven()),
-                max_tokens=options.get("max_tokens", NotGiven()),
-                response_format=options.get("response_format", NotGiven()),
-                temperature=self._temperature,
-            )
-
-            return Message(
-                role=Role(completion.choices[0].message.role.lower()),
-                content=completion.choices[0].message.content,
-                tool_calls=[
-                    {
-                        "id": call.id,
-                        "type": "function",
-                        "function": {
-                            "name": call.function.name,
-                            "arguments": json.loads(call.function.arguments),
-                        },
-                    }
-                    for call in completion.choices[0].message.tool_calls or []
-                ],
-                logger=self.logger.getChild(Message.__name__),
-            )
+            return self._complete_openai(formated_messages=formated_messages, options=options)
+        elif out:
+            return self._complete_streaming(formated_messages=formated_messages, options=options, out=out, debug_info=debug_info, start_text=start_text, references=references)
         else:
-            if out:
-                completion = unique_sdk.Integrated.chat_stream_completion(
-                    user_id=self._event.user_id,
-                    company_id=self._event.company_id,
-                    assistantId=self._event.payload.assistant_id,
-                    assistantMessageId=out.id,
-                    userMessageId=self._event.payload.user_message.id,
-                    messages=formated_messages,
-                    chatId=self._event.payload.chat_id,
-                    searchContext=references,
-                    debugInfo=debug_info,
-                    startText=start_text,
-                    model=self._model,
-                    timeout=self._timeout,
-                    options=options,  # type: ignore
-                    temperature=self._temperature,
-                )
-
-                completion_sources = re.findall(r"\[source\d+\]", completion.message.originalText or "", re.DOTALL)
-                debug_sources = {}
-                source_index = 1
-                for source in completion_sources:
-                    if source not in debug_sources:
-                        debug_sources[source] = source_index
-                        source_index += 1
-
-                out.content = completion.message.text
-                out.original_content = completion.message.originalText
-                out.debug["_sources"] = debug_sources
-
-                out._tool_calls = out._tool_calls + [
-                    {
-                        "id": call.id,
-                        "type": "function",
-                        "function": {
-                            "name": call.name,
-                            "arguments": json.loads(call.arguments),
-                        },
-                    }
-                    for call in completion.toolCalls
-                    if call.id not in [call["id"] for call in out._tool_calls]
-                ]
-
-                typed_message = Message(
-                    role=Role(completion.message.role.lower()),
-                    content=(Message._Content(completion.message.text) if completion.message.text else None),
-                    original_content=completion.message.originalText,
-                    remote=Message._Remote(
-                        event=self._event,
-                        id=completion.message.id,
-                        debug=completion.message.debugInfo,
-                    ),
-                    tool_calls=[
-                        {
-                            "id": call.id,
-                            "type": "function",
-                            "function": {
-                                "name": call.name,
-                                "arguments": json.loads(call.arguments),
-                            },
-                        }
-                        for call in completion.toolCalls
-                    ],
-                    logger=self.logger.getChild(Message.__name__),
-                )
-
-                typed_message.update(debug={"_sources": debug_sources})
-
-                return typed_message
-
-            else:
-                completion = unique_sdk.ChatCompletion.create(
-                    company_id=self._event.company_id,
-                    model=self._model,
-                    messages=formated_messages,
-                    timeout=self._timeout,
-                    options=options,  # type: ignore
-                )
-
-                return Message(
-                    role=Role(completion.choices[0].message.role.lower()),
-                    content=completion.choices[0].message.content,
-                    tool_calls=[
-                        {
-                            "id": call.id,
-                            "type": "function",
-                            "function": {
-                                "name": call.function.name,
-                                "arguments": json.loads(call.function.arguments),
-                            },
-                        }
-                        for call in completion.choices[0].message.toolCalls
-                    ],
-                    logger=self.logger.getChild(Message.__name__),
-                )
+            return self._complete_basic(formated_messages=formated_messages, options=options)
 
 
 class Parser[T]:
