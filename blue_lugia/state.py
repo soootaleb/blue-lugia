@@ -312,14 +312,7 @@ class StateManager(ABC, Generic[ConfType]):
             self.logger.debug(f"BL::StateManager::context::Adding {len(_ctx)} messages to the context")
             self.ctx.extend(_ctx)
         elif prepend:
-            sent_user_message = self.ctx.filter(lambda x: bool(x._remote)).filter(lambda x: bool(x._remote) and x._remote._id == self.event.payload.user_message.id).first()
-            if sent_user_message:
-                self.logger.debug(f"BL::StateManager::context::Inserting {len(_ctx)} messages to the context")
-                sent_user_message_index = self.ctx.index(sent_user_message)
-                self.ctx[sent_user_message_index:sent_user_message_index] = _ctx
-            else:
-                self.logger.debug(f"BL::StateManager::context::Adding {len(_ctx)} messages to the context")
-                self.ctx.extend(_ctx)
+            self.ctx[0:0] = _ctx
         else:
             self.logger.debug(f"BL::StateManager::context::Setting {len(_ctx)} messages as the context")
             self._ctx = _ctx
