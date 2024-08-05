@@ -24,7 +24,7 @@ class ModuleConfig(BaseSettings):
     # NOTE: We use camelCase here to align with the other
     # language model configurations, but we use snake_case
     # elsewhere in the codebase b/c it's more Pythonic.
-    languageModel: str | None = None
+    languageModel: str | None = None  # noqa: N815
 
     ALLOW_COMMANDS: str | bool | None = None
     ON_FAILURE_MESSAGE_OVERRIDE: str | None = None

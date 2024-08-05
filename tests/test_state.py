@@ -13,14 +13,11 @@ class TestState(unittest.TestCase):
     def _get_state(self, messages: list) -> StateManager:
         class MockMessageManager(MessageManager):
             def all(self, force_refresh: bool = False) -> MessageList:
-                self.logger.debug(f"MockMessageManager.all() with {len(messages)} messages")
-                self._all = MessageList(
+                return MessageList(
                     messages,
                     tokenizer=self.tokenizer,
                     logger=self.logger,
                 )
-                self.logger.debug(f"MockMessageManager._all is {len(self._all)} messages")
-                return self._all
 
         class MockLanguageModelManager(LanguageModelManager):
             def complete(self, *args, **kwargs) -> Message:
