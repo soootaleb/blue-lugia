@@ -307,11 +307,11 @@ class LanguageModelManager(Manager):
 
         return final_history
 
-    def _rereference(self, messages: MessageList, offset: int = 0) -> Tuple[MessageList, List[unique_sdk.Integrated.SearchResult]]:
+    def _rereference(self, messages: MessageList) -> Tuple[MessageList, List[unique_sdk.Integrated.SearchResult], List[unique_sdk.Integrated.SearchResult]]:
         processed_messages = messages.fork()
         references = []
 
-        i = offset
+        i = len(messages.sources)
 
         for index, message in enumerate(processed_messages):
             sources = re.findall(r"<source\d+[^>]*>.*?</source\d+>", message.content or "", re.DOTALL)
@@ -344,7 +344,7 @@ class LanguageModelManager(Manager):
                 citation_number = int(re.findall(r"\d+", citation)[0])
                 message.original_content = message.original_content.replace(citation, f"[source{references_index + citation_number}]")
 
-        return processed_messages, references
+        return processed_messages, messages.sources, references
 
     def _verify_tools(self, tools: List[type[BaseModel]]) -> List[type[BaseModel]]:
         # must inherit base model
@@ -580,7 +580,7 @@ class LanguageModelManager(Manager):
 
         context = self._reformat(typed_messages)
 
-        context, references = self._rereference(messages=context, offset=len(typed_messages.sources))
+        context, existing_references, new_references = self._rereference(messages=context)
 
         formated_messages = self._to_dict_messages(context, oai=self._use_open_ai)
 
@@ -609,7 +609,7 @@ class LanguageModelManager(Manager):
             return self._complete_openai(formated_messages=formated_messages, options=options)
         elif out:
             return self._complete_streaming(
-                formated_messages=formated_messages, options=options, out=out, debug_info=debug_info, start_text=start_text, references=(typed_messages.sources, references)
+                formated_messages=formated_messages, options=options, out=out, debug_info=debug_info, start_text=start_text, references=(existing_references, new_references)
             )
         else:
             return self._complete_basic(formated_messages=formated_messages, options=options)
