@@ -60,12 +60,12 @@ class MessageManager(Manager):
                 retrieved = []
 
             for m in retrieved:
-                original_sources = (m.debugInfo or {}).get("_sources", {})
+                original_citations = (m.debugInfo or {}).get("_citations", {})
 
-                if m.text and original_sources:
+                if m.text and original_citations:
                     original_content = m.text
 
-                    for original_source, sup in original_sources.items():
+                    for original_source, sup in original_citations.items():
                         original_content = original_content.replace(f"<sup>{sup}</sup>", original_source)
 
                 else:

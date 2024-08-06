@@ -13,19 +13,19 @@ class SearchInFile(BaseModel):
     search: str = Field(..., description="The text to search in the file.")
     file_name: str = Field(..., description="The name of the file to search in.")
 
-    def run(self, call_id: str, state: StateManager, extra: dict, out: Message, *args) -> str | None:
+    def run(self, call_id: str, state: StateManager, extra: dict, out: Message, *args) -> Message | None:
         sources = state.files.uploaded.filter(key=self.file_name).search(self.search).truncate(1000)
 
-        completion = state.llm.complete(
+        return state.llm.complete(
+            completion_name="tool",
             messages=[
                 Message.SYSTEM("Your must always cite your sources using [source0], [source1], [source2], etc. The sources available are:"),
                 Message.SYSTEM(sources.xml()),
                 Message.USER(self.search),
             ],
             out=out,
+            start_text=out.content or ""
         )
-
-        return completion.original_content
 
     def post_run_hook(self, *args) -> bool:
         return False
@@ -40,7 +40,7 @@ def module(state: StateManager[ModuleConfig]) -> None:
             Message.SYSTEM(f"The available uploaded files are: {files_names}"),
         ],
         prepend=True,
-    ).register(SearchInFile).loop(out=state.last_ass_message)
+    ).register(SearchInFile).loop(out=state.last_ass_message, completion_name="root")
 
     return
 

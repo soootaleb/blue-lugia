@@ -1,6 +1,8 @@
 import json
 import unittest
 
+import unique_sdk
+
 from blue_lugia.enums import Role
 from blue_lugia.models.message import Message, MessageList
 from tests.mocks.event import MockEvent
@@ -10,6 +12,83 @@ from tests.mocks.tokenizer import Tokenizer
 class TestMessageList(unittest.TestCase):
     def setUp(self) -> None:
         self.event = MockEvent.create()
+
+    def test_sources(self) -> None:
+        messages = MessageList(
+            [
+                Message(
+                    role=Role.ASSISTANT,
+                    content=None,
+                    remote=Message._Remote(
+                        id="1",
+                        event=self.event,
+                        debug={
+                            "_sources": [
+                                unique_sdk.Integrated.SearchResult(
+                                    id="1",
+                                    chunkId="1",
+                                    key="key1",
+                                    url="url1",
+                                ),
+                                unique_sdk.Integrated.SearchResult(
+                                    id="2",
+                                    chunkId="2",
+                                    key="key2",
+                                    url="url2",
+                                ),
+                            ]
+                        },
+                    ),
+                ),
+                Message(
+                    role=Role.ASSISTANT,
+                    content=None,
+                    remote=Message._Remote(
+                        id="1",
+                        event=self.event,
+                        debug={
+                            "_sources": [
+                                unique_sdk.Integrated.SearchResult(
+                                    id="1",
+                                    chunkId="1",
+                                    key="key1",
+                                    url="url1",
+                                ),
+                                unique_sdk.Integrated.SearchResult(
+                                    id="2",
+                                    chunkId="2",
+                                    key="key2",
+                                    url="url2",
+                                ),
+                            ]
+                        },
+                    ),
+                ),
+            ]
+        )
+
+        sources = messages.sources
+
+        self.assertEqual(len(sources), 4)
+        self.assertEqual(sources[0].get("id"), "1")
+        self.assertEqual(sources[0].get("chunkId"), "1")
+        self.assertEqual(sources[0].get("key"), "key1")
+        self.assertEqual(sources[0].get("url"), "url1")
+
+        self.assertEqual(sources[1].get("id"), "2")
+        self.assertEqual(sources[1].get("chunkId"), "2")
+        self.assertEqual(sources[1].get("key"), "key2")
+        self.assertEqual(sources[1].get("url"), "url2")
+
+        self.assertEqual(sources[2].get("id"), "1")
+        self.assertEqual(sources[2].get("chunkId"), "1")
+        self.assertEqual(sources[2].get("key"), "key1")
+        self.assertEqual(sources[2].get("url"), "url1")
+
+        self.assertEqual(sources[3].get("id"), "2")
+        self.assertEqual(sources[3].get("chunkId"), "2")
+        self.assertEqual(sources[3].get("key"), "key2")
+        self.assertEqual(sources[3].get("url"), "url2")
 
     def test_tokens(self) -> None:
         messages = MessageList(

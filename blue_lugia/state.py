@@ -519,8 +519,9 @@ class StateManager(ABC, Generic[ConfType]):
             # We add exactly one tool message for each tool call, mandatory
             extension.append(
                 Message.TOOL(
-                    content=(run.content if isinstance(run, Message) else str(run)),
+                    content=(run.original_content if isinstance(run, Message) else str(run)),
                     tool_call_id=tool_call_id,
+                    citations=run.citations if isinstance(run, Message) else None,
                     logger=self.logger.getChild(Message.__name__),
                 )
             )
@@ -585,6 +586,7 @@ class StateManager(ABC, Generic[ConfType]):
                             "content": message.content,
                             "original_content": message.original_content,
                             "tools_called": message.tool_calls,
+                            "citations": message.citations,
                         }
                     ]
                     + [
@@ -593,6 +595,7 @@ class StateManager(ABC, Generic[ConfType]):
                             "content": m.content,
                             "original_content": message.original_content,
                             "tool_call_id": m.tool_call_id,
+                            "citations": m.citations,
                         }
                         for m in extension
                     ],

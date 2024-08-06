@@ -307,13 +307,13 @@ class LanguageModelManager(Manager):
 
         return final_history
 
-    def _rereference(self, messages: MessageList) -> Tuple[MessageList, List[unique_sdk.Integrated.SearchResult]]:
+    def _rereference(self, messages: MessageList, offset: int = 0) -> Tuple[MessageList, List[unique_sdk.Integrated.SearchResult]]:
         processed_messages = messages.fork()
         references = []
 
-        i = 0
+        i = offset
 
-        for message in processed_messages:
+        for index, message in enumerate(processed_messages):
             sources = re.findall(r"<source\d+[^>]*>.*?</source\d+>", message.content or "", re.DOTALL)
 
             for source in sources:
@@ -327,15 +327,22 @@ class LanguageModelManager(Manager):
                         message.original_content = message.original_content.replace(source, ET.tostring(elem, encoding="unicode"))
 
                 references.append(
-                    {
-                        "id": elem.get("id", f"source_{i}"),
-                        "chunkId": elem.get("chunkId", elem.get("id", f"source_{i}")),
-                        "key": elem.get("label", elem.get("display", elem.get("key", elem.get("title", f"source_{i}")))),
-                        "url": elem.get("url", f'unique://content/{elem.get("id", f"source_{i}")}'),
-                    }
+                    unique_sdk.Integrated.SearchResult(
+                        id=elem.get("id", f"source_{i}"),
+                        chunkId=elem.get("chunkId", elem.get("id", f"source_{i}")),
+                        key=elem.get("label", elem.get("display", elem.get("key", elem.get("title", f"source_{i}")))),
+                        url=elem.get("url", f'unique://content/{elem.get("id", f"source_{i}")}'),
+                    )
                 )
 
                 i += 1
+
+            messages_before_current = MessageList(messages[:index], tokenizer=self.tokenizer, logger=self.logger.getChild(MessageList.__name__))
+            references_index = len(messages_before_current.sources)
+
+            for citation in message.citations:
+                citation_number = int(re.findall(r"\d+", citation)[0])
+                message.original_content = message.original_content.replace(citation, f"[source{references_index + citation_number}]")
 
         return processed_messages, references
 
@@ -399,8 +406,10 @@ class LanguageModelManager(Manager):
         out: Message,
         debug_info: dict[str, Any],
         start_text: str,
-        references: List[unique_sdk.Integrated.SearchResult],
+        references: Tuple[List[unique_sdk.Integrated.SearchResult], List[unique_sdk.Integrated.SearchResult]],
     ) -> Message:
+        existing_references, new_references = references
+
         completion = unique_sdk.Integrated.chat_stream_completion(
             user_id=self._event.user_id,
             company_id=self._event.company_id,
@@ -409,7 +418,7 @@ class LanguageModelManager(Manager):
             userMessageId=self._event.payload.user_message.id,
             messages=formated_messages,
             chatId=self._event.payload.chat_id,
-            searchContext=references,
+            searchContext=existing_references + new_references,
             debugInfo=debug_info,
             startText=start_text,
             model=self._model,
@@ -428,7 +437,8 @@ class LanguageModelManager(Manager):
 
         out.content = completion.message.text
         out.original_content = completion.message.originalText
-        out.debug["_sources"] = debug_sources
+        out.debug["_sources"] = new_references
+        out.debug["_citations"] = debug_sources
 
         out._tool_calls = out._tool_calls + [
             {
@@ -466,7 +476,7 @@ class LanguageModelManager(Manager):
             logger=self.logger.getChild(Message.__name__),
         )
 
-        typed_message.update(debug={"_sources": debug_sources})
+        typed_message.update(debug={"_sources": new_references, "_citations": debug_sources})
 
         return typed_message
 
@@ -570,7 +580,7 @@ class LanguageModelManager(Manager):
 
         context = self._reformat(typed_messages)
 
-        context, references = self._rereference(context)
+        context, references = self._rereference(messages=context, offset=len(typed_messages.sources))
 
         formated_messages = self._to_dict_messages(context, oai=self._use_open_ai)
 
@@ -598,7 +608,9 @@ class LanguageModelManager(Manager):
         if self._use_open_ai:
             return self._complete_openai(formated_messages=formated_messages, options=options)
         elif out:
-            return self._complete_streaming(formated_messages=formated_messages, options=options, out=out, debug_info=debug_info, start_text=start_text, references=references)
+            return self._complete_streaming(
+                formated_messages=formated_messages, options=options, out=out, debug_info=debug_info, start_text=start_text, references=(typed_messages.sources, references)
+            )
         else:
             return self._complete_basic(formated_messages=formated_messages, options=options)
 

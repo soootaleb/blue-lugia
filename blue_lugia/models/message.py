@@ -111,6 +111,8 @@ class Message(Model):
     _tool_calls: List[dict[str, Any]]
     _tool_call_id: Optional[str]
 
+    _citations: dict[str, int]
+
     _remote: _Remote | None = None
 
     def __init__(
@@ -120,6 +122,7 @@ class Message(Model):
         remote: _Remote | None = None,
         tool_call_id: Optional[str] = None,
         tool_calls: List[dict[str, Any]] | None = None,
+        citations: dict[str, int] | None = None,
         original_content: Optional[str | _Content] = None,
         **kwargs: logging.Logger,
     ) -> None:
@@ -143,6 +146,8 @@ class Message(Model):
 
         self._tool_calls = tool_calls or []
         self._tool_call_id = tool_call_id
+
+        self._citations = citations or {}
 
         if role.value.lower() not in [r.value.lower() for r in Role]:  # python 3.11 does not allow the in operator to work with enums
             raise MessageFormatError(f"BL::Model::Message::init::InvalidRole::{role.value}")
@@ -168,6 +173,14 @@ class Message(Model):
         else:
             self.logger.warning("BL::Model::Message::debug::NoRemoteCounterPart")
             return {}
+
+    @property
+    def sources(self) -> List[unique_sdk.Integrated.SearchResult]:
+        return self.debug.get("_sources", [])
+
+    @property
+    def citations(self) -> dict[str, int]:
+        return self.debug.get("_citations") or self._citations
 
     @property
     def content(self) -> Optional[_Content]:
@@ -260,7 +273,6 @@ class Message(Model):
             args["references"] = references
 
         if self._remote:
-
             self._remote._debug = (self._remote._debug or {}) | debug
 
             unique_sdk.Message.modify(
@@ -387,7 +399,7 @@ class Message(Model):
 
     @classmethod
     def TOOL(  # noqa: N802
-        cls, content: str | _Content | None, tool_call_id: str, **kwargs: Any
+        cls, content: str | _Content | None, tool_call_id: str, citations: dict[str, int] | None = None, **kwargs: Any
     ) -> "Message":
         """
         Factory method to create a tool-type message with a specific tool call identifier.
@@ -400,7 +412,7 @@ class Message(Model):
         Returns:
             Message: A new message instance with the role set to TOOL.
         """
-        return cls(role=Role.TOOL, content=content, tool_call_id=tool_call_id, **kwargs)
+        return cls(role=Role.TOOL, content=content, tool_call_id=tool_call_id, citations=citations, **kwargs)
 
     def fork(self) -> "Message":
         """
@@ -414,6 +426,7 @@ class Message(Model):
             content=self.__class__._Content(self.content) if self.content else None,
             original_content=self.__class__._Content(self.original_content) if self.original_content else None,
             remote=(self.__class__._Remote(self._remote._event, self._remote._id, self.debug.copy()) if self._remote else None),
+            citations=self.citations.copy(),
             tool_call_id=self._tool_call_id,
             tool_calls=[tc.copy() for tc in self._tool_calls],
             logger=self.logger.getChild(self.__class__.__name__),
@@ -509,6 +522,10 @@ class MessageList(List[Message], Model):
                 if message.tool_call_id:
                     all_tokens += self.tokenizer.encode(message.tool_call_id)
         return all_tokens
+
+    @property
+    def sources(self) -> List[unique_sdk.Integrated.SearchResult]:
+        return [source for message in self for source in message.sources]
 
     def to_dict(self) -> dict:
         return {
@@ -631,7 +648,7 @@ class MessageList(List[Message], Model):
         self.logger.warning("BL::Model::MessageList::keep::Deprecated::Use truncate instead.")
         return self.truncate(max_tokens, in_place)
 
-    def expand(self, legacy_key: str = "state_manager_tool_calls", in_place: bool = False) -> "MessageList":
+    def expand(self, in_place: bool = False) -> "MessageList":
         """
         Expands the messages in the list by adding detailed entries for each tool call, referenced in the messages' debug information.
 
@@ -658,42 +675,17 @@ class MessageList(List[Message], Model):
                                 original_content=tc.get("original_content", None),
                                 tool_calls=tc.get("tools_called", []),
                                 tool_call_id=tc.get("tool_call_id", None),
+                                citations=tc.get("citations", {}),
                                 logger=self.logger.getChild(Message.__name__),
                             )
                             for tc in tools_called
-                        ]
-
-                        # Load UIC older tool calls
-                        tools_called = message.debug.get(legacy_key, "[]")
-                        message_index = self.index(message)
-
-                        self[message_index + 1 : message_index + 1] = [
-                            Message(
-                                role=Role(value=tc["role"]),
-                                content=tc.get("content", None),
-                                original_content=tc.get("original_content", None),
-                                tool_calls=[
-                                    {
-                                        "id": tcall["id"],
-                                        "type": tcall["type"],
-                                        "function": {
-                                            "name": tcall["function"]["name"],
-                                            "arguments": json.loads(tcall["function"]["arguments"]),
-                                        },
-                                    }
-                                    for tcall in tc.get("toolCalls", [])
-                                ],
-                                tool_call_id=tc.get("toolCallId", None),
-                                logger=self.logger.getChild(Message.__name__),
-                            )
-                            for tc in json.loads(tools_called)
                         ]
 
                 self._expanded = True
 
             return self
         else:
-            return self.fork().expand(legacy_key, in_place=True)
+            return self.fork().expand(in_place=True)
 
     def append(self, object: Message) -> "MessageList":
         super().append(object)
