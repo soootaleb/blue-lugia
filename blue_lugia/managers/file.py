@@ -278,14 +278,9 @@ class FileManager(Manager):
                 raise ChatFileManagerError(f"BL::Manager::ChatFile::fetch::InvalidOperator::{self._filters_operator}")
 
         if self._chat_only:
-            wheres = {
-                "ownerId": {
-                    "equals": self._event.payload.chat_id,
-                },
+            wheres["ownerId"] = {
+                "equals": self._event.payload.chat_id,
             }
-
-            if self._filters:
-                self.logger.warning("BL::Manager::ChatFile::fetch::ChatOnly::FiltersIgnored")
 
         found = unique_sdk.Content.search(
             user_id=self._event.user_id,
