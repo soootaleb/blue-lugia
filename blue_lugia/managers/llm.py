@@ -326,14 +326,15 @@ class LanguageModelManager(Manager):
                     if message.original_content:
                         message.original_content = message.original_content.replace(source, ET.tostring(elem, encoding="unicode"))
 
-                references.append(
-                    unique_sdk.Integrated.SearchResult(
-                        id=elem.get("id", f"source_{i}"),
-                        chunkId=elem.get("chunkId", elem.get("id", f"source_{i}")),
-                        key=elem.get("label", elem.get("display", elem.get("key", elem.get("title", f"source_{i}")))),
-                        url=elem.get("url", f'unique://content/{elem.get("id", f"source_{i}")}'),
+                if index >= i:
+                    references.append(
+                        unique_sdk.Integrated.SearchResult(
+                            id=elem.get("id", f"source_{i}"),
+                            chunkId=elem.get("chunkId", elem.get("id", f"source_{i}")),
+                            key=elem.get("label", elem.get("display", elem.get("key", elem.get("title", f"source_{i}")))),
+                            url=elem.get("url", f'unique://content/{elem.get("id", f"source_{i}")}'),
+                        )
                     )
-                )
 
                 i += 1
 

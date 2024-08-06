@@ -47,7 +47,6 @@ def module(state: StateManager[ModuleConfig]) -> None:
     state.context(
         [
             Message.SYSTEM("Your must always cite your sources using [source0], [source1], [source2], etc."),
-            Message.SYSTEM("After a tool call, you must keep the sources cited by the tool as-is."),
             Message.SYSTEM(f"The available uploaded files are: {files_names}"),
         ],
         prepend=True,
