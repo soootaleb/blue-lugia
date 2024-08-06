@@ -1,4 +1,4 @@
-from typing import TypeVar
+from typing import Any, Dict, Literal, Set, TypeVar
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -47,6 +47,70 @@ class ModuleConfig(BaseSettings):
     # LLM
     LLM_TIMEOUT: int = 60000
     LLM_DEFAULT_MODEL: str = "AZURE_GPT_4_TURBO_2024_0409"
+
+    def model_dump(
+        self,
+        *,
+        mode: str = "python",
+        include: Set[int] | Set[str] | Dict[int, Any] | Dict[str, Any] | None = None,
+        exclude: Set[int] | Set[str] | Dict[int, Any] | Dict[str, Any] | None = {
+            "API_KEY",
+            "ENDPOINT_SECRET",
+        },
+        context: Any | None = None,
+        by_alias: bool = False,
+        exclude_unset: bool = False,
+        exclude_defaults: bool = False,
+        exclude_none: bool = False,
+        round_trip: bool = False,
+        warnings: bool | Literal["none"] | Literal["warn"] | Literal["error"] = True,
+        serialize_as_any: bool = False,
+    ) -> dict[str, Any]:
+        return super().model_dump(
+            mode=mode,
+            include=include,
+            exclude=exclude,
+            context=context,
+            by_alias=by_alias,
+            exclude_unset=exclude_unset,
+            exclude_defaults=exclude_defaults,
+            exclude_none=exclude_none,
+            round_trip=round_trip,
+            warnings=warnings,
+            serialize_as_any=serialize_as_any,
+        )
+
+    def model_dump_json(
+        self,
+        *,
+        indent: int | None = None,
+        include: Set[int] | Set[str] | Dict[int, Any] | Dict[str, Any] | None = None,
+        exclude: Set[int] | Set[str] | Dict[int, Any] | Dict[str, Any] | None = {
+            "API_KEY",
+            "ENDPOINT_SECRET",
+        },
+        context: Any | None = None,
+        by_alias: bool = False,
+        exclude_unset: bool = False,
+        exclude_defaults: bool = False,
+        exclude_none: bool = False,
+        round_trip: bool = False,
+        warnings: bool | Literal["none"] | Literal["warn"] | Literal["error"] = True,
+        serialize_as_any: bool = False,
+    ) -> str:
+        return super().model_dump_json(
+            indent=indent,
+            include=include,
+            exclude=exclude,
+            context=context,
+            by_alias=by_alias,
+            exclude_unset=exclude_unset,
+            exclude_defaults=exclude_defaults,
+            exclude_none=exclude_none,
+            round_trip=round_trip,
+            warnings=warnings,
+            serialize_as_any=serialize_as_any,
+        )
 
 
 ConfType = TypeVar("ConfType", bound=ModuleConfig)
