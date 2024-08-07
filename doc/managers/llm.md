@@ -200,6 +200,14 @@ Then you can retrieve the data from the content
 data = completion.content.json()
 ```
 
+## LLM Parse
+
+LLM exposes a utility method to get a pydantic model from a completion
+
+```python
+parsed = state.llm.parse(completion, schema=SumTool)
+```
+
 # Usage Examples
 
 ## Example 1: Basic Initialization
