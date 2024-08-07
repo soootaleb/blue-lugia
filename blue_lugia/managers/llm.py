@@ -260,8 +260,6 @@ class LanguageModelManager(Manager):
 
         Besides, this method truncates the input messages to fit the model's input size.
         It makes sure the system messages are not truncated.
-
-        TODO: Count also tools and leave some space for the output of the model
         """
         self.logger.debug(f"BL::Manager::LLM::reformat::Reformating {len(messages)} messages")
 
@@ -314,14 +312,14 @@ class LanguageModelManager(Manager):
         processed_messages = messages.fork()
         references = []
 
-        i = len(messages.sources)
+        found_sources_counter = 0
 
         for index, message in enumerate(processed_messages):
             sources = re.findall(r"<source\d+[^>]*>.*?</source\d+>", message.content or "", re.DOTALL)
 
             for source in sources:
                 elem = ET.fromstring(source)
-                elem.tag = f"source{i}"
+                elem.tag = f"source{found_sources_counter}"
 
                 if message.content:
                     message.content = message.content.replace(source, ET.tostring(elem, encoding="unicode"))
@@ -329,17 +327,17 @@ class LanguageModelManager(Manager):
                     if message.original_content:
                         message.original_content = message.original_content.replace(source, ET.tostring(elem, encoding="unicode"))
 
-                if index >= i:
+                if found_sources_counter >= len(messages.sources):
                     references.append(
                         unique_sdk.Integrated.SearchResult(
-                            id=elem.get("id", f"source_{i}"),
-                            chunkId=elem.get("chunkId", elem.get("id", f"source_{i}")),
-                            key=elem.get("label", elem.get("display", elem.get("key", elem.get("title", f"source_{i}")))),
-                            url=elem.get("url", f'unique://content/{elem.get("id", f"source_{i}")}'),
+                            id=elem.get("id", f"source_{found_sources_counter}"),
+                            chunkId=elem.get("chunkId", elem.get("id", f"source_{found_sources_counter}")),
+                            key=elem.get("label", elem.get("display", elem.get("key", elem.get("title", f"source_{found_sources_counter}")))),
+                            url=elem.get("url", f'unique://content/{elem.get("id", f"source_{found_sources_counter}")}'),
                         )
                     )
 
-                i += 1
+                found_sources_counter += 1
 
             messages_before_current = MessageList(messages[:index], tokenizer=self.tokenizer, logger=self.logger.getChild(MessageList.__name__))
             references_index = len(messages_before_current.sources)
