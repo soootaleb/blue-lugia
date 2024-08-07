@@ -30,10 +30,13 @@ class LanguageModelManager(Manager):
         "AZURE_GPT_35_TURBO_16K": 16_385,
         "AZURE_GPT_35_TURBO_0613": 4_096,
         "AZURE_GPT_4o_2024_0513": 128_000,
+        "AZURE_GPT_4o_2024_0806": 128_000,
         "ptu-gpt-4o": 128_000,
         "pictet-ptu-gpt-4o": 128_000,
         "gpt-4": 8_192,
         "gpt-4o": 128_000,
+        "gpt-4o-mini": 128_000,
+        "gpt-4o-2024-08-06": 128_000,
         "gpt-4-turbo-2024-04-09": 128_000,
         "gpt-35-turbo": 16_385,
     }
@@ -46,10 +49,13 @@ class LanguageModelManager(Manager):
         "AZURE_GPT_35_TURBO_16K": 4_096,
         "AZURE_GPT_35_TURBO_0613": 4_096,
         "AZURE_GPT_4o_2024_0513": 4_096,
+        "AZURE_GPT_4o_2024_0806": 16_384,
         "ptu-gpt-4o": 4_096,
         "pictet-ptu-gpt-4o": 4_096,
         "gpt-4": 4_096,
         "gpt-4o": 4_096,
+        "gpt-4o-mini": 16_384,
+        "gpt-4o-2024-08-06": 16_384,
         "gpt-4-turbo-2024-04-09": 4_096,
         "gpt-35-turbo": 4_096,
     }
@@ -58,6 +64,7 @@ class LanguageModelManager(Manager):
         "AZURE_GPT_4_0613": "gpt-4",
         "AZURE_GPT_4_0613_32K": "gpt-4",
         "AZURE_GPT_4o_2024_0513": "gpt-4o",
+        "AZURE_GPT_4o_2024_0806": "gpt-4o",
         "AZURE_GPT_4_TURBO_1106": "gpt-4",
         "AZURE_GPT_4_TURBO_2024_0409": "gpt-4",
         "AZURE_GPT_35_TURBO_16K": "gpt-3.5-turbo",
@@ -66,6 +73,8 @@ class LanguageModelManager(Manager):
         "pictet-ptu-gpt-4o": "gpt-4o",
         "gpt-4": "gpt-4",
         "gpt-4o": "gpt-4o",
+        "gpt-4o-mini": "gpt-4o",
+        "gpt-4o-2024-08-06": "gpt-4o",
         "gpt-4-turbo-2024-04-09": "gpt-4",
         "gpt-35-turbo": "gpt-3.5-turbo",
     }
@@ -516,6 +525,7 @@ class LanguageModelManager(Manager):
         messages: List[Message] | List[dict[str, Any]],
         tools: List[type[BaseModel]] | None = None,
         tool_choice: type[BaseModel] | None = None,
+        schema: type[BaseModel] | None = None,
         max_tokens: int | Literal["auto"] | None = None,
         out: Message | None = None,
         debug_info: dict[str, Any] | None = None,
@@ -565,17 +575,23 @@ class LanguageModelManager(Manager):
         }
 
         if tools:
-            options["tools"] = [
-                {
-                    "type": "function",
-                    "function": {
-                        "name": tool.__name__,
-                        "description": tool.__doc__ or "",
-                        "parameters": self._rm_titles(tool.model_json_schema()),
-                    },
-                }
-                for tool in self._verify_tools(tools)
-            ]
+            options["tools"] = []
+
+            for tool in self._verify_tools(tools):
+                tool_config = getattr(tool, "Config", None)
+                tool_config_strict = getattr(tool_config, "bl_fc_strict", True)
+
+                options["tools"].append(
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": tool.__name__,
+                            "strict": tool_config_strict,
+                            "description": tool.__doc__ or "",
+                            "parameters": self._rm_titles(tool.model_json_schema()),
+                        },
+                    }
+                )
 
         typed_messages = self._to_typed_messages(messages)  # Returns a MessageList with the correct LLM tokenization
 
@@ -603,6 +619,20 @@ class LanguageModelManager(Manager):
                 raise LanguageModelManagerError(
                     f"BL::Manager::LLM::complete({completion_name})::JSONPromptMissing::The word 'json' must be present in the messages when you use the output_json flag."
                 )
+
+        if schema:
+            bl_schema_config = getattr(schema, "Config", None)
+            bl_schema_strict = getattr(bl_schema_config, "bl_schema_strict", True)
+
+            if bl_schema_strict:
+                schema.model_config["extra"] = "forbid"
+
+            json_schema = {"name": schema.__name__, "strict": bl_schema_strict, "schema": self._rm_titles(schema.model_json_schema())}
+
+            options["response_format"] = {
+                "type": "json_schema",
+                "json_schema": json_schema,
+            }
 
         self.logger.debug(f"BL::Manager::LLM::complete({completion_name})::Model::{self._model}")
 
