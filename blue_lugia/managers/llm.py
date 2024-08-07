@@ -86,8 +86,6 @@ class LanguageModelManager(Manager):
     _use_open_ai: bool
     _open_ai_api_key: str
 
-    _parser: "Parser"
-
     def __init__(
         self,
         model: str,
@@ -103,7 +101,6 @@ class LanguageModelManager(Manager):
         self._timeout = timeout
         self._use_open_ai = False
         self._open_ai_api_key = ""
-        self._parser = Parser(self)
         self._context_max_tokens = context_max_tokens
 
     @property
@@ -169,10 +166,6 @@ class LanguageModelManager(Manager):
                 raise ValueError(f"BL::Manager::LLM::_to_typed_messages::InvalidMessageType::{type(message)}")
 
         return typed_messages
-
-    @property
-    def parser(self) -> "Parser":
-        return Parser(self)
 
     def oai(self, key: str) -> "LanguageModelManager":
         llm = self.fork()
