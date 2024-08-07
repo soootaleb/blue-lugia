@@ -10,7 +10,7 @@ from openai import NotGiven
 with contextlib.suppress(ImportError):
     from openai import OpenAI
 
-from typing import Any, List, Literal, TypeVar
+from typing import Any, List, Literal, Tuple, TypeVar
 
 from pydantic import BaseModel
 
