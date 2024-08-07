@@ -85,6 +85,121 @@ Parses the query using the set schema, instructions, and assertions.
 **Returns:**
 - `BaseModel`: The parsed response according to the set schema.
 
+# Tool Calling
+
+## Defining a tool
+
+Tools are pydantic BaseModel
+
+- The tool name is the class name
+- The tool description is the docstring
+- The tool arguments are the fields, their types and descriptions
+
+```python
+class SumTool(BaseModel):
+    """Add two numbers"""
+    x: int = Field(..., description="first value")
+    y: int = Field(..., description="second value")
+```
+
+## Configure the tool
+
+You can configure the tool with the `Config` inner class.
+
+
+- `bl_fc_strict` will allow you to set `strict: False` when passing the tool schema to OpenAI.
+- `bl_schema_strict` will allow you to set `strict: False` when using `response_format: json_schema`.
+
+
+```python
+class SumTool(BaseModel):
+    """Add two numbers"""
+
+    class Config:
+        bl_fc_strict = False
+```
+
+## Running a tool
+
+Create a `run` method in the tool class in order to execute it with the parameters
+
+```python
+...
+    # The run method is executed by state.call(completion). The tool call formulated by the LLM results in an instance of the tool, so you can access arguments with self.x
+    # What's returned by this method is considered the "tool response", so the state.call() will append a message { role: TOOL, content: run() } to the context
+    def run(self, call_id: str, state: StateManager, *args, **kwargs) -> int:
+        # state.last_ass_message.update(f"The sum of {self.x} and {self.y} is {self.x + self.y}")
+        return self.x + self.y
+```
+
+## Using a tool
+
+You need to register it with the state first
+
+```python
+state.register(SumTool)
+```
+
+Then it's passed when completing
+
+```python
+state.complete(message)
+```
+
+You can force its use with `tool_choice`
+
+```python
+completion = state.complete(messages, tool_choice=SumTool)
+```
+
+When you get a completion, it may have tool calls. You can run the associated tools with their arguments
+
+```python
+tools_called, tools_not_called, complete = state.call(completion)
+```
+
+## Forcing json output
+
+You can force json output from OpenAI messages if you don't need to run a tool
+
+```python
+completion = state.complete(messages, output_json=True)
+```
+
+The json is in the message content, you can structure it
+
+```python
+data = completion.content.json()
+```
+
+> Beware that the messages you pass MUST include the "json" keyword as a prompt, or OpenAI will return an error.
+
+## JSON Schema
+
+A more reliable way to get json output is to use the `response_format: json_schema` option from OpenAI.
+
+You can leverage it by passing a pydantic BaseModel to the completion method `schema` argument
+
+```python
+completion = state.complete(messages, schema=SumTool)
+```
+
+By default you're guaranteed to get a string respecting the schema, but you can smooth this by configuring your tool / schema
+
+```python
+class SumTool(BaseModel):
+    """Add two numbers"""
+
+    class Config:
+        bl_schema_strict = False
+```
+
+Then you can retrieve the data from the content
+
+```python
+data = completion.content.json()
+```
+
 # Usage Examples
 
 ## Example 1: Basic Initialization

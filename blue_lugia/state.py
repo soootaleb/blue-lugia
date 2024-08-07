@@ -513,9 +513,7 @@ class StateManager(ABC, Generic[ConfType]):
                 complete = False
 
             if isinstance(post_run, bool) and not post_run:
-                self.logger.debug(
-                    f"""BL::StateManager::_process_tools_called::Tool post_run_hook {tool.__class__.__name__} returned False. Stoping loop over tool calls."""
-                )
+                self.logger.debug(f"""BL::StateManager::_process_tools_called::Tool post_run_hook {tool.__class__.__name__} returned False. Stoping loop over tool calls.""")
                 complete = False
 
             # We add exactly one tool message for each tool call, mandatory
@@ -650,6 +648,7 @@ class StateManager(ABC, Generic[ConfType]):
         out: Message | None = None,
         start_text: str = "",
         tool_choice: type[BaseModel] | None = None,
+        schema: type[BaseModel] | None = None,
         search_context: List[unique_sdk.Integrated.SearchResult] = [],
         output_json: bool = False,
         completion_name: str = "",
@@ -696,6 +695,7 @@ class StateManager(ABC, Generic[ConfType]):
             out=out,
             start_text=start_text,
             tool_choice=tool_choice,
+            schema=schema,
             search_context=search_context,
             output_json=output_json,
             completion_name=completion_name,
@@ -713,6 +713,7 @@ class StateManager(ABC, Generic[ConfType]):
         out: Message | None = None,
         start_text: str = "",
         tool_choice: type[BaseModel] | None = None,
+        schema: type[BaseModel] | None = None,
         search_context: List[unique_sdk.Integrated.SearchResult] = [],
         raise_on_max_iterations: bool = False,
         raise_on_missing_tool: bool = False,
@@ -755,7 +756,14 @@ class StateManager(ABC, Generic[ConfType]):
             self.logger.debug(f"Completing iteration {loop_iteration}.")
 
             completion = self.complete(
-                message=message, out=out, start_text=start_text, tool_choice=tool_choice, search_context=search_context, output_json=output_json, completion_name=completion_name
+                message=message,
+                out=out,
+                start_text=start_text,
+                tool_choice=tool_choice,
+                schema=schema,
+                search_context=search_context,
+                output_json=output_json,
+                completion_name=completion_name,
             )
 
             self.logger.debug(f"BL::StateManager::loop::Calling tools for completion {completion.role}.")
@@ -783,7 +791,15 @@ class StateManager(ABC, Generic[ConfType]):
 
         return completions
 
-    def stream(self, message: Message | None = None, out: Message | None = None, start_text: str = "", output_json: bool = False, completion_name: str = "") -> Message:
+    def stream(
+        self,
+        message: Message | None = None,
+        out: Message | None = None,
+        start_text: str = "",
+        output_json: bool = False,
+        schema: type[BaseModel] | None = None,
+        completion_name: str = "",
+    ) -> Message:
         """
         Streams processing of messages, potentially in a real-time environment, handling one message at a time.
 
@@ -801,7 +817,7 @@ class StateManager(ABC, Generic[ConfType]):
             Used in scenarios where messages need to be processed in a streaming or ongoing fashion, adapting to incoming data in real-time or near-real-time.
         """
         self.logger.debug(f"BL::StateManager::stream::Starting stream with message {message.role if message else "None"}.")
-        return self.complete(message=message, out=out or self.last_ass_message, start_text=start_text, output_json=output_json, completion_name=completion_name)
+        return self.complete(message=message, out=out or self.last_ass_message, start_text=start_text, output_json=output_json, schema=schema, completion_name=completion_name)
 
     def clear(self) -> int:
         """

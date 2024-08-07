@@ -31,6 +31,10 @@ class CustomConfig(ModuleConfig):
 class SumTool(BaseModel):
     """Add two numbers"""
 
+    class Config:
+        bl_fc_strict = True
+        bl_schema_strict = True
+
     x: int = Field(..., description="first value")
     y: int = Field(..., description="second value")
 
