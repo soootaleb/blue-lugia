@@ -1,6 +1,5 @@
 import contextlib
 import json
-import logging
 import re
 import xml.etree.ElementTree as ET  # noqa: N817
 
@@ -11,14 +10,16 @@ from openai import NotGiven
 with contextlib.suppress(ImportError):
     from openai import OpenAI
 
-from typing import Any, Callable, List, Literal, Tuple, Type
+from typing import Any, List, Literal, TypeVar
 
 from pydantic import BaseModel
 
 from blue_lugia.enums import Role
-from blue_lugia.errors import LanguageModelManagerError, ParserError
+from blue_lugia.errors import LanguageModelManagerError
 from blue_lugia.managers.manager import Manager
 from blue_lugia.models import Embedding, EmbeddingList, Message, MessageList
+
+ToolType = TypeVar("ToolType", bound=BaseModel)
 
 
 class LanguageModelManager(Manager):
@@ -645,70 +646,6 @@ class LanguageModelManager(Manager):
         else:
             return self._complete_basic(formated_messages=formated_messages, options=options)
 
-
-class Parser[T]:
-    _llm: LanguageModelManager
-    _schema: Type[BaseModel]
-    _assertions: List[Tuple[Callable[[dict], bool], str] | Callable[[dict], bool]]
-    _instructions: MessageList
-
-    _logger: logging.Logger
-
-    def __init__(self, llm: LanguageModelManager) -> None:
-        self._logger = llm.logger.getChild(Parser.__name__)
-        self._llm = llm
-        self._instructions = MessageList([], tokenizer=llm.tokenizer, logger=self._logger.getChild(MessageList.__name__))
-        self._assertions = []
-        self._schema = BaseModel
-
-    @property
-    def logger(self) -> logging.Logger:
-        return self._logger
-
-    def into(self, schema: type[BaseModel]) -> "Parser":
-        self._schema = schema
-        return self
-
-    def following(
-        self,
-        instructions: Message | MessageList,
-    ) -> "Parser":
-        if isinstance(instructions, Message):
-            self._instructions = MessageList([instructions], tokenizer=self._llm.tokenizer, logger=self._logger)
-        else:
-            self._instructions = instructions
-        return self
-
-    def asserting(
-        self,
-        assertions: List[Tuple[Callable[[dict], bool], str] | Callable[[dict], bool]],
-    ) -> "Parser":
-        self._assertions = assertions
-        return self
-
-    def parse(self, query: Message) -> BaseModel:
-        llm = self._llm
-
-        completion = llm.complete(
-            [
-                *self._instructions,
-                query,
-            ],
-            tools=[self._schema],
-            tool_choice=self._schema,
-        )
-
-        try:
-            args = completion.tool_calls[0]["function"]["arguments"]
-
-            for assert_arg in self._assertions:
-                if isinstance(assert_arg, tuple):
-                    assert assert_arg[0](args), assert_arg[1]
-                else:
-                    assert assert_arg(args), "Assertion failed."
-
-            return self._schema(**args)  # type: ignore
-        except AssertionError as e:
-            raise e
-        except Exception:
-            raise ParserError("BL::Parser::parse::Error parsing the user message.")
+    def parse(self, message_or_messages: Message | List[Message] | List[dict[str, Any]], into: type[ToolType]) -> ToolType:
+        messages = message_or_messages if isinstance(message_or_messages, list) else [message_or_messages]
+        return into(**(self.complete(messages, schema=into).content).json())
