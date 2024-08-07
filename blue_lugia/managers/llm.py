@@ -440,11 +440,16 @@ class LanguageModelManager(Manager):
 
         if schema:
             bl_schema_config = getattr(schema, "Config", None)
-            bl_schema_strict = getattr(bl_schema_config, "bl_fc_strict", True)
+            bl_schema_strict = getattr(bl_schema_config, "bl_schema_strict", True)
+
+            if bl_schema_strict:
+                schema.model_config["extra"] = "forbid"
+
+            json_schema = {"name": schema.__name__, "strict": bl_schema_strict, "schema": self._rm_titles(schema.model_json_schema())}
 
             options["response_format"] = {
                 "type": "json_schema",
-                "json_schema": {"name": schema.__name__, "strict": bl_schema_strict, "schema": self._rm_titles(schema.model_json_schema())},
+                "json_schema": json_schema,
             }
 
         self.logger.debug(f"BL::Manager::LLM::complete({completion_name})::Model::{self._model}")
