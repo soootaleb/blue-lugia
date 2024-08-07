@@ -385,17 +385,24 @@ class LanguageModelManager(Manager):
         }
 
         if tools:
-            options["tools"] = [
-                {
-                    "type": "function",
-                    "function": {
-                        "name": tool.__name__,
-                        "description": tool.__doc__ or "",
-                        "parameters": self._rm_titles(tool.model_json_schema()),
-                    },
-                }
-                for tool in self._verify_tools(tools)
-            ]
+            options["tools"] = []
+
+            for tool in self._verify_tools(tools):
+
+                tool_config = getattr(tool, "Config", None)
+                tool_config_strict = getattr(tool_config, "bl_fc_strict", True)
+
+                options["tools"].append(
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": tool.__name__,
+                            "strict": tool_config_strict,
+                            "description": tool.__doc__ or "",
+                            "parameters": self._rm_titles(tool.model_json_schema()),
+                        },
+                    }
+                )
 
         typed_messages = self._to_typed_messages(messages)  # Returns a MessageList with the correct LLM tokenization
 
