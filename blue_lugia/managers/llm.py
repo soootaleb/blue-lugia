@@ -409,12 +409,13 @@ class LanguageModelManager(Manager):
         debug_info: dict[str, Any],
         start_text: str,
         references: Tuple[List[unique_sdk.Integrated.SearchResult], List[unique_sdk.Integrated.SearchResult]],
+        completion_name: str = "",
     ) -> Message:
         existing_references, new_references = references
 
         search_context = existing_references + new_references
 
-        self.logger.debug(f"BL::Manager::LLM::complete::SearchContext::{len(search_context)}")
+        self.logger.debug(f"BL::Manager::LLM::complete({completion_name})::streaming::SearchContext::{len(search_context)}")
 
         completion = unique_sdk.Integrated.chat_stream_completion(
             user_id=self._event.user_id,
@@ -516,6 +517,75 @@ class LanguageModelManager(Manager):
             logger=self.logger.getChild(Message.__name__),
         )
 
+
+    def _build_options(
+        self,
+        formated_messages: List[dict],
+        tools: List[type[BaseModel]] | None = None,
+        tool_choice: type[BaseModel] | None = None,
+        schema: type[BaseModel] | None = None,
+        max_tokens: int | Literal["auto"] | None = None,
+        output_json: bool = False,
+        completion_name: str = "",
+    ) -> dict[str, Any]:
+        options: dict[str, Any] = {
+            "temperature": self._temperature,
+        }
+
+        if tools:
+            options["tools"] = []
+
+            for tool in self._verify_tools(tools):
+                tool_config = getattr(tool, "Config", None)
+                tool_config_strict = getattr(tool_config, "bl_fc_strict", True)
+
+                options["tools"].append(
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": tool.__name__,
+                            "strict": tool_config_strict,
+                            "description": tool.__doc__ or "",
+                            "parameters": self._rm_titles(tool.model_json_schema()),
+                        },
+                    }
+                )
+
+        if tool_choice:
+            options["toolChoice"] = {
+                "type": "function",
+                "function": {"name": tool_choice.__name__},
+            }
+
+        if max_tokens is not None:
+            options["maxTokens"] = max_tokens
+
+        if output_json:
+            messages_contents = "\n".join([message["content"].lower() for message in formated_messages])
+
+            if "json" in messages_contents:
+                options["response_format"] = {"type": "json_object"}
+            else:
+                raise LanguageModelManagerError(
+                    f"BL::Manager::LLM::complete({completion_name})::JSONPromptMissing::The word 'json' must be present in the messages when you use the output_json flag."
+                )
+
+        if schema:
+            bl_schema_config = getattr(schema, "Config", None)
+            bl_schema_strict = getattr(bl_schema_config, "bl_schema_strict", True)
+
+            if bl_schema_strict:
+                schema.model_config["extra"] = "forbid"
+
+            json_schema = {"name": schema.__name__, "strict": bl_schema_strict, "schema": self._rm_titles(schema.model_json_schema())}
+
+            options["response_format"] = {
+                "type": "json_schema",
+                "json_schema": json_schema,
+            }
+
+        return options
+
     def complete(
         self,
         messages: List[Message] | List[dict[str, Any]],
@@ -566,29 +636,6 @@ class LanguageModelManager(Manager):
         if debug_info is None:
             debug_info = {}
 
-        options: dict[str, Any] = {
-            "temperature": self._temperature,
-        }
-
-        if tools:
-            options["tools"] = []
-
-            for tool in self._verify_tools(tools):
-                tool_config = getattr(tool, "Config", None)
-                tool_config_strict = getattr(tool_config, "bl_fc_strict", True)
-
-                options["tools"].append(
-                    {
-                        "type": "function",
-                        "function": {
-                            "name": tool.__name__,
-                            "strict": tool_config_strict,
-                            "description": tool.__doc__ or "",
-                            "parameters": self._rm_titles(tool.model_json_schema()),
-                        },
-                    }
-                )
-
         typed_messages = self._to_typed_messages(messages)  # Returns a MessageList with the correct LLM tokenization
 
         context = self._reformat(typed_messages)
@@ -597,38 +644,15 @@ class LanguageModelManager(Manager):
 
         formated_messages = self._to_dict_messages(context, oai=self._use_open_ai)
 
-        if tool_choice:
-            options["toolChoice"] = {
-                "type": "function",
-                "function": {"name": tool_choice.__name__},
-            }
-
-        if max_tokens is not None:
-            options["maxTokens"] = max_tokens
-
-        if output_json:
-            messages_contents = "\n".join([message["content"].lower() for message in formated_messages])
-
-            if "json" in messages_contents:
-                options["response_format"] = {"type": "json_object"}
-            else:
-                raise LanguageModelManagerError(
-                    f"BL::Manager::LLM::complete({completion_name})::JSONPromptMissing::The word 'json' must be present in the messages when you use the output_json flag."
-                )
-
-        if schema:
-            bl_schema_config = getattr(schema, "Config", None)
-            bl_schema_strict = getattr(bl_schema_config, "bl_schema_strict", True)
-
-            if bl_schema_strict:
-                schema.model_config["extra"] = "forbid"
-
-            json_schema = {"name": schema.__name__, "strict": bl_schema_strict, "schema": self._rm_titles(schema.model_json_schema())}
-
-            options["response_format"] = {
-                "type": "json_schema",
-                "json_schema": json_schema,
-            }
+        options = self._build_options(
+            formated_messages=formated_messages,
+            tools=tools,
+            tool_choice=tool_choice,
+            schema=schema,
+            max_tokens=max_tokens,
+            output_json=output_json,
+            completion_name=completion_name,
+        )
 
         self.logger.debug(f"BL::Manager::LLM::complete({completion_name})::Model::{self._model}")
 
@@ -636,11 +660,17 @@ class LanguageModelManager(Manager):
             return self._complete_openai(formated_messages=formated_messages, options=options)
         elif out:
             return self._complete_streaming(
-                formated_messages=formated_messages, options=options, out=out, debug_info=debug_info, start_text=start_text, references=(existing_references, new_references)
+                formated_messages=formated_messages,
+                options=options,
+                out=out,
+                debug_info=debug_info,
+                start_text=start_text,
+                references=(existing_references, new_references),
+                completion_name=completion_name,
             )
         else:
             return self._complete_basic(formated_messages=formated_messages, options=options)
 
-    def parse(self, message_or_messages: Message | List[Message] | List[dict[str, Any]], into: type[ToolType]) -> ToolType:
+    def parse(self, message_or_messages: Message | List[Message] | List[dict[str, Any]], into: type[ToolType], completion_name: str = "") -> ToolType:
         messages = message_or_messages if isinstance(message_or_messages, list) else [message_or_messages]
-        return into(**(self.complete(messages, schema=into).content).json())
+        return into(**(self.complete(messages=messages, schema=into, completion_name=completion_name).content).json())
