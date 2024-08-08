@@ -412,6 +412,10 @@ class LanguageModelManager(Manager):
     ) -> Message:
         existing_references, new_references = references
 
+        search_context = existing_references + new_references
+
+        self.logger.debug(f"BL::Manager::LLM::complete::SearchContext::{len(search_context)}")
+
         completion = unique_sdk.Integrated.chat_stream_completion(
             user_id=self._event.user_id,
             company_id=self._event.company_id,
@@ -420,7 +424,7 @@ class LanguageModelManager(Manager):
             userMessageId=self._event.payload.user_message.id,
             messages=formated_messages,
             chatId=self._event.payload.chat_id,
-            searchContext=existing_references + new_references,
+            searchContext=search_context,
             debugInfo=debug_info,
             startText=start_text,
             model=self._model,

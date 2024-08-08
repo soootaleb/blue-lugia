@@ -109,7 +109,7 @@ class Chunk(Model):
             key += f" : {','.join(pages)}"
 
         return f"""<source{i}
-                    id="{self.id}"
+                    id="{escape(self.id)}"
                     order="{self.order}"
                     start_page="{self.start_page}"
                     label="{escape(key)}"
