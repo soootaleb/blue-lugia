@@ -521,6 +521,7 @@ class StateManager(ABC, Generic[ConfType]):
                     content=(run.original_content if isinstance(run, Message) else str(run)),
                     tool_call_id=tool_call_id,
                     citations=run.citations if isinstance(run, Message) else None,
+                    sources=run.sources if isinstance(run, Message) else None,
                     logger=self.logger.getChild(Message.__name__),
                 )
             )
@@ -553,6 +554,8 @@ class StateManager(ABC, Generic[ConfType]):
                 Message.TOOL(
                     content=(handled.content if isinstance(handled, Message) else str(handled)),
                     tool_call_id=tool_call_id,
+                    citations=handled.citations if isinstance(handled, Message) else None,
+                    sources=handled.sources if isinstance(handled, Message) else None,
                     logger=self.logger.getChild(Message.__name__),
                 )
             )
@@ -586,6 +589,7 @@ class StateManager(ABC, Generic[ConfType]):
                             "original_content": message.original_content,
                             "tools_called": message.tool_calls,
                             "citations": message.citations,
+                            "sources": message.sources,
                         }
                     ]
                     + [
@@ -595,6 +599,7 @@ class StateManager(ABC, Generic[ConfType]):
                             "original_content": message.original_content,
                             "tool_call_id": m.tool_call_id,
                             "citations": m.citations,
+                            "sources": m.sources,
                         }
                         for m in extension
                     ],

@@ -157,6 +157,8 @@ class LanguageModelManager(Manager):
                     Message(
                         role=Role(message["role"].lower()),
                         content=message["content"] or message.get("text", ""),
+                        sources=message.get("sources", []),
+                        citations=message.get("citations", {}),
                         logger=self.logger.getChild(Message.__name__),
                         tool_calls=tool_calls,
                         tool_call_id=message.get("toolCallId", message.get("tool_call_id")),
@@ -340,7 +342,7 @@ class LanguageModelManager(Manager):
                 found_sources_counter += 1
 
             messages_before_current = MessageList(messages[:index], tokenizer=self.tokenizer, logger=self.logger.getChild(MessageList.__name__))
-            references_index = len(messages_before_current.sources)
+            references_index = len(messages_before_current.sources) if message.sources else 0
 
             for citation in message.citations:
                 citation_number = int(re.findall(r"\d+", citation)[0])
@@ -372,7 +374,19 @@ class LanguageModelManager(Manager):
 
         return tools
 
-    def _complete_openai(self, formated_messages: List[dict], options: dict[str, Any]) -> Message:
+    def _complete_openai(
+        self,
+        formated_messages: List[dict],
+        options: dict[str, Any],
+        references: Tuple[List[unique_sdk.Integrated.SearchResult], List[unique_sdk.Integrated.SearchResult]],
+        completion_name: str = "",
+    ) -> Message:
+        existing_references, new_references = references
+
+        search_context = existing_references + new_references
+
+        self.logger.debug(f"BL::Manager::LLM::complete({completion_name})::streaming::SearchContext::{len(search_context)}")
+
         client = OpenAI(api_key=self._open_ai_api_key)
         completion = client.chat.completions.create(
             model=self._model,
@@ -384,9 +398,19 @@ class LanguageModelManager(Manager):
             temperature=self._temperature,
         )
 
+        completion_sources = re.findall(r"\[source\d+\]", completion.choices[0].message.content or "", re.DOTALL)
+        debug_sources = {}
+        source_index = 1
+        for source in completion_sources:
+            if source not in debug_sources:
+                debug_sources[source] = source_index
+                source_index += 1
+
         return Message(
             role=Role(completion.choices[0].message.role.lower()),
             content=completion.choices[0].message.content,
+            sources=new_references,
+            citations=debug_sources,
             tool_calls=[
                 {
                     "id": call.id,
@@ -444,6 +468,8 @@ class LanguageModelManager(Manager):
 
         out.content = completion.message.text
         out.original_content = completion.message.originalText
+        out._sources = new_references
+        out._citations = debug_sources
         out.debug["_sources"] = new_references
         out.debug["_citations"] = debug_sources
 
@@ -464,6 +490,8 @@ class LanguageModelManager(Manager):
             role=Role(completion.message.role.lower()),
             content=(Message._Content(completion.message.text) if completion.message.text else None),
             original_content=completion.message.originalText,
+            sources=new_references,
+            citations=debug_sources,
             remote=Message._Remote(
                 event=self._event,
                 id=completion.message.id,
@@ -490,8 +518,16 @@ class LanguageModelManager(Manager):
     def _complete_basic(
         self,
         formated_messages: List[dict],
+        references: Tuple[List[unique_sdk.Integrated.SearchResult], List[unique_sdk.Integrated.SearchResult]],
         options: dict[str, Any],
+        completion_name: str = "",
     ) -> Message:
+        existing_references, new_references = references
+
+        search_context = existing_references + new_references
+
+        self.logger.debug(f"BL::Manager::LLM::complete({completion_name})::basic::SearchContext::{len(search_context)}")
+
         completion = unique_sdk.ChatCompletion.create(
             company_id=self._event.company_id,
             model=self._model,
@@ -500,9 +536,19 @@ class LanguageModelManager(Manager):
             options=options,  # type: ignore
         )
 
+        completion_sources = re.findall(r"\[source\d+\]", completion.choices[0].message.content or "", re.DOTALL)
+        debug_sources = {}
+        source_index = 1
+        for source in completion_sources:
+            if source not in debug_sources:
+                debug_sources[source] = source_index
+                source_index += 1
+
         return Message(
             role=Role(completion.choices[0].message.role.lower()),
             content=completion.choices[0].message.content,
+            citations=debug_sources,
+            sources=new_references,
             tool_calls=[
                 {
                     "id": call.id,
@@ -516,7 +562,6 @@ class LanguageModelManager(Manager):
             ],
             logger=self.logger.getChild(Message.__name__),
         )
-
 
     def _build_options(
         self,
@@ -657,7 +702,7 @@ class LanguageModelManager(Manager):
         self.logger.debug(f"BL::Manager::LLM::complete({completion_name})::Model::{self._model}")
 
         if self._use_open_ai:
-            return self._complete_openai(formated_messages=formated_messages, options=options)
+            return self._complete_openai(formated_messages=formated_messages, options=options, references=(existing_references, new_references), completion_name=completion_name)
         elif out:
             return self._complete_streaming(
                 formated_messages=formated_messages,
@@ -669,7 +714,7 @@ class LanguageModelManager(Manager):
                 completion_name=completion_name,
             )
         else:
-            return self._complete_basic(formated_messages=formated_messages, options=options)
+            return self._complete_basic(formated_messages=formated_messages, options=options, references=(existing_references, new_references), completion_name=completion_name)
 
     def parse(self, message_or_messages: Message | List[Message] | List[dict[str, Any]], into: type[ToolType], completion_name: str = "") -> ToolType:
         messages = message_or_messages if isinstance(message_or_messages, list) else [message_or_messages]

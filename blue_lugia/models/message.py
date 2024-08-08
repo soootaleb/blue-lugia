@@ -111,6 +111,7 @@ class Message(Model):
     _tool_calls: List[dict[str, Any]]
     _tool_call_id: Optional[str]
 
+    _sources: List[unique_sdk.Integrated.SearchResult]
     _citations: dict[str, int]
 
     _remote: _Remote | None = None
@@ -123,6 +124,7 @@ class Message(Model):
         tool_call_id: Optional[str] = None,
         tool_calls: List[dict[str, Any]] | None = None,
         citations: dict[str, int] | None = None,
+        sources: List[unique_sdk.Integrated.SearchResult] | None = None,
         original_content: Optional[str | _Content] = None,
         **kwargs: logging.Logger,
     ) -> None:
@@ -147,6 +149,7 @@ class Message(Model):
         self._tool_calls = tool_calls or []
         self._tool_call_id = tool_call_id
 
+        self._sources = sources or []
         self._citations = citations or {}
 
         if role.value.lower() not in [r.value.lower() for r in Role]:  # python 3.11 does not allow the in operator to work with enums
@@ -176,7 +179,7 @@ class Message(Model):
 
     @property
     def sources(self) -> List[unique_sdk.Integrated.SearchResult]:
-        return self.debug.get("_sources", [])
+        return self.debug.get("_sources", []) or self._sources
 
     @property
     def citations(self) -> dict[str, int]:
@@ -347,7 +350,7 @@ class Message(Model):
 
     @classmethod
     def USER(  # noqa: N802
-        cls, content: str | _Content | None, **kwargs: Any
+        cls, content: str | _Content | None, sources: List[unique_sdk.Integrated.SearchResult] | None = None, **kwargs: Any
     ) -> "Message":
         """
         Factory method to create a user-type message.
@@ -359,11 +362,11 @@ class Message(Model):
         Returns:
             Message: A new message instance with the role set to USER.
         """
-        return cls(role=Role.USER, content=content, **kwargs)
+        return cls(role=Role.USER, content=content, sources=sources, **kwargs)
 
     @classmethod
     def SYSTEM(  # noqa: N802
-        cls, content: str | _Content | None, **kwargs: Any
+        cls, content: str | _Content | None, sources: List[unique_sdk.Integrated.SearchResult] | None = None, **kwargs: Any
     ) -> "Message":
         """
         Factory method to create a system-type message.
@@ -375,13 +378,14 @@ class Message(Model):
         Returns:
             Message: A new message instance with the role set to SYSTEM.
         """
-        return cls(role=Role.SYSTEM, content=content, **kwargs)
+        return cls(role=Role.SYSTEM, content=content, sources=sources, **kwargs)
 
     @classmethod
     def ASSISTANT(  # noqa: N802
         cls,
         content: str | _Content | None,
         tool_calls: List[dict[str, Any]] = [],
+        sources: List[unique_sdk.Integrated.SearchResult] | None = None,
         **kwargs: Any,
     ) -> "Message":
         """
@@ -395,11 +399,16 @@ class Message(Model):
         Returns:
             Message: A new message instance with the role set to ASSISTANT.
         """
-        return cls(role=Role.ASSISTANT, content=content, tool_calls=tool_calls, **kwargs)
+        return cls(role=Role.ASSISTANT, content=content, tool_calls=tool_calls, sources=sources, **kwargs)
 
     @classmethod
     def TOOL(  # noqa: N802
-        cls, content: str | _Content | None, tool_call_id: str, citations: dict[str, int] | None = None, **kwargs: Any
+        cls,
+        content: str | _Content | None,
+        tool_call_id: str,
+        citations: dict[str, int] | None = None,
+        sources: List[unique_sdk.Integrated.SearchResult] | None = None,
+        **kwargs: Any,
     ) -> "Message":
         """
         Factory method to create a tool-type message with a specific tool call identifier.
@@ -412,7 +421,7 @@ class Message(Model):
         Returns:
             Message: A new message instance with the role set to TOOL.
         """
-        return cls(role=Role.TOOL, content=content, tool_call_id=tool_call_id, citations=citations, **kwargs)
+        return cls(role=Role.TOOL, content=content, tool_call_id=tool_call_id, citations=citations, sources=sources, **kwargs)
 
     def fork(self) -> "Message":
         """
@@ -428,6 +437,7 @@ class Message(Model):
             remote=(self.__class__._Remote(self._remote._event, self._remote._id, self.debug.copy()) if self._remote else None),
             citations=self.citations.copy(),
             tool_call_id=self._tool_call_id,
+            sources=[s.copy() for s in self.sources],
             tool_calls=[tc.copy() for tc in self._tool_calls],
             logger=self.logger.getChild(self.__class__.__name__),
         )
@@ -675,6 +685,7 @@ class MessageList(List[Message], Model):
                                 original_content=tc.get("original_content", None),
                                 tool_calls=tc.get("tools_called", []),
                                 tool_call_id=tc.get("tool_call_id", None),
+                                sources=tc.get("sources", []),
                                 citations=tc.get("citations", {}),
                                 logger=self.logger.getChild(Message.__name__),
                             )
