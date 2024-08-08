@@ -341,6 +341,9 @@ class LanguageModelManager(Manager):
 
                 found_sources_counter += 1
 
+            if message.role == Role.USER:
+                references.extend(message.sources)
+
             messages_before_current = MessageList(messages[:index], tokenizer=self.tokenizer, logger=self.logger.getChild(MessageList.__name__))
             references_index = len(messages_before_current.sources) if message.sources else 0
 

@@ -2,7 +2,6 @@ from pydantic import BaseModel, Field
 
 from blue_lugia.app import App
 from blue_lugia.config import ModuleConfig
-from blue_lugia.enums import Role
 from blue_lugia.models import Message
 from blue_lugia.state import StateManager
 
@@ -32,7 +31,7 @@ class CitedSourcesFromToolMessage(BaseModel):
             completion_name='summarize',
             messages=[
                 Message.SYSTEM("Your role is to summarize the user message and keep the cited sources as-is."),
-                Message.USER(completion.content),
+                Message.USER(completion.content, sources=completion.sources),
             ],
         )
 
