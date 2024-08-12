@@ -156,7 +156,7 @@ class FileManager(Manager):
 
             for chunk in chunks:
                 chunk_to_add = Chunk(
-                    id=f"{file_id}_{chunk['order']}",
+                    id=chunk["id"],
                     order=chunk["order"],
                     content=chunk["text"],
                     start_page=chunk["startPage"],
