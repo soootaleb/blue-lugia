@@ -505,12 +505,7 @@ class StateManager(ABC, Generic[ConfType]):
             tool_call_id = tc["id"]
 
             run = tool_call["run"]
-            # pre_run = tool_call["pre_run_hook"]
             post_run = tool_call["post_run_hook"]
-
-            if isinstance(run, bool) and not run:
-                self.logger.debug(f"BL::StateManager::_process_tools_called::Tool run {tool.__class__.__name__} returned False. Stoping loop over tool calls.")
-                complete = False
 
             if isinstance(post_run, bool) and not post_run:
                 self.logger.debug(f"""BL::StateManager::_process_tools_called::Tool post_run_hook {tool.__class__.__name__} returned False. Stoping loop over tool calls.""")
