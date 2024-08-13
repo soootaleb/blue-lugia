@@ -459,7 +459,7 @@ class StateManager(ABC, Generic[ConfType]):
                         else None
                     )
 
-                    self.logger.debug(f"BL::StateManager::_call_tools::Run is {run}")
+                    self.logger.debug(f"BL::StateManager::_call_tools::Run is {str(run)[:100]}")
 
                 post = (
                     tool_call.post_run_hook(  # type: ignore
@@ -472,7 +472,7 @@ class StateManager(ABC, Generic[ConfType]):
                     else None
                 )
 
-                self.logger.debug(f"BL::StateManager::_call_tools::Post run hook is {post}")
+                self.logger.debug(f"BL::StateManager::_call_tools::Post run hook is {str(post)[:100]}")
 
                 tools_called.append(
                     {
@@ -599,9 +599,7 @@ class StateManager(ABC, Generic[ConfType]):
 
         else:
             self.logger.warning(
-                """BL::StateManager::_process_tools_called::No user message found in context.
-                \nCannot update debug information for tool calls.
-                \nThis is a critical issue for debugging."""
+                """BL::StateManager::_process_tools_called::No user message found in context. Cannot update debug information for tool calls. This is a critical issue for debugging."""
             )
 
         self.ctx.extend(extension)
