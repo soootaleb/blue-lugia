@@ -13,6 +13,7 @@ from blue_lugia.models import (
     File,
     FileList,
     MessageList,
+    Q,
 )
 
 
@@ -26,6 +27,8 @@ class FileManager(Manager):
 
     _filters: List[Any]
     _filters_operator: Op
+
+    _query: Q | None = None
 
     _order_by: str | Callable | None = None
     _order_reverse: bool = False
@@ -337,6 +340,11 @@ class FileManager(Manager):
             else:
                 file_manager._filters.append([key, operation, value])
 
+        return file_manager
+
+    def query(self, query: Q | None, **kwargs) -> "FileManager":
+        file_manager = self.fork()
+        file_manager._query = query if query else Q(**kwargs)
         return file_manager
 
     def order_by(self, key: str | Callable[[File], Any], reverse: bool = False) -> "FileManager":

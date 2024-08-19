@@ -9,6 +9,7 @@ from blue_lugia.managers.file import FileManager
 from blue_lugia.models import Message
 from blue_lugia.models.file import ChunkList, FileList
 from blue_lugia.models.message import MessageList
+from blue_lugia.models.query import Q
 from blue_lugia.state import StateManager
 
 
@@ -54,22 +55,15 @@ class SumTool(BaseModel):
     # This method is executed if the tool was designated but could not be instanciated / executed
     @classmethod
     def on_validation_error(cls, call_id: str, arguments: dict, state: StateManager, extra: dict | None = None, out: Message | None = None) -> bool:
-        if extra is None:
-            extra = {}
-        validation_error = extra.get("validation_error")
+        validation_error = (extra or {}).get("validation_error")
         state.last_ass_message.append(f"Tool {cls.__name__} not called because of validation error {validation_error}")
         return False
 
 
-# You can created custom commands that will be executed when the user message starts with the command prefix ! or /
-# You must register commands with App.register()
 def hello(state: StateManager[CustomConfig], args: list[str] = []) -> None:
-    """
-    Just say hello
-    """
-    state.last_ass_message.update(f"World: {', '.join(args)}")
+    files_names = state.files.query(Q(key="filename.txt", owner="me") | Q(mime_type="appliation/pdf")).values("name", flat=True)
 
-    raise CommandError(f"Bye world ({state.conf.TEST_MESSAGE}, {state.conf.IN_MESSAGE})")
+    state.last_ass_message.update(f"Found files {', '.join(files_names)}")
 
 
 # The module is a function accepting a state manager
@@ -180,7 +174,7 @@ def module(state: StateManager[ModuleConfig]) -> None:
 
 
 # Use method chaining to define the app name, the commands, error handlers, custom config, and the module to run
-app = App("Petal").configured(CustomConfig).register("hello", hello).handle(CommandError).threaded(False).of(module)
+app = App("Petal").configured(CustomConfig).register("hello", hello).handle(CommandError).threaded(False).of(module).listen()
 
 # You can arbitrarily execute your module by mocking an event
 # Keep in mind that the app._conf which is a ModuleConfig, will be set with your environment variables.
