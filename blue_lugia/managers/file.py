@@ -454,5 +454,3 @@ class FileManager(Manager):
     def as_messages(self, role: Role = Role.SYSTEM) -> MessageList:
         return self.all().as_messages(role, self.tokenizer)
 
-    def as_context(self) -> List[unique_sdk.Integrated.SearchResult]:
-        return self.all().as_context()
