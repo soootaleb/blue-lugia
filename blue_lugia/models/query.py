@@ -228,8 +228,8 @@ class Q:
     def _evaluate_endswith(self, data: dict[str, Any], key: str, value: Any) -> bool:
         found = data.get(key)
         return found.endswith(value) if isinstance(found, str) else False
-    
-    def _evaluate(self, data: dict[str, Any]) -> bool:
+
+    def _evaluate(self, data: dict[str, Any]) -> bool:  # noqa: C901
         if self._connector == Op.AND:
             for condition in self._conditions:
                 if isinstance(condition, Q):

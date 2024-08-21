@@ -340,7 +340,7 @@ class LanguageModelManager(Manager):
 
         return tools
 
-    def complete(
+    def complete(  # noqa: C901
         self,
         messages: List[Message] | List[dict[str, Any]],
         tools: List[type[BaseModel]] | None = None,
