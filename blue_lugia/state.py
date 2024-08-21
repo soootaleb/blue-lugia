@@ -594,7 +594,7 @@ class StateManager(ABC, Generic[ConfType]):
 
         else:
             self.logger.warning(
-                """BL::StateManager::_process_tools_called::No user message found in context. Cannot update debug information for tool calls. This is a critical issue for debugging."""
+                """BL::StateManager::_process_tools_called::No user message found in context. Cannot update debug information for tool calls."""
             )
 
         self.ctx.extend(extension)
