@@ -61,7 +61,11 @@ class SumTool(BaseModel):
 
 
 def hello(state: StateManager[CustomConfig], args: list[str] = []) -> None:
-    files_names = state.files.query(Q(key="filename.txt", owner="me") | Q(mime_type="appliation/pdf")).values("name", flat=True)
+    files_names = state.files.filter(
+        Q(url__contains=".com/SitePages", FirstPublishedDate__gt="2024-07-15T00:00:00.00Z", FirstPublishedDate__lt="2024-07-19T00:00:00.00Z")
+        & ~Q(url__contains="fr/")
+        & ~Q(url_contains="Templates/")
+    ).values("name", flat=True)
 
     state.last_ass_message.update(f"Found files {', '.join(files_names)}")
 
@@ -120,6 +124,13 @@ def module(state: StateManager[ModuleConfig]) -> None:
     # Note that managers have "configuration methods" and "execution methods"
     # For example, Manager.filter() does not execute a query, but instead returns a new manager with filters ready to be applied
     files: FileManager = files.filter(key__contains=".xlsx")
+
+    # You can check the Q model / documentation for more complex queries
+    files.filter(
+        Q(url__contains=".com/SitePages", FirstPublishedDate__gt="2024-07-15T00:00:00.00Z", FirstPublishedDate__lt="2024-07-19T00:00:00.00Z")
+        & ~Q(url__contains="fr/")
+        & ~Q(url__contains="Templates/")
+    )
 
     # The files manager encapsulates both Search & Content APIs
     # Search returns a ChunkList while Content returns a FileList

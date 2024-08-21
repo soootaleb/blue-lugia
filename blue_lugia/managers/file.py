@@ -1,5 +1,5 @@
 import datetime
-from typing import Any, Callable, List
+from typing import Any, Callable, List, Tuple
 
 import tiktoken
 import unique_sdk
@@ -35,6 +35,46 @@ class FileManager(Manager):
 
     _mapped_operators = {
         "eq": "equals",
+        "ne": "notEquals",
+        "gt": "greaterThan",
+        "gte": "greaterThanOrEqual",
+        "lt": "lessThan",
+        "lte": "lessThanOrEqual",
+        "in": "in",
+        "nin": "notIn",
+        "contains": "contains",
+        "icontains": "icontains",
+        "ncontains": "notContains",
+        "nicontains": "notContains",
+        "isnull": "isNull",
+        "isnotnull": "isNotNull",
+        "isempty": "isEmpty",
+        "isnotempty": "isNotEmpty",
+        "startswith": "startsWith",
+        "endswith": "endsWith",
+        "foreach": "nested",
+        "nested": "nested",
+    }
+
+    _negated_operators = {
+        "equals": "notEquals",
+        "notEquals": "equals",
+        "greaterThan": "lowerThanOrEqual",
+        "greaterThanOrEqual": "lowerThan",
+        "lessThan": "greaterThanOrEqual",
+        "lessThanOrEqual": "greaterThan",
+        "in": "notIn",
+        "notIn": "in",
+        "contains": "notContains",
+        "icontains": "notContains",
+        "notContains": "contains",
+        "isNull": "isNotNull",
+        "isNotNull": "isNull",
+        "isEmpty": "isNotEmpty",
+        "isNotEmpty": "isEmpty",
+        "startsWith": "startsWith",
+        "endsWith": "endsWith",
+        "nested": "nested",
     }
 
     _tokenizer: str | tiktoken.Encoding
@@ -181,6 +221,133 @@ class FileManager(Manager):
             logger=self.logger.getChild(FileList.__name__),
         )
 
+    def _kwargs_to_kov(self, full_key: str, value: Any) -> Tuple[str | list, str, Any]:
+        if "__" in full_key:
+            splited = full_key.split("__")
+
+            if len(splited) == 2:
+                key, operation = splited[0], splited[1]
+
+            elif len(splited) == 3:
+                key, operation, potential_in = splited[0], splited[1], splited[2]
+
+                if potential_in == "in":
+                    operations = []
+
+                    if isinstance(value, list):
+                        for v in value:
+                            operations.append([key, operation, v])
+                    else:
+                        raise ChatFileManagerError(f"BL::Manager::ChatFile::filter::InvalidValue::{value}")
+
+                    key, operation = operations, "sub_filter"
+                else:
+                    raise ChatFileManagerError(f"BL::Manager::ChatFile::filter::InvalidKey::{full_key}")
+            else:
+                raise ChatFileManagerError(f"BL::Manager::ChatFile::filter::InvalidKey::{full_key}")
+        else:
+            key, operation = full_key, "eq"
+
+        return key, operation, value
+
+    def _op_args_kwargs_to_q(self, op: Op | Q, *args: Q, **kwargs) -> Q:
+        query = Q()
+
+        if isinstance(op, Op):
+            query = Q(*args, **kwargs)
+            if op == Op.NOT:
+                query._negated = True
+            else:
+                query._connector = op
+        else:
+            query = Q(op, *args, **kwargs)
+
+        return query
+
+    def _q_to_metadata(self, q: Q) -> dict[str, Any] | None:
+        """
+        Converts a Q object to a metadata dictionary suitable for API queries.
+        This method processes conditions, handling nested queries, logical connectors, negation, and path translations.
+
+        Args:
+            q (Q): The Q object to convert.
+
+        Returns:
+            dict[str, Any] | None: A dictionary representing the metadata filter, or None if the Q object is empty.
+        """
+        if not q.conditions:
+            return None  # Return None if there are no conditions to process.
+
+        def process_condition(condition: Tuple[str, str, Any] | Q, negated: bool = False) -> dict[str, Any] | None:
+            if isinstance(condition, Q):
+                return self._q_to_metadata(condition)
+            else:
+                # Process a single condition tuple (key, operation, value).
+                key, operation, value = condition
+
+                # Handle Django-like transition using double underscores to indicate JSON paths
+                path = key.split("__")
+
+                operation = self._mapped_operators.get(operation, operation)
+
+                if negated:
+                    operation = self._negated_operators.get(operation, operation)
+
+                if isinstance(value, (list, set, tuple)):
+                    value = list(value)  # Ensure the value is JSON serializable if it's a collection.
+
+                if isinstance(value, Q):
+                    # Handle nested Q objects as sub-filters.
+                    value = self._q_to_metadata(value)
+
+                return {"path": path, "operator": operation, "value": value}
+
+        # Handle the logical connectors at the top-level query.
+        if q.connector == Op.AND or q.connector == Op.OR:
+            inner_result = [process_condition(c, q.negated) for c in q.conditions]
+            result = {q.connector.value.lower(): inner_result} if len(inner_result) > 1 else inner_result[0]
+        else:
+            result = None
+
+        return result
+
+    def _q_to_content_filters(self, q: Q) -> dict[str, Any]:
+        """
+        Converts a Q object to a dictionary format suitable for content filtering.
+        This method handles nested conditions, logical connectors, and specific comparison operations like startsWith, endsWith, and contains.
+
+        Args:
+            q (Q): The Q object to convert.
+
+        Returns:
+            dict[str, Any]: A dictionary representing the content filter structure.
+        """
+
+        if not q.conditions:
+            return {}
+
+        def process_condition(condition: Tuple[str, str, Any] | Q) -> dict[str, Any]:
+            if isinstance(condition, Q):
+                # Recursive call to process nested Q objects
+                return self._q_to_content_filters(condition) if len(condition.conditions) > 1 else process_condition(condition.conditions[0])
+            else:
+                # Process a single condition tuple (key, operation, value)
+                key, operation, value = condition
+
+                where = {key: {self._mapped_operators.get(operation, operation): value}}
+
+                if operation.startswith("i") and operation[1:] in self._mapped_operators:
+                    # Handle negation for insensitive operations
+                    where[key][self._mapped_operators.get(operation[1:], operation)] = value
+                    where[key]["mode"] = "insensitive"
+                    del where[key][self._mapped_operators.get(operation, operation)]
+
+                return where
+
+        inner_result = [process_condition(c) for c in q.conditions]
+        conditions = {q.connector.value.upper(): inner_result}
+        return {"NOT": conditions} if q.negated else conditions
+
     def using(self, search_type: SearchType) -> "FileManager":
         file_manager = self.fork()
         file_manager._search_type = search_type
@@ -202,26 +369,7 @@ class FileManager(Manager):
     def search(self, query: str = "", limit: int = 1000) -> ChunkList:
         found_all = []
 
-        metadata_filters = None
-
-        if len(self._filters) == 1:
-            last_filter = self._filters[0]
-            metadata_filters = {
-                "path": [last_filter[0]],
-                "operator": (self._mapped_operators[last_filter[1]] if last_filter[1] in self._mapped_operators else last_filter[1]),
-                "value": last_filter[2],
-            }
-        elif len(self._filters) > 1:
-            metadata_filters = {
-                self._filters_operator.value.lower(): [
-                    {
-                        "path": [x[0]],
-                        "operator": (self._mapped_operators[x[1]] if x[1] in self._mapped_operators else x[1]),
-                        "value": x[2],
-                    }
-                    for x in self._filters
-                ]
-            }
+        metadata_filters = self._q_to_metadata(self._query) if self._query else None
 
         extra_args = {}
 
@@ -256,29 +404,29 @@ class FileManager(Manager):
             return typed_search
 
     def fetch(self) -> FileList:
-        wheres = {}
+        wheres = self._q_to_content_filters(self._query) if self._query else {}
 
         if self._scopes:
             self.logger.warning("BL::Manager::Files::fetch::ScopesIgnored::Content search API does not support scopes.")
 
-        mapped_filters = list(
-            map(
-                lambda x: {
-                    x[0]: {
-                        (self._mapped_operators[x[1]] if x[1] in self._mapped_operators else x[1]): x[2],
-                    }
-                },
-                self._filters,
-            )
-        )
+        # mapped_filters = list(
+        #     map(
+        #         lambda x: {
+        #             x[0]: {
+        #                 (self._mapped_operators[x[1]] if x[1] in self._mapped_operators else x[1]): x[2],
+        #             }
+        #         },
+        #         self._filters,
+        #     )
+        # )
 
-        if mapped_filters:
-            if self._filters_operator == Op.OR:
-                wheres["OR"] = mapped_filters
-            elif self._filters_operator == Op.AND:
-                wheres["AND"] = mapped_filters
-            else:
-                raise ChatFileManagerError(f"BL::Manager::ChatFile::fetch::InvalidOperator::{self._filters_operator}")
+        # if mapped_filters:
+        #     if self._filters_operator == Op.OR:
+        #         wheres["OR"] = mapped_filters
+        #     elif self._filters_operator == Op.AND:
+        #         wheres["AND"] = mapped_filters
+        #     else:
+        #         raise ChatFileManagerError(f"BL::Manager::ChatFile::fetch::InvalidOperator::{self._filters_operator}")
 
         if self._chat_only:
             wheres["ownerId"] = {
@@ -302,37 +450,15 @@ class FileManager(Manager):
         else:
             return typed_content
 
-    def filter(self, op: Op = Op.OR, **kwargs) -> "FileManager":
+    def filter(self, op: Op | Q = Op.OR, *args, **kwargs) -> "FileManager":
         file_manager = self.fork()
 
-        file_manager._filters_operator = op
+        file_manager._filters_operator = op if isinstance(op, Op) else Op.OR
+
+        file_manager._query = self._op_args_kwargs_to_q(op, *args, **kwargs)
 
         for full_key, value in kwargs.items():
-            if "__" in full_key:
-                splited = full_key.split("__")
-
-                if len(splited) == 2:
-                    key, operation = splited[0], splited[1]
-
-                elif len(splited) == 3:
-                    key, operation, potential_in = splited[0], splited[1], splited[2]
-
-                    if potential_in == "in":
-                        operations = []
-
-                        if isinstance(value, list):
-                            for v in value:
-                                operations.append([key, operation, v])
-                        else:
-                            raise ChatFileManagerError(f"BL::Manager::ChatFile::filter::InvalidValue::{value}")
-
-                        key, operation = operations, "sub_filter"
-                    else:
-                        raise ChatFileManagerError(f"BL::Manager::ChatFile::filter::InvalidKey::{full_key}")
-                else:
-                    raise ChatFileManagerError(f"BL::Manager::ChatFile::filter::InvalidKey::{full_key}")
-            else:
-                key, operation = full_key, "eq"
+            key, operation, value = self._kwargs_to_kov(full_key, value)
 
             if operation == "sub_filter":
                 for sub_filter in key:
@@ -340,11 +466,6 @@ class FileManager(Manager):
             else:
                 file_manager._filters.append([key, operation, value])
 
-        return file_manager
-
-    def query(self, query: Q | None, **kwargs) -> "FileManager":
-        file_manager = self.fork()
-        file_manager._query = query if query else Q(**kwargs)
         return file_manager
 
     def order_by(self, key: str | Callable[[File], Any], reverse: bool = False) -> "FileManager":
