@@ -45,6 +45,7 @@ class ModuleConfig(BaseSettings):
         """.strip()
 
     # LLM
+    LLM_SEED: int | None = None
     LLM_TIMEOUT: int = 60000
     LLM_DEFAULT_MODEL: str = "AZURE_GPT_4_TURBO_2024_0409"
 
