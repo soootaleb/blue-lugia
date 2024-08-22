@@ -52,7 +52,7 @@ class FileManager(Manager):
         "isnotempty": "isNotEmpty",
         "startswith": "startsWith",
         "endswith": "endsWith",
-        "foreach": "nested",
+        "foreach": "foreach",
         "nested": "nested",
     }
 
@@ -285,6 +285,13 @@ class FileManager(Manager):
                 # Process a single condition tuple (key, operation, value).
                 key, operation, value = condition
 
+                if operation == "nested" or operation == "foreach":
+                    key += "__*"
+                    operation = "nested"
+
+                    if not isinstance(value, Q):
+                        value = Q(**value)
+
                 # Handle Django-like transition using double underscores to indicate JSON paths
                 path = key.split("__")
 
@@ -329,10 +336,17 @@ class FileManager(Manager):
         def process_condition(condition: Tuple[str, str, Any] | Q) -> dict[str, Any]:
             if isinstance(condition, Q):
                 # Recursive call to process nested Q objects
-                return self._q_to_content_filters(condition) if len(condition.conditions) > 1 else process_condition(condition.conditions[0])
+                return self._q_to_content_filters(condition) if len(condition.conditions) > 1 or condition.negated else process_condition(condition.conditions[0])
             else:
                 # Process a single condition tuple (key, operation, value)
                 key, operation, value = condition
+
+                if isinstance(value, (list, set, tuple)):
+                    value = list(value)  # Ensure the value is JSON serializable if it's a collection.
+
+                if isinstance(value, Q):
+                    # Handle nested Q objects as sub-filters.
+                    value = self._q_to_content_filters(value)
 
                 where = {key: {self._mapped_operators.get(operation, operation): value}}
 

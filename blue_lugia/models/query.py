@@ -83,12 +83,6 @@ class Q:
             else:
                 key, operation = key, "equals"
 
-            if operation == "nested" or operation == "foreach":
-                key += "__*"
-
-                if not isinstance(value, Q):
-                    value = Q(**value)
-
             kov.append((key, operation, value))
 
         return kov
@@ -266,60 +260,3 @@ class Q:
             return not self._evaluate(data)
         else:
             return self._evaluate(data)
-
-
-    # def evaluate(self, data: dict[str, Any]) -> bool:
-    #     """
-    #     Evaluates the query expression against the provided data dictionary to determine if the conditions are met.
-
-    #     This method traverses all conditions and nested Q objects within this Q object, applying the specified
-    #     operations to the data keys and values, and returns a boolean result based on the logical evaluation of
-    #     all conditions.
-
-    #     Args:
-    #         data (dict[str, Any]): A dictionary containing data keys and values against which the Q object's conditions
-    #                                 are evaluated.
-
-    #     Returns:
-    #         bool: The result of the evaluation. True if the data matches the conditions specified in the Q object,
-    #               otherwise False.
-    #     """
-    #     evaluation = None
-
-    #     if self._connector == Op.AND:
-    #         for condition in self._conditions:
-    #             if isinstance(condition, Q):
-    #                 if not condition.evaluate(data):
-    #                     evaluation = False
-    #             else:
-    #                 key, operation, value = condition
-    #                 if not getattr(self, f"_evaluate_{operation}")(data, key, value):
-    #                     evaluation = False
-    #         evaluation = True
-    #     elif self._connector == Op.OR:
-    #         for condition in self._conditions:
-    #             if isinstance(condition, Q):
-    #                 if condition.evaluate(data):
-    #                     evaluation = True
-    #             else:
-    #                 key, operation, value = condition
-    #                 if getattr(self, f"_evaluate_{operation}")(data, key, value):
-    #                     evaluation = True
-    #         evaluation = (not len(self._conditions)) and (not self._negated)  # return True if not conditions evaled to True because there are no conditions
-    #     else:
-    #         for condition in self._conditions:
-    #             if isinstance(condition, Q):
-    #                 if condition.evaluate(data):
-    #                     evaluation = False
-    #             else:
-    #                 key, operation, value = condition
-    #                 if getattr(self, f"_evaluate_{operation}")(data, key, value):
-    #                     evaluation = False
-    #         evaluation = False  # Op.NOT should return False if there are no conditions
-
-    #     if evaluation is None:
-    #         return False
-    #     elif self._negated:
-    #         return not evaluation
-    #     else:
-    #         return evaluation

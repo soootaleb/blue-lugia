@@ -312,6 +312,9 @@ class TestFileManager(unittest.TestCase):
         wheres = state.files._q_to_content_filters(~Q(id=1))
         self.assertEqual(wheres, {"NOT": {"AND": [{"id": {"equals": 1}}]}})
 
+        wheres = state.files._q_to_content_filters(Q(x=1) | ~Q(id=1))
+        self.assertEqual(wheres, {"OR": [{"x": {"equals": 1}}, {"NOT": {"AND": [{"id": {"equals": 1}}]}}]})
+
         query = Q(
             Q(url__startswith="https://pictet.sharepoint.com/SitePages/", url__endswith=".aspx"),
             ~Q(Q(url__icontains="/fr/") | Q(url__icontains="/Templates/")),
@@ -331,6 +334,23 @@ class TestFileManager(unittest.TestCase):
                             ]
                         }
                     },
+                ]
+            },
+        )
+
+        query = Q((Q(key__contains=".pdf") & Q(key__contains="NeoXam")) | ~Q(key__contains=".pdf"))
+        wheres = state.files._q_to_content_filters(query)
+        self.assertEqual(
+            wheres,
+            {
+                "OR": [
+                    {
+                        "AND": [
+                            {"key": {"contains": ".pdf"}},
+                            {"key": {"contains": "NeoXam"}},
+                        ]
+                    },
+                    {"NOT": {"AND": [{"key": {"contains": ".pdf"}}]}},
                 ]
             },
         )
