@@ -378,6 +378,18 @@ class TestQToMetadataOperations(StateManagerTest):
             },
         )
 
+    def test_q_to_metadata_in(self) -> None:
+        state = self._get_state([])
+        metadata = state.files._q_to_metadata(Q(id__in=[1, 2, 3]))
+        self.assertEqual(
+            metadata,
+            {
+                "path": ["id"],
+                "operator": "in",
+                "value": [1, 2, 3],
+            },
+        )
+
     def test_q_to_metadata_nested_or_icontains(self) -> None:
         state = self._get_state([])
         metadata = state.files._q_to_metadata(Q(key__icontains=".pdf") & Q(key__icontains="NeoXam") | ~Q(key__icontains=".pdf") & ~Q(key__icontains=".xlsx"))
@@ -401,7 +413,7 @@ class TestQToMetadataOperations(StateManagerTest):
             },
         )
 
-    def test_old_api_equivalent_none(self) -> None:
+    def test_old_vs_new_api_equivalent_none(self) -> None:
         state = self._get_state([])
 
         filtered_state = state.files.fork().filter(op=Op.AND, **{})
@@ -414,7 +426,7 @@ class TestQToMetadataOperations(StateManagerTest):
 
         self.assertEqual(old_api_metadata, new_api_metadata)
 
-    def test_old_api_equivalent_complex(self) -> None:
+    def test_old_vs_new_api_equivalent_complex(self) -> None:
         state = self._get_state([])
 
         filtered_state = state.files.fork().filter(
@@ -436,7 +448,7 @@ class TestQToMetadataOperations(StateManagerTest):
 
         self.assertEqual(old_api_metadata, new_api_metadata)
 
-    def test_old_api_equivalent_dynamic(self) -> None:
+    def test_old_vs_new_api_equivalent_dynamic(self) -> None:
         state = self._get_state([])
 
         start_date = (datetime.datetime.now().replace(hour=0, minute=0, second=0, microsecond=0) + datetime.timedelta(days=-16)).isoformat(timespec="milliseconds") + "Z"
@@ -567,26 +579,6 @@ class TestQToContentFilters(StateManagerTest):
 
         self.assertEqual(old_api_filters, new_api_filters)
 
-    # This test is not really useful as the old API does not support the same level of complexity
-    # The old API returns a notContains operator, which is not supported by the Content.search endpoint
-    # The new API returns a NOT operator with an AND operator containing the contains operators
-    def test_old_api_equivalent_complex(self) -> None:
-        state = self._get_state([])
-
-        filtered_state = state.files.filter(
-            op=Op.AND,
-            **{
-                "url__contains": ".com/SitePages",
-                "url__notContains__in": ["fr/", "Templates/"],
-                "FirstPublishedDate__contains": "2",
-            },
-        )
-
-        old_api_filters = filtered_state._filters_to_content_filters()
-        new_api_filters = state.files._q_to_content_filters(filtered_state._query or Q())
-
-        self.assertNotEqual(old_api_filters, new_api_filters)
-
     def test_new_api_equivalent_none(self) -> None:
         state = self._get_state([])
 
@@ -606,31 +598,6 @@ class TestQToContentFilters(StateManagerTest):
         new_api_filters = state.files._q_to_content_filters(filtered_state._query or Q())
 
         self.assertEqual(old_api_filters, new_api_filters)
-
-    # This test is not really useful as the old API does not support the same level of complexity
-    # The old API returns a notContains operator, which is not supported by the Content.search endpoint
-    # The new API returns a NOT operator with an AND operator containing the contains operators
-    def test_new_api_equivalent_complex(self) -> None:
-        state = self._get_state([])
-
-        filtered_state = state.files.filter(Q(url__contains=".com/SitePages") & ~Q(url__contains="fr/") & ~Q(url__contains="Templates/") & Q(FirstPublishedDate__contains="2"))
-
-        old_api_filters = (
-            state.files.fork()
-            .filter(
-                op=Op.AND,
-                **{
-                    "url__contains": ".com/SitePages",
-                    "url__notContains__in": ["fr/", "Templates/"],
-                    "FirstPublishedDate__contains": "2",
-                },
-            )
-            ._filters_to_content_filters()
-        )
-
-        new_api_filters = state.files._q_to_content_filters(filtered_state._query or Q())
-
-        self.assertNotEqual(old_api_filters, new_api_filters)
 
 
 if __name__ == "__main__":

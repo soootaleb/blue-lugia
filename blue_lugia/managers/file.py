@@ -265,6 +265,45 @@ class FileManager(Manager):
 
         return query
 
+    def _process_metadata_condition(self, condition: Tuple[str, str, Any] | Q, negated: bool = False) -> dict[str, Any] | None:
+        if isinstance(condition, Q):
+            return self._q_to_metadata(condition)
+        else:
+            # Process a single condition tuple (key, operation, value).
+            key, operation, value = condition
+
+            # Handle older API versions that used "in" as a suffix for list operations.
+            if operation == "in" and isinstance(value, list):
+                splited = key.split("__")
+                previous_operation = splited[-1]
+
+                if previous_operation in self._mapped_operators.values():
+                    return self._q_to_metadata(Q(*[Q(**{key: v}) for v in value]))
+
+            if operation == "nested" or operation == "foreach":
+                key += "__*"
+                operation = "nested"
+
+                if isinstance(value, dict):
+                    value = Q(**value)
+
+            # Handle Django-like transition using double underscores to indicate JSON paths
+            path = key.split("__")
+
+            operation = self._mapped_operators.get(operation, operation)
+
+            if negated:
+                operation = self._negated_operators.get(operation, operation)
+
+            if isinstance(value, (list, set, tuple)):
+                value = list(value)  # Ensure the value is JSON serializable if it's a collection.
+
+            if isinstance(value, Q):
+                # Handle nested Q objects as sub-filters.
+                value = self._q_to_metadata(value)
+
+            return {"path": path, "operator": operation, "value": value}
+
     def _q_to_metadata(self, q: Q) -> dict[str, Any] | None:
         """
         Converts a Q object to a metadata dictionary suitable for API queries.
@@ -279,65 +318,19 @@ class FileManager(Manager):
         if not q.conditions:
             return None  # Return None if there are no conditions to process.
 
-        def process_condition(condition: Tuple[str, str, Any] | Q, negated: bool = False) -> dict[str, Any] | None:
-            if isinstance(condition, Q):
-                return self._q_to_metadata(condition)
-            else:
-                # Process a single condition tuple (key, operation, value).
-                key, operation, value = condition
-
-                if operation == "nested" or operation == "foreach":
-                    key += "__*"
-                    operation = "nested"
-
-                    if not isinstance(value, Q):
-                        value = Q(**value)
-
-                # Handle Django-like transition using double underscores to indicate JSON paths
-                path = key.split("__")
-
-                operation = self._mapped_operators.get(operation, operation)
-
-                if negated:
-                    operation = self._negated_operators.get(operation, operation)
-
-                if isinstance(value, (list, set, tuple)):
-                    value = list(value)  # Ensure the value is JSON serializable if it's a collection.
-
-                if isinstance(value, Q):
-                    # Handle nested Q objects as sub-filters.
-                    value = self._q_to_metadata(value)
-
-                return {"path": path, "operator": operation, "value": value}
-
         # Handle the logical connectors at the top-level query.
         if q.connector == Op.AND or q.connector == Op.OR:
-            inner_result = [process_condition(c, q.negated) for c in q.conditions]
+            inner_result = [self._process_metadata_condition(c, q.negated) for c in q.conditions]
             result = {q.connector.value.lower(): inner_result} if len(inner_result) > 1 else inner_result[0]
         else:
             result = None
 
         return result
 
-    def _q_to_content_filters(self, q: Q) -> dict[str, Any]:
-        """
-        Converts a Q object to a dictionary format suitable for content filtering.
-        This method handles nested conditions, logical connectors, and specific comparison operations like startsWith, endsWith, and contains.
-
-        Args:
-            q (Q): The Q object to convert.
-
-        Returns:
-            dict[str, Any]: A dictionary representing the content filter structure.
-        """
-
-        if not q.conditions:
-            return {}
-
-        def process_condition(condition: Tuple[str, str, Any] | Q) -> dict[str, Any]:
+    def _process_content_condition(self, condition: Tuple[str, str, Any] | Q) -> dict[str, Any]:
             if isinstance(condition, Q):
                 # Recursive call to process nested Q objects
-                return self._q_to_content_filters(condition) if len(condition.conditions) > 1 or condition.negated else process_condition(condition.conditions[0])
+                return self._q_to_content_filters(condition) if len(condition.conditions) > 1 or condition.negated else self._process_content_condition(condition.conditions[0])
             else:
                 # Process a single condition tuple (key, operation, value)
                 key, operation, value = condition
@@ -358,7 +351,22 @@ class FileManager(Manager):
 
                 return where
 
-        inner_result = [process_condition(c) for c in q.conditions]
+    def _q_to_content_filters(self, q: Q) -> dict[str, Any]:
+        """
+        Converts a Q object to a dictionary format suitable for content filtering.
+        This method handles nested conditions, logical connectors, and specific comparison operations like startsWith, endsWith, and contains.
+
+        Args:
+            q (Q): The Q object to convert.
+
+        Returns:
+            dict[str, Any]: A dictionary representing the content filter structure.
+        """
+
+        if not q.conditions:
+            return {}
+
+        inner_result = [self._process_content_condition(c) for c in q.conditions]
         conditions = {q.connector.value.upper(): inner_result}
         return {"NOT": conditions} if q.negated else conditions
 
