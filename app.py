@@ -61,15 +61,13 @@ class SumTool(BaseModel):
 
 
 def debug(state: StateManager[CustomConfig], args: list[str] = []) -> None:
-    search_query = (
+    search_query = (  # noqa: F841
         Q(url__contains=".com/SitePages", FirstPublishedDate__gt="2024-07-15T00:00:00.00Z", FirstPublishedDate__lt="2024-07-19T00:00:00.00Z")
         & ~Q(url__contains="fr/")
         & ~Q(url__contains="Templates/")
     )
 
-    fetch_query = Q(  # find all PDFs of NeoXam or other non-pdf files
-        (Q(key__icontains=".pdf") & Q(key__icontains="NeoXam")) | ~Q(key__icontains=".pdf")
-    )
+    fetch_query = Q(key__icontains=".pdf") & Q(key__icontains="NeoXam") | ~Q(key__icontains=".pdf") & ~Q(key__icontains=".xlsx")
 
     files_names = state.files.filter(fetch_query).values("name", flat=True)
 
@@ -191,9 +189,9 @@ def module(state: StateManager[ModuleConfig]) -> None:
 
 
 # Use method chaining to define the app name, the commands, error handlers, custom config, and the module to run
-app = App("Petal").configured(CustomConfig).handle(CommandError).threaded(False).of(debug)
+app = App("Petal").configured(CustomConfig).handle(CommandError).threaded(False).of(module)
 
 # You can arbitrarily execute your module by mocking an event
 # Keep in mind that the app._conf which is a ModuleConfig, will be set with your environment variables.
 # Your .env should be set according to the APIs your want to use (local, next, neo, etc)
-app.webhook(chat_id="chat_kfzs7m6lbbr570sfip91ns81", assistant_id="assistant_y4j9d9h0yoa2f084qp9jknxi")
+# app.webhook(chat_id="chat_kfzs7m6lbbr570sfip91ns81", assistant_id="assistant_y4j9d9h0yoa2f084qp9jknxi")

@@ -3,6 +3,7 @@ from typing import Any, Callable, List, Tuple
 
 import tiktoken
 import unique_sdk
+from typing_extensions import deprecated
 
 from blue_lugia.enums import Op, Role, SearchType
 from blue_lugia.errors import ChatFileManagerError
@@ -43,7 +44,7 @@ class FileManager(Manager):
         "in": "in",
         "nin": "notIn",
         "contains": "contains",
-        "icontains": "icontains",
+        "icontains": "contains",
         "ncontains": "notContains",
         "nicontains": "notContains",
         "isnull": "isNull",
@@ -348,19 +349,68 @@ class FileManager(Manager):
                     # Handle nested Q objects as sub-filters.
                     value = self._q_to_content_filters(value)
 
-                where = {key: {self._mapped_operators.get(operation, operation): value}}
-
                 if operation.startswith("i") and operation[1:] in self._mapped_operators:
-                    # Handle negation for insensitive operations
-                    where[key][self._mapped_operators.get(operation[1:], operation)] = value
-                    where[key]["mode"] = "insensitive"
-                    del where[key][self._mapped_operators.get(operation, operation)]
+                    operator = self._mapped_operators.get(operation[1:], operation)
+                    where = {key: {operator: value, "mode": "insensitive"}}
+                else:
+                    operator = self._mapped_operators.get(operation, operation)
+                    where = {key: {operator: value}}
 
                 return where
 
         inner_result = [process_condition(c) for c in q.conditions]
         conditions = {q.connector.value.upper(): inner_result}
         return {"NOT": conditions} if q.negated else conditions
+
+    @deprecated("BL::API::Version::UseInstead::FileManager::_q_to_metadata")
+    def _filters_to_metadata(self) -> dict[str, Any] | None:
+        metadata_filters = None
+
+        if len(self._filters) == 1:
+            last_filter = self._filters[0]
+            metadata_filters = {
+                "path": [last_filter[0]],
+                "operator": (self._mapped_operators[last_filter[1]] if last_filter[1] in self._mapped_operators else last_filter[1]),
+                "value": last_filter[2],
+            }
+        elif len(self._filters) > 1:
+            metadata_filters = {
+                self._filters_operator.value.lower(): [
+                    {
+                        "path": [x[0]],
+                        "operator": (self._mapped_operators[x[1]] if x[1] in self._mapped_operators else x[1]),
+                        "value": x[2],
+                    }
+                    for x in self._filters
+                ]
+            }
+
+        return metadata_filters
+
+    @deprecated("BL::API::Version::UseInstead::FileManager::_q_to_content_filters")
+    def _filters_to_content_filters(self) -> dict[str, Any]:
+        wheres = {}
+
+        mapped_filters = list(
+            map(
+                lambda x: {
+                    x[0]: {
+                        (self._mapped_operators[x[1]] if x[1] in self._mapped_operators else x[1]): x[2],
+                    }
+                },
+                self._filters,
+            )
+        )
+
+        if mapped_filters:
+            if self._filters_operator == Op.OR:
+                wheres["OR"] = mapped_filters
+            elif self._filters_operator == Op.AND:
+                wheres["AND"] = mapped_filters
+            else:
+                raise ChatFileManagerError(f"BL::Manager::ChatFile::fetch::InvalidOperator::{self._filters_operator}")
+
+        return wheres
 
     def using(self, search_type: SearchType) -> "FileManager":
         file_manager = self.fork()
@@ -423,25 +473,6 @@ class FileManager(Manager):
         if self._scopes:
             self.logger.warning("BL::Manager::Files::fetch::ScopesIgnored::Content search API does not support scopes.")
 
-        # mapped_filters = list(
-        #     map(
-        #         lambda x: {
-        #             x[0]: {
-        #                 (self._mapped_operators[x[1]] if x[1] in self._mapped_operators else x[1]): x[2],
-        #             }
-        #         },
-        #         self._filters,
-        #     )
-        # )
-
-        # if mapped_filters:
-        #     if self._filters_operator == Op.OR:
-        #         wheres["OR"] = mapped_filters
-        #     elif self._filters_operator == Op.AND:
-        #         wheres["AND"] = mapped_filters
-        #     else:
-        #         raise ChatFileManagerError(f"BL::Manager::ChatFile::fetch::InvalidOperator::{self._filters_operator}")
-
         if self._chat_only:
             wheres["ownerId"] = {
                 "equals": self._event.payload.chat_id,
@@ -453,9 +484,6 @@ class FileManager(Manager):
             chatId=self._event.payload.chat_id,
             where=wheres or None,  # type: ignore
         )
-
-        self._filters_operator = Op.OR
-        self._filters = []
 
         typed_content = self._cast_content(found)
 
