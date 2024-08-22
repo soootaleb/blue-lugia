@@ -16,7 +16,7 @@ def revert(state: StateManager[ModuleConfig], args: list[str] = []) -> None:
     if len(args):
         try:
             pairs_to_remove = int(args[0])
-        except:
+        except Exception:
             state.last_ass_message.update("Failed to parse the provided argument(s)")
 
     pairs_to_remove += 1

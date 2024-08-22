@@ -113,6 +113,7 @@ class StateManager(ABC, Generic[ConfType]):
             model=self.cfg.languageModel or self.cfg.LLM_DEFAULT_MODEL,
             timeout=self.cfg.LLM_TIMEOUT,
             context_max_tokens=self.cfg.CONTEXT_WINDOW_TOKEN_LIMIT,
+            seed=self.cfg.LLM_SEED,
             logger=self.logger.getChild(self._LanguageModelManager.__name__),
         )
 
@@ -504,12 +505,7 @@ class StateManager(ABC, Generic[ConfType]):
             tool_call_id = tc["id"]
 
             run = tool_call["run"]
-            # pre_run = tool_call["pre_run_hook"]
             post_run = tool_call["post_run_hook"]
-
-            if isinstance(run, bool) and not run:
-                self.logger.debug(f"BL::StateManager::_process_tools_called::Tool run {tool.__class__.__name__} returned False. Stoping loop over tool calls.")
-                complete = False
 
             if isinstance(post_run, bool) and not post_run:
                 self.logger.debug(f"""BL::StateManager::_process_tools_called::Tool post_run_hook {tool.__class__.__name__} returned False. Stoping loop over tool calls.""")
@@ -608,9 +604,7 @@ class StateManager(ABC, Generic[ConfType]):
 
         elif message.tool_calls:
             self.logger.warning(
-                """BL::StateManager::_process_tools_called::No user message found in context.
-                \nCannot update debug information for tool calls.
-                \nThis is a critical issue for debugging."""
+                """BL::StateManager::_process_tools_called::No user message found in context. Cannot update debug information for tool calls."""
             )
 
         self.ctx.extend(extension)
@@ -862,6 +856,7 @@ class StateManager(ABC, Generic[ConfType]):
             event=self.event,
             model=self.cfg.languageModel or self.cfg.LLM_DEFAULT_MODEL,
             timeout=self.cfg.LLM_TIMEOUT,
+            seed=self.cfg.LLM_SEED,
             context_max_tokens=self.cfg.CONTEXT_WINDOW_TOKEN_LIMIT,
             logger=self.logger.getChild(self._LanguageModelManager.__name__),
         )

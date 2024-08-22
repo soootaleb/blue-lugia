@@ -28,3 +28,7 @@ class ParserError(Exception):
 
 class LanguageModelManagerError(Exception):
     pass
+
+
+class QError(Exception):
+    pass

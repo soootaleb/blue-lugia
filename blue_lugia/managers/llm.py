@@ -81,6 +81,7 @@ class LanguageModelManager(Manager):
     }
 
     _model: str
+    _seed: int | None
     _timeout: int
     _temperature: float
     _context_max_tokens: int | None
@@ -94,12 +95,14 @@ class LanguageModelManager(Manager):
         temperature: float = 0.0,
         timeout: int = 600_000,
         context_max_tokens: int | None = None,
+        seed: int | None = None,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
         self._temperature = temperature
         self._use_open_ai = False
         self._model = model
+        self._seed = seed
         self._timeout = timeout
         self._use_open_ai = False
         self._open_ai_api_key = ""
@@ -180,6 +183,11 @@ class LanguageModelManager(Manager):
     def using(self, model: str) -> "LanguageModelManager":
         llm = self.fork()
         llm._model = model
+        return llm
+
+    def seed(self, seed: int) -> "LanguageModelManager":
+        llm = self.fork()
+        llm._seed = seed
         return llm
 
     def fork(self) -> "LanguageModelManager":
@@ -579,6 +587,9 @@ class LanguageModelManager(Manager):
         options: dict[str, Any] = {
             "temperature": self._temperature,
         }
+
+        if self._seed is not None:
+            options["seed"] = self._seed
 
         if tools:
             options["tools"] = []

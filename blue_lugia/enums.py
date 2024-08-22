@@ -26,3 +26,4 @@ class SearchType(Enum):
 class Op(Enum):
     OR = "OR"
     AND = "AND"
+    NOT = "NOT"

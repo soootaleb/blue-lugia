@@ -1,41 +1,55 @@
+Here's the updated documentation for the `FileManager` class to reflect that the `search` and `fetch` methods now accept `Q` objects for query filtering.
+
+---
+
 # FileManager Library Documentation
 
 ## Overview
-The `FileManager` class is designed to manage files and their associated metadata and chunks. It provides functionalities to search, filter, fetch, and manipulate files using various criteria. This documentation provides a detailed overview of the methods and properties available in the `FileManager` class.
+
+The `FileManager` class is designed to manage files and their associated metadata and chunks. It provides functionalities to search, filter, fetch, and manipulate files using various criteria including complex query objects (`Q`). This updated documentation provides a detailed overview of the methods and properties available in the `FileManager` class, particularly highlighting the integration of `Q` objects to refine search and fetch operations.
 
 ## Initialization
+
 ### `__init__`
 Initializes the `FileManager` instance.
 
 **Parameters:**
-- `event` (ExternalModuleChosenEvent): The event object containing user and company information.
+- `tokenizer` (tiktoken.Encoding): Tokenizer to be used. Default is `DEFAULTS.tokenizer`.
 - `chat_only` (bool): If true, restricts the search to chat files only. Default is False.
 - `search_type` (SearchType): Defines the type of search to be performed. Default is SearchType.COMBINED.
 - `scopes` (List[str]): List of scopes to be used in searches. Default is an empty list.
-- `tokenizer` (tiktoken.Encoding): Tokenizer to be used. Default is `DEFAULTS.tokenizer`.
 
 ## Properties
+
 ### `uploaded`
 Returns a new `FileManager` instance with `chat_only` set to True.
 
 ## Methods
-### `_cast_search`
-Converts search results into a `FileList`.
+
+### `search`
+Performs a search based on either a string query or a `Q` object and returns a `FileList`.
 
 **Parameters:**
-- `chunks` (unique_sdk.Search): Search results containing chunks of data.
+- `query` (str | Q): The search query, which can be a string or a `Q` object for complex queries. Default is an empty string.
+- `limit` (int): The maximum number of results to return. Default is 1000.
 
 **Returns:**
-- `FileList`: List of files with their associated chunks.
+- `FileList`: List of files matching the search criteria.
 
-### `_cast_content`
-Converts content results into a `FileList`.
+### `fetch`
+Fetches content based on the current filters, which can be defined using `Q` objects, and returns a `FileList`.
+
+**Returns:**
+- `FileList`: List of files matching the current filters.
+
+### `filter`
+Applies filters to the search using a `Q` object and returns a new `FileManager` instance.
 
 **Parameters:**
-- `files` (unique_sdk.Content): Content results containing files and chunks.
+- `filters` (Q): The `Q` object specifying the filters to apply.
 
 **Returns:**
-- `FileList`: List of files with their associated chunks.
+- `FileManager`: A new instance of `FileManager` with the specified filters.
 
 ### `using`
 Sets the search type and returns a new `FileManager` instance.
@@ -50,36 +64,10 @@ Sets the search type and returns a new `FileManager` instance.
 Sets the scopes and returns a new `FileManager` instance.
 
 **Parameters:**
-- `scopes` (List[str]): List of scopes to be used.
+- `scopes` (List[str] | str): List of scopes to be used.
 
 **Returns:**
 - `FileManager`: A new instance of `FileManager` with the specified scopes.
-
-### `search`
-Performs a search and returns a `FileList`.
-
-**Parameters:**
-- `query` (str): The search query. Default is an empty string.
-- `limit` (int): The maximum number of results to return. Default is 1000.
-
-**Returns:**
-- `FileList`: List of files matching the search criteria.
-
-### `fetch`
-Fetches content based on the current filters and returns a `FileList`.
-
-**Returns:**
-- `FileList`: List of files matching the current filters.
-
-### `filter`
-Applies filters to the search and returns a new `FileManager` instance.
-
-**Parameters:**
-- `op` (Op): The operator to use for combining filters. Default is `Op.OR`.
-- `**kwargs`: The filters to be applied.
-
-**Returns:**
-- `FileManager`: A new instance of `FileManager` with the specified filters.
 
 ### `all`
 Retrieves all files and returns a `FileList`.
@@ -123,22 +111,6 @@ Returns the total number of files.
 **Returns:**
 - `int`: The number of files.
 
-### `__len__`
-Returns the total number of files.
-
-**Returns:**
-- `int`: The number of files.
-
-### `values`
-Returns a list of values for specified attributes.
-
-**Parameters:**
-- `*args`: The attributes to retrieve.
-- `**kwargs`: Additional options.
-
-**Returns:**
-- `List`: List of values for the specified attributes.
-
 ### `create`
 Creates a new file.
 
@@ -149,83 +121,101 @@ Creates a new file.
 **Returns:**
 - `File`: The newly created file.
 
-# Usage Examples
+## Examples
 
-## Example 1: Basic Initialization
-
-```python
-from blue_lugia.models import ExternalModuleChosenEvent
-from blue_lugia.enums import SearchType
-from blue_lugia.config import DEFAULTS
-import tiktoken
-
-event = ExternalModuleChosenEvent(userId="user123", companyId="company123", payload={"chatId": "chat123"})
-file_manager = FileManager(event)
-```
-
-## Example 2: Searching Files
+### Example 1: Basic Initialization and Fetching All Files
 
 ```python
-file_list = file_manager.search(query="project report", limit=10)
-for file in file_list:
+# Initialize FileManager with default settings
+file_manager = FileManager(tokenizer="default")
+
+# Fetch all files and print details
+all_files = file_manager.all()
+for file in all_files:
     print(f"File ID: {file.id}, File Name: {file.name}")
 ```
 
-## Example 3: Filtering Files
+### Example 2: Scoped Search
 
 ```python
-file_manager_filtered = file_manager.filter(name__eq="report.pdf")
-filtered_files = file_manager_filtered.fetch()
-for file in filtered_files:
-    print(f"Filtered File ID: {file.id}, File Name: {file.name}")
-```
-
-## Example 4: Creating a New File
-
-```python
-new_file = file_manager.create(name="new_document.txt", mime="text/plain")
-print(f"New File ID: {new_file.id}, File Name: {new_file.name}")
-```
-
-## Example 5: Getting a File by ID
-
-```python
-file_id = "file123"
-file = file_manager.get_by_id(file_id)
-print(f"File ID: {file.id}, File Name: {file.name}")
-```
-
-## Example 6: Getting the First and Last Files
-
-```python
-first_file = file_manager.first()
-print(f"First File ID: {first_file.id}, File Name: {first_file.name}")
-
-last_file = file_manager.last()
-print(f"Last File ID: {last_file.id}, File Name: {last_file.name}")
-```
-
-## Example 7: Using Scoped Search
-
-```python
-scopes = ["scope1", "scope2"]
-scoped_file_manager = file_manager.scoped(scopes)
-scoped_files = scoped_file_manager.search(query="meeting notes")
+# Define scopes and perform a scoped search for specific files
+scoped_manager = file_manager.scoped(['project-documents', 'team-meetings'])
+scoped_files = scoped_manager.search(query="meeting notes")
 for file in scoped_files:
     print(f"Scoped File ID: {file.id}, File Name: {file.name}")
 ```
 
-## Example 8: Counting Files
+### Example 3: Filtering Files Using a Complex Q Object
 
 ```python
-total_files = file_manager.count()
-print(f"Total number of files: {total_files}")
+# Filter files using complex conditions with Q objects
+from blue_lugia.models import Q
+complex_filter = Q(name__startswith='Project') & ~Q(status='Archived')
+filtered_manager = file_manager.filter(complex_filter)
+filtered_files = filtered_manager.fetch()
+for file in filtered_files:
+    print(f"Filtered File ID: {file.id}, File Name: {file.name}")
 ```
 
-## Example 9: Retrieving File Values
+### Example 4: Sorting Files by Creation Date
 
 ```python
-file_values = file_manager.values("id", "name", flat=True)
-for value in file_values:
-    print(f"File Value: {value}")
+# Sort files by their creation date in descending order
+sorted_files = file_manager.all().sort(key=lambda x: x.created_at, reverse=True)
+for file in sorted_files:
+    print(f"Sorted File ID: {file.id}, File Name: {file.name}, Created At: {file.created_at}")
+```
+
+### Example 5: Creating and Retrieving a Specific File by ID
+
+```python
+# Create a new file and retrieve it by its ID
+new_file = file_manager.create(name="annual_report.txt", mime="text/plain")
+print(f"New File ID: {new_file.id}, File Name: {new_file.name}")
+
+# Retrieve the newly created file by its ID
+retrieved_file = file_manager.get_by_id(new_file.id)
+if retrieved_file:
+    print(f"Retrieved File ID: {retrieved_file.id}, File Name: {retrieved_file.name}")
+```
+
+### Example 6: Counting Files with Specific Attributes
+
+```python
+# Count files with MIME type 'text/plain'
+count_plain_text_files = file_manager.filter(Q(mime__eq="text/plain")).count()
+print(f"Total number of plain text files: {count_plain_text_files}")
+```
+
+### Example 7: Using Custom Search Types
+
+```python
+# Change the search type to 'FILES_ONLY' and perform a search
+files_only_manager = file_manager.using(search_type=SearchType.FILES_ONLY)
+files = files_only_manager.search(query="confidential")
+for file in files:
+    print(f"Files Only Search - File ID: {file.id}, File Name: {file.name}")
+```
+
+### Example 8: Updating File Information
+
+```python
+# Update a file's name and MIME type
+file_to_update = file_manager.get_by_id("someFileId")
+if file_to_update:
+    updated_file = file_manager.create(name="updated_document.txt", mime="application/pdf", scope=file_to_update.scope)
+    print(f"Updated File ID: {updated_file.id}, New Name: {updated_file.name}, New MIME: {updated_file.mime_type}")
+```
+
+### Example 9: Using Fetch with Filters Applied on Date Range
+
+```python
+from datetime import datetime, timedelta
+# Define a date range filter for files created within the last month
+date_one_month_ago = datetime.now() - timedelta(days=30)
+date_filter = Q(created_at__gte=date_one_month_ago)
+recent_files_manager = file_manager.filter(date_filter)
+recent_files = recent_files_manager.fetch()
+for file in recent_files:
+    print(f"Recent File ID: {file.id}, File Name: {file.name}, Created At: {file.created_at}")
 ```
