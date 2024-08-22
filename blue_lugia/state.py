@@ -2,6 +2,7 @@ import logging
 from abc import ABC
 from typing import Any, Callable, Generic, List, Tuple
 
+import unique_sdk
 from pydantic import BaseModel
 from pydantic_core import ValidationError
 
@@ -603,9 +604,7 @@ class StateManager(ABC, Generic[ConfType]):
             )
 
         elif message.tool_calls:
-            self.logger.warning(
-                """BL::StateManager::_process_tools_called::No user message found in context. Cannot update debug information for tool calls."""
-            )
+            self.logger.warning("""BL::StateManager::_process_tools_called::No user message found in context. Cannot update debug information for tool calls.""")
 
         self.ctx.extend(extension)
 
@@ -652,6 +651,7 @@ class StateManager(ABC, Generic[ConfType]):
         start_text: str = "",
         tool_choice: type[BaseModel] | None = None,
         schema: type[BaseModel] | None = None,
+        search_context: List[unique_sdk.Integrated.SearchResult] | None = None,
         output_json: bool = False,
         completion_name: str = "",
     ) -> Message:
@@ -665,6 +665,7 @@ class StateManager(ABC, Generic[ConfType]):
             tool_choice (type[BaseModel] | None): If specified, forces the use of a particular tool for this operation.
             output_json (bool): If True, returns the output in JSON format. Passed to LLM.complete()
             completion_name (str): The name of the completion for logging purposes.
+            search_context (List[unique_sdk.Integrated.SearchResult] | None): The search context to use for the completion.
 
         Returns:
             Message: The message generated or modified as a result of the completion process.
@@ -699,6 +700,7 @@ class StateManager(ABC, Generic[ConfType]):
             schema=schema,
             output_json=output_json,
             completion_name=completion_name,
+            search_context=search_context,
         )
 
         self.logger.debug(f"BL::StateManager::complete::Appending completion to context: {completion.role if completion else "None"}")
@@ -718,6 +720,7 @@ class StateManager(ABC, Generic[ConfType]):
         raise_on_missing_tool: bool = False,
         output_json: bool = False,
         completion_name: str = "",
+        search_context: List[unique_sdk.Integrated.SearchResult] | None = None,
     ) -> List[Tuple[Message, List[ToolCalled], List[ToolNotCalled]]]:
         """
         Executes a loop of message processing and tool interactions to handle complex scenarios that require iterative processing.
@@ -760,6 +763,7 @@ class StateManager(ABC, Generic[ConfType]):
                 schema=schema,
                 output_json=output_json,
                 completion_name=completion_name,
+                search_context=search_context,
             )
 
             self.logger.debug(f"BL::StateManager::loop::Calling tools for completion {completion.role}.")
@@ -795,6 +799,7 @@ class StateManager(ABC, Generic[ConfType]):
         output_json: bool = False,
         schema: type[BaseModel] | None = None,
         completion_name: str = "",
+        search_context: List[unique_sdk.Integrated.SearchResult] | None = None,
     ) -> Message:
         """
         Streams processing of messages, potentially in a real-time environment, handling one message at a time.
@@ -813,7 +818,15 @@ class StateManager(ABC, Generic[ConfType]):
             Used in scenarios where messages need to be processed in a streaming or ongoing fashion, adapting to incoming data in real-time or near-real-time.
         """
         self.logger.debug(f"BL::StateManager::stream::Starting stream with message {message.role if message else "None"}.")
-        return self.complete(message=message, out=out or self.last_ass_message, start_text=start_text, output_json=output_json, schema=schema, completion_name=completion_name)
+        return self.complete(
+            message=message,
+            out=out or self.last_ass_message,
+            start_text=start_text,
+            output_json=output_json,
+            schema=schema,
+            completion_name=completion_name,
+            search_context=search_context,
+        )
 
     def clear(self) -> int:
         """

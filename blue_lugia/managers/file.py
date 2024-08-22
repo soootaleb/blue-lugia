@@ -328,28 +328,28 @@ class FileManager(Manager):
         return result
 
     def _process_content_condition(self, condition: Tuple[str, str, Any] | Q) -> dict[str, Any]:
-            if isinstance(condition, Q):
-                # Recursive call to process nested Q objects
-                return self._q_to_content_filters(condition) if len(condition.conditions) > 1 or condition.negated else self._process_content_condition(condition.conditions[0])
+        if isinstance(condition, Q):
+            # Recursive call to process nested Q objects
+            return self._q_to_content_filters(condition) if len(condition.conditions) > 1 or condition.negated else self._process_content_condition(condition.conditions[0])
+        else:
+            # Process a single condition tuple (key, operation, value)
+            key, operation, value = condition
+
+            if isinstance(value, (list, set, tuple)):
+                value = list(value)  # Ensure the value is JSON serializable if it's a collection.
+
+            if isinstance(value, Q):
+                # Handle nested Q objects as sub-filters.
+                value = self._q_to_content_filters(value)
+
+            if operation.startswith("i") and operation[1:] in self._mapped_operators:
+                operator = self._mapped_operators.get(operation[1:], operation)
+                where = {key: {operator: value, "mode": "insensitive"}}
             else:
-                # Process a single condition tuple (key, operation, value)
-                key, operation, value = condition
+                operator = self._mapped_operators.get(operation, operation)
+                where = {key: {operator: value}}
 
-                if isinstance(value, (list, set, tuple)):
-                    value = list(value)  # Ensure the value is JSON serializable if it's a collection.
-
-                if isinstance(value, Q):
-                    # Handle nested Q objects as sub-filters.
-                    value = self._q_to_content_filters(value)
-
-                if operation.startswith("i") and operation[1:] in self._mapped_operators:
-                    operator = self._mapped_operators.get(operation[1:], operation)
-                    where = {key: {operator: value, "mode": "insensitive"}}
-                else:
-                    operator = self._mapped_operators.get(operation, operation)
-                    where = {key: {operator: value}}
-
-                return where
+            return where
 
     def _q_to_content_filters(self, q: Q) -> dict[str, Any]:
         """
@@ -633,3 +633,5 @@ class FileManager(Manager):
     def as_messages(self, role: Role = Role.SYSTEM) -> MessageList:
         return self.all().as_messages(role, self.tokenizer)
 
+    def as_context(self) -> List[unique_sdk.Integrated.SearchResult]:
+        return self.all().as_context()

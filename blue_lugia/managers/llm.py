@@ -445,10 +445,11 @@ class LanguageModelManager(Manager):
         start_text: str,
         references: Tuple[List[unique_sdk.Integrated.SearchResult], List[unique_sdk.Integrated.SearchResult]],
         completion_name: str = "",
+        search_context: List[unique_sdk.Integrated.SearchResult] | None = None,
     ) -> Message:
         existing_references, new_references = references
 
-        search_context = existing_references + new_references
+        search_context = search_context or (existing_references + new_references)
 
         self.logger.debug(f"BL::Manager::LLM::complete({completion_name})::streaming::SearchContext::{len(search_context)}")
 
@@ -532,10 +533,11 @@ class LanguageModelManager(Manager):
         references: Tuple[List[unique_sdk.Integrated.SearchResult], List[unique_sdk.Integrated.SearchResult]],
         options: dict[str, Any],
         completion_name: str = "",
+        search_context: List[unique_sdk.Integrated.SearchResult] | None = None,
     ) -> Message:
         existing_references, new_references = references
 
-        search_context = existing_references + new_references
+        search_context = search_context or (existing_references + new_references)
 
         self.logger.debug(f"BL::Manager::LLM::complete({completion_name})::basic::SearchContext::{len(search_context)}")
 
@@ -657,6 +659,7 @@ class LanguageModelManager(Manager):
         start_text: str = "",
         output_json: bool = False,
         completion_name: str = "",
+        search_context: List[unique_sdk.Integrated.SearchResult] | None = None,
         *args,
         **kwargs,
     ) -> Message:
@@ -726,9 +729,16 @@ class LanguageModelManager(Manager):
                 start_text=start_text,
                 references=(existing_references, new_references),
                 completion_name=completion_name,
+                search_context=search_context,
             )
         else:
-            return self._complete_basic(formated_messages=formated_messages, options=options, references=(existing_references, new_references), completion_name=completion_name)
+            return self._complete_basic(
+                formated_messages=formated_messages,
+                options=options,
+                references=(existing_references, new_references),
+                completion_name=completion_name,
+                search_context=search_context,
+            )
 
     def parse(self, message_or_messages: Message | List[Message] | List[dict[str, Any]], into: type[ToolType], completion_name: str = "") -> ToolType:
         messages = message_or_messages if isinstance(message_or_messages, list) else [message_or_messages]

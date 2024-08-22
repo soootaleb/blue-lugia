@@ -151,6 +151,25 @@ class Chunk(Model):
 
         return self
 
+    def as_context(self) -> unique_sdk.Integrated.SearchResult:
+        pages = []
+        for page in range(self.start_page, self.end_page + 1):
+            if self.start_page > -1:
+                pages.append(str(page))
+
+        key = self.file.key
+
+        if pages:
+            key += f" : {','.join(pages)}"
+
+        # Setting a static title breaks sources indexes and the link because Unique groups by title
+        return unique_sdk.Integrated.SearchResult(
+            id=self.file.id,
+            chunkId=self.id,
+            key=key,
+            url=self.url or f"unique://content/{self.file.id}",
+        )
+
     def __len__(self) -> int:
         return len(self.content)
 
@@ -356,6 +375,21 @@ class ChunkList(List[Chunk], Model):
 
         return files
 
+    def as_context(self) -> List[unique_sdk.Integrated.SearchResult]:
+        """
+        Converts the collection of chunks into a list of search results based on their content and metadata.
+        The result is designed to be used as a search_context when using LLM.complete()
+        Returns:
+            List[unique_sdk.Integrated.SearchResult]: A list of SearchResult objects that represent each chunk.
+                                                    Each result contains the chunk's file ID, chunk ID,
+                                                    a key representing the file and page range, and a URL to access the chunk.
+        This method constructs a SearchResult for each chunk by forming a key from the file key and the range
+        of pages the chunk spans. This key is used along with other chunk information to populate the SearchResult.
+        The method ensures that each chunk's context is uniquely represented and accessible through a formatted URL.
+        """
+
+        return [chunk.as_context() for chunk in self]
+
 
 class File(Model):
     """
@@ -382,6 +416,7 @@ class File(Model):
         truncate: Truncates the file's content to a specified token limit.
         write: Writes new content to the file and updates its chunks.
         as_message: Constructs a system message containing the file's content.
+        as_context: Converts the file into search results based on its chunks.
         __str__: Returns the name of the file as its string representation.
         __repr__: Returns the name of the file as its official string representation.
     """
@@ -674,6 +709,15 @@ class File(Model):
             logger=self.logger.getChild(Message.__name__),
         )
 
+    def as_context(self) -> List[unique_sdk.Integrated.SearchResult]:
+        """
+        Converts the file into search results based on its chunks.
+        Designed to be passed as a search_context in LLM.complete()
+        Returns:
+            List[unique_sdk.Integrated.SearchResult]: A list of search results, each representing a chunk of the file.
+        """
+        return self.chunks.as_context()
+
     def __str__(self) -> str:
         return self.name
 
@@ -701,6 +745,7 @@ class FileList(List[File], Model):
         append: Appends a File object to the list.
         extend: Extends the list by appending elements from another iterable of File objects.
         as_messages: Converts the list of files into a list of messages.
+        as_context: Converts the list of files into a list of search results based on their content and metadata.
         truncate: Truncates the content of all files in the list to a specified token limit, optionally in place.
     """
 
@@ -956,3 +1001,16 @@ class FileList(List[File], Model):
             return self
         else:
             return FileList([file.truncate(file_token_limit) for file in self], logger=self.logger.getChild(FileList.__name__))
+
+    def as_context(self) -> List[unique_sdk.Integrated.SearchResult]:
+        """
+        Converts the list of files into a list of search results based on their content and metadata.
+        Returns:
+            List[unique_sdk.Integrated.SearchResult]: A list of search results, each representing a file in the list.
+        """
+        results = []
+
+        for file in self:
+            results.extend(file.as_context())
+
+        return results
