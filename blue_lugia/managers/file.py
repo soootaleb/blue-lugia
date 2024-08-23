@@ -118,6 +118,7 @@ class FileManager(Manager):
         file_manager = self.__class__(
             chat_only=self._chat_only,
             search_type=self._search_type,
+            scopes=self._scopes,
             event=self._event,
             logger=self.logger,
             tokenizer=self.tokenizer,
@@ -125,6 +126,7 @@ class FileManager(Manager):
 
         file_manager._filters = self._filters.copy()
         file_manager._filters_operator = self._filters_operator
+        file_manager._query = self._query
         file_manager._order_by = self._order_by
         file_manager._order_reverse = self._order_reverse
         file_manager._all = FileList(self._all, tokenizer=self.tokenizer, logger=self.logger.getChild(FileList.__name__))
