@@ -222,10 +222,16 @@ class Message(Model):
     @property
     def language(self) -> str:
         chosen_module_response: str = self.debug.get("chosenModuleResponse", "")
-        params = re.search(r"\{.*\}", chosen_module_response)
+        params = re.search(r"\{.*\}", chosen_module_response.replace("\n", ""))
         params = params.group() if params else "{}"
         params = json.loads(params)
-        return params.get("language", "English")
+
+        if "language" in params:
+            return params.get("language", "English")
+        elif "Language: " in chosen_module_response:
+            return chosen_module_response.split("Language: ")[1]
+        else:
+            return "English"
 
     def to_dict(self) -> dict:
         base = {

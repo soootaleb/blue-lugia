@@ -183,7 +183,7 @@ class TestMessage(unittest.TestCase):
 
         self.assertIsNone(Message(role=Role.USER, content="What's the weather in Bangkok?").id)
 
-    def test_language(self) -> None:
+    def test_language_base(self) -> None:
         message_without_lang = Message(role=Role.USER, content="What's the weather in Bangkok?")
 
         message_with_lang = Message(
@@ -194,6 +194,42 @@ class TestMessage(unittest.TestCase):
                 event=self.event,
                 debug={
                     "chosenModuleResponse": 'ExternalModule { "language": "French" }',
+                },
+            ),
+        )
+
+        self.assertEqual(message_with_lang.language, "French")
+        self.assertEqual(message_without_lang.language, "English")
+
+    def test_language_tool_selection_v0(self) -> None:
+        message_without_lang = Message(role=Role.USER, content="What's the weather in Bangkok?")
+
+        message_with_lang = Message(
+            role=Role.USER,
+            content="Quelle est la météo à Bangkok?",
+            remote=Message._Remote(
+                id="1",
+                event=self.event,
+                debug={
+                    "chosenModuleResponse": '{\n  "function": "SearchInVectorDB",\n  "language": "French",\n  "justification": "The employee is asking a specific question about someone named Denis, so the most suitable function is to search for information in the knowledge base."\n}',
+                },
+            ),
+        )
+
+        self.assertEqual(message_with_lang.language, "French")
+        self.assertEqual(message_without_lang.language, "English")
+
+    def test_language_tool_selection_v1(self) -> None:
+        message_without_lang = Message(role=Role.USER, content="What's the weather in Bangkok?")
+
+        message_with_lang = Message(
+            role=Role.USER,
+            content="Quelle est la météo à Bangkok?",
+            remote=Message._Remote(
+                id="1",
+                event=self.event,
+                debug={
+                    "chosenModuleResponse": "System: Only one Module available. Language: French",
                 },
             ),
         )
