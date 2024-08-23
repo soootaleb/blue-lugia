@@ -27,3 +27,9 @@ class Op(Enum):
     OR = "OR"
     AND = "AND"
     NOT = "NOT"
+
+
+class Hook(Enum):
+    NOOP = "noop"
+    MODULE_PRE_CALL = "module.call.pre"
+    MODULE_POST_CALL = "module.call.post"

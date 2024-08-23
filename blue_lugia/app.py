@@ -24,6 +24,7 @@ from blue_lugia.managers import (
     MessageManager,
     StorageManager,
 )
+from blue_lugia.middlewares.middleware import Middleware
 from blue_lugia.models import ExternalModuleChosenEvent
 from blue_lugia.models.event import AssistantMessage, Payload, UserMessage
 from blue_lugia.state import StateManager
@@ -70,6 +71,7 @@ class App(Flask, Generic[ConfType]):
     _error_handlers: List[Tuple[Type[Exception], Callable[[Exception, StateManager[ConfType]], None] | None]]
 
     _managers: dict[str, Type[Manager]]
+    _middlewares: List[Type[Middleware]]
 
     _commands: dict[str, Callable[[StateManager[ConfType], list[str]], bool | None]]
 
@@ -106,6 +108,7 @@ class App(Flask, Generic[ConfType]):
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=15)
         self._error_handlers = []
         self._managers = {}
+        self._middlewares = []
 
         self._commands = {}
 
@@ -199,6 +202,21 @@ class App(Flask, Generic[ConfType]):
                 },
             }
         )
+
+    def apply(self, middleware: Type[Middleware] | List[Type[Middleware]]) -> "App":
+        """
+        Applies a middleware to the App instance.
+
+        Args:
+            middleware (Type[Middleware]): The middleware to apply.
+
+        Returns:
+            App: The current instance of the App.
+        """
+        self._middlewares.extend(middleware) if isinstance(middleware, list) else self._middlewares.append(middleware)
+        names = ", ".join([m.__name__ for m in self._middlewares])
+        self.logger.info(f"Middlewares {names} applied.")
+        return self
 
     def register(
         self,

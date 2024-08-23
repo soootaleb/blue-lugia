@@ -15,6 +15,7 @@ from blue_lugia.managers import (
     MessageManager,
     StorageManager,
 )
+from blue_lugia.middlewares.middleware import Middleware
 from blue_lugia.models import ExternalModuleChosenEvent, File, FileList, Message, MessageList, ToolCalled, ToolNotCalled
 from blue_lugia.models.store import Store
 
@@ -86,6 +87,8 @@ class StateManager(ABC, Generic[ConfType]):
         "storage": StorageManager,
     }
 
+    _middlewares: List[Middleware]
+
     _conf: ConfType
 
     _commands: dict[str, Callable]
@@ -99,6 +102,7 @@ class StateManager(ABC, Generic[ConfType]):
         conf: ConfType,
         logger: logging.Logger | None = None,
         managers: dict[str, type[Manager]] | None = None,
+        middlewares: List[Middleware] | None = None,
         app: Any | None = None,
     ) -> None:
         self._event: ExternalModuleChosenEvent = event
@@ -108,6 +112,8 @@ class StateManager(ABC, Generic[ConfType]):
         self._logger = logger or logging.getLogger(__name__.lower())
 
         self._managers = self._managers | (managers or {}) or {}
+
+        self._middlewares = middlewares or []
 
         self._llm = self._LanguageModelManager(
             event=event,
@@ -907,4 +913,4 @@ class StateManager(ABC, Generic[ConfType]):
         When using the state from within a tool, you should use this method to avoid side effects.
         If you just want to reset the context and the tools, you can use the reset method.
         """
-        return self.__class__(event=self.event, conf=self.conf, logger=self.logger, managers=self._managers, app=self.app)
+        return self.__class__(event=self.event, conf=self.conf, logger=self.logger, managers=self._managers, app=self.app, middlewares=self._middlewares.copy())
