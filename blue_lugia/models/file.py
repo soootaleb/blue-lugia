@@ -993,7 +993,7 @@ class FileList(List[File], Model):
             FileList: The truncated list of files. If 'in_place' is True, this is the same modified FileList instance,
                       otherwise, it is a new FileList instance containing the truncated files.
         """
-        file_token_limit = tokens_limit // len(self)
+        file_token_limit = tokens_limit // max(1, len(self))
 
         if in_place:
             for file in self:
