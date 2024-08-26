@@ -211,7 +211,9 @@ class TestMessage(unittest.TestCase):
                 id="1",
                 event=self.event,
                 debug={
-                    "chosenModuleResponse": '{\n  "function": "SearchInVectorDB",\n  "language": "French",\n  "justification": "The employee is asking a specific question about someone named Denis, so the most suitable function is to search for information in the knowledge base."\n}',
+                    "chosenModuleResponse": """{\n  "function": "SearchInVectorDB",\n  "language": "French",\n
+                        "justification": "The employee is asking a specific question about someone named Denis,
+                        so the most suitable function is to search for information in the knowledge base."\n}""",
                 },
             ),
         )
