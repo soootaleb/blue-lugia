@@ -32,6 +32,7 @@ class LanguageModelManager(Manager):
         "AZURE_GPT_35_TURBO_0613": 4_096,
         "AZURE_GPT_4o_2024_0513": 128_000,
         "AZURE_GPT_4o_2024_0806": 128_000,
+        "AZURE_GPT_4o_mini_2024_0718": 128_000,
         "ptu-gpt-4o": 128_000,
         "pictet-ptu-gpt-4o": 128_000,
         "gpt-4": 8_192,
@@ -51,6 +52,7 @@ class LanguageModelManager(Manager):
         "AZURE_GPT_35_TURBO_0613": 4_096,
         "AZURE_GPT_4o_2024_0513": 4_096,
         "AZURE_GPT_4o_2024_0806": 16_384,
+        "AZURE_GPT_4o_mini_2024_0718": 16_384,
         "ptu-gpt-4o": 4_096,
         "pictet-ptu-gpt-4o": 4_096,
         "gpt-4": 4_096,
@@ -66,6 +68,7 @@ class LanguageModelManager(Manager):
         "AZURE_GPT_4_0613_32K": "gpt-4",
         "AZURE_GPT_4o_2024_0513": "gpt-4o",
         "AZURE_GPT_4o_2024_0806": "gpt-4o",
+        "AZURE_GPT_4o_mini_2024_0718": "gpt-4o",
         "AZURE_GPT_4_TURBO_1106": "gpt-4",
         "AZURE_GPT_4_TURBO_2024_0409": "gpt-4",
         "AZURE_GPT_35_TURBO_16K": "gpt-3.5-turbo",
@@ -115,6 +118,23 @@ class LanguageModelManager(Manager):
             raise ValueError(f"BL::Manager::LLM::tokenizer::ModelNotSupported::{self._model}")
         else:
             return tiktoken.encoding_for_model(canonical_model_name)
+
+    @property
+    def models(self) -> dict[str, Any]:
+        models = {}
+
+        for model in self.CONTEXT_WINDOW_SIZES:
+            models[model] = {
+                "context_window_size": self.CONTEXT_WINDOW_SIZES.get(model, -1),
+                "output_max_tokens": self.OUTPUT_MAX_TOKENS.get(model, -1),
+                "canonical_model_name": self.AZURE_TO_CANONICAL_MODEL_NAME.get(model, "N/A"),
+            }
+
+        return models
+
+    @property
+    def models_names(self) -> List[str]:
+        return list(self.models.keys())
 
     def _rm_titles(self, kv: dict[str, Any], prev_key: str = "") -> dict[str, Any]:
         new_kv = {}
