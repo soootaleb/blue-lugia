@@ -1,15 +1,18 @@
 import json
 import logging
 import re
-from typing import Any, Callable, Iterable, List, Optional, SupportsIndex
+from typing import Any, Callable, Iterable, List, Optional, SupportsIndex, Type, TypeVar
 
 import tiktoken
-import unique_sdk  # type: ignore
+import unique_sdk
+from pydantic import BaseModel
 
 from blue_lugia.enums import Role
 from blue_lugia.errors import MessageFormatError, MessageRemoteError
 from blue_lugia.models import ExternalModuleChosenEvent
 from blue_lugia.models.model import Model
+
+Parsed = TypeVar("Parsed", bound=BaseModel)
 
 
 class Message(Model):
@@ -97,6 +100,9 @@ class Message(Model):
                 self = self[4:]
             self = re.sub(r"(?<=\d),(?=\d)", "", self)
             return json.loads(self)
+
+        def parse(self, into: Type[Parsed]) -> Parsed:
+            return into(**self.json())
 
         def pprint(self, indent: int = 2) -> str:
             return "```json{}{}{}```".format("\n", json.dumps(self.json(), indent=indent, ensure_ascii=False), "\n")
