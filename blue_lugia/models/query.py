@@ -223,6 +223,9 @@ class Q:
         found = data.get(key)
         return found.endswith(value) if isinstance(found, str) else False
 
+    def _evaluate_in(self, data: dict[str, Any], key: str, value: Any) -> bool:
+        return data.get(key) in value
+
     def _evaluate(self, data: dict[str, Any]) -> bool:  # noqa: C901
         if self._connector == Op.AND:
             for condition in self._conditions:

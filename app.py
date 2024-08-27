@@ -89,4 +89,4 @@ def module(state: StateManager[ModuleConfig]) -> None:
     return
 
 
-app = App("Petal").threaded(False).of(module).listen()
+app = App("Petal").threaded(False).of(module) # .listen()
