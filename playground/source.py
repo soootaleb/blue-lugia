@@ -8,6 +8,7 @@ import numpy as np
 
 class DataSource:
     _metadata: dict[str, Any]
+    _opened: bool = False
 
     def __init__(self, metadata: dict | None = None, **kwargs) -> None:
         self._metadata = metadata or {}
@@ -18,7 +19,9 @@ class DataSource:
         return self._metadata
 
     def open(self) -> bool:
-        return True
+        if not self._opened:
+            self._opened = True
+        return self._opened
 
     def read(self, size: int | None = None) -> bytes:
         return b""
@@ -27,6 +30,8 @@ class DataSource:
         return 0
 
     def close(self) -> bool:
+        if self._opened:
+            self._opened = False
         return True
 
 
@@ -37,8 +42,10 @@ class InMemoryDataSource(DataSource):
     def source(self) -> io.BytesIO:
         return self._source
 
-    def open(self) -> None:
-        self._source = io.BytesIO()
+    def open(self) -> bool:
+        if opened := super().open():
+            self._source = io.BytesIO()
+        return opened
 
     def read(self, size: int | None = None) -> bytes:
         self.source.seek(0)
@@ -47,33 +54,46 @@ class InMemoryDataSource(DataSource):
     def write(self, data: bytes | bytearray | np.ndarray | memoryview) -> int:
         return self.source.write(data)
 
-    def close(self) -> None:
-        return self.source.close()
+    def close(self) -> bool:
+        if closed := super().close():
+            self.source.close()
+        return closed
 
 
-class JSONFileDataSource(InMemoryDataSource):
-    _data: dict
+class FileDataSource(InMemoryDataSource):
+    _file: io.FileIO
+
+    def __init__(self, file_path: str, metadata: dict | None = None, **kwargs) -> None:
+        super().__init__(metadata=metadata, file_path=file_path, **kwargs)
+
+    @property
+    def file(self) -> io.FileIO:
+        return self._file
 
     def open(self) -> bool:
         try:
-            with open(self.metadata.get("file_path", "")) as file:
-                self._data = json.load(file)
-            return True
+            opened = super().open()
+            if opened:
+                self._file = io.FileIO(self.metadata.get("file_path", ""), mode="r+")
+                self._source = io.BytesIO(self.file.read())
+            return opened
         except FileNotFoundError as e:
             print(f"An error occurred: {e}")
             return False
 
-    def read(self, key: str | None = None) -> dict | str | None:
-        return self._data.get(key) if key else self._data
+    def read(self, size: int | None = None) -> bytes:
+        self.file.seek(0)
+        self.source.seek(0)
+        return self.file.read(size or -1)
 
-    def write(self, data: Any) -> int:
-        self._data.update(data)
-        with open(self.metadata.get("file_path", ""), "w") as file:
-            json.dump(self._data, file)
-        return len(data)
+    def write(self, data: bytes | bytearray | np.ndarray | memoryview) -> int:
+        self.source.write(data)
+        return self.file.write(data)
 
     def close(self) -> bool:
-        return True
+        if self.file and self.source and super().close():
+            self.file.close()
+        return super().close()
 
 
 class SQLDataSource(DataSource):
