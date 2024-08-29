@@ -2,6 +2,7 @@ from pprint import pprint
 from typing import Any, List, Tuple
 
 from blue_lugia.enums import Op
+from blue_lugia.errors import QError
 
 
 class Q:
@@ -302,61 +303,87 @@ class Q:
         return self
 
     @property
-    def where(self) -> str:  # noqa: C901
+    def where(self) -> Tuple[str, List]:  # noqa: C901
         conditions = []
+        parameters = []
         for condition in self._conditions:
             if isinstance(condition, Q):
-                nested_where = condition.where
+                nested_where, nested_params = condition.where
                 if condition.negated:
                     nested_where = f"NOT ({nested_where})"
                 conditions.append(nested_where)
+                parameters.extend(nested_params)
             else:
                 key, operation, value = condition
                 if operation == "equals":
                     conditions.append(f"{key} = ?")
+                    parameters.append(value)
                 elif operation == "not_equals":
                     conditions.append(f"{key} != ?")
+                    parameters.append(value)
                 elif operation == "gt":
                     conditions.append(f"{key} > ?")
+                    parameters.append(value)
                 elif operation == "gte":
                     conditions.append(f"{key} >= ?")
+                    parameters.append(value)
                 elif operation == "lt":
                     conditions.append(f"{key} < ?")
+                    parameters.append(value)
                 elif operation == "lte":
                     conditions.append(f"{key} <= ?")
+                    parameters.append(value)
                 elif operation == "contains":
                     conditions.append(f"{key} LIKE ?")
-                    value = f"%{value}%"
+                    parameters.append(f"%{value}%")
                 elif operation == "not_contains":
                     conditions.append(f"{key} NOT LIKE ?")
-                    value = f"%{value}%"
+                    parameters.append(f"%{value}%")
                 elif operation == "startswith":
                     conditions.append(f"{key} LIKE ?")
-                    value = f"{value}%"
+                    parameters.append(f"{value}%")
                 elif operation == "endswith":
                     conditions.append(f"{key} LIKE ?")
-                    value = f"%{value}"
+                    parameters.append(f"%{value}")
                 elif operation == "in":
                     placeholders = ", ".join(["?"] * len(value))
                     conditions.append(f"{key} IN ({placeholders})")
+                    parameters.extend(value)
                 else:
                     conditions.append(f"{key} = ?")  # default to equals if operation is unrecognized
+                    parameters.append(value)
 
-        if self._negated:
-            return f"NOT ({' AND '.join(conditions)})" if self._connector == Op.AND else f"NOT ({' OR '.join(conditions)})"
-        else:
-            return f"{' AND '.join(conditions)}" if self._connector == Op.AND else f"{' OR '.join(conditions)}"
+        where_clause = f"{' AND '.join(conditions)}" if self._connector == Op.AND else f"{' OR '.join(conditions)}"
 
-    def sql(self) -> Tuple[str, Tuple]:
+        if self._negated and len(conditions) == 1:
+            where_clause = f"NOT ({where_clause})"
+
+        return where_clause, parameters
+
+    def sql(self) -> Tuple[str, List]:
         select = ", ".join(self._select) if self._select else "*"
 
-        sql = f"SELECT {select} FROM {self._from} WHERE {self.where or '1'}"
+        if not self._from:
+            raise QError("BL::Q::sql: Missing table name in FROM clause")
+
+        sql = f"SELECT {select} FROM {self._from}"
+
+        where, params = self.where
+
+        if where:
+            sql += f" WHERE {where}"
 
         if self._group_by:
             sql += f" GROUP BY {', '.join(self._group_by)}"
 
         if self._order_by:
-            sql += f" ORDER BY {', '.join(self._order_by)}"
+            orders = []
+            for order in self._order_by:
+                if order.startswith("-"):
+                    orders.append(f"{order[1:]} DESC")
+                else:
+                    orders.append(order)
+            sql += f" ORDER BY {', '.join(orders)}"
 
         if self._limit:
             sql += f" LIMIT {self._limit}"
@@ -364,4 +391,4 @@ class Q:
         if self._offset:
             sql += f" OFFSET {self._offset}"
 
-        return sql, ()
+        return sql, params

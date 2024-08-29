@@ -27,7 +27,7 @@ class DataSource:
     def read(self, query: Q) -> bytes:
         return b""
 
-    def write(self, data: bytes | bytearray | np.ndarray | memoryview) -> int:
+    def write(self, data: bytes | bytearray | np.ndarray | memoryview, params: tuple | None = None) -> int:
         return 0
 
     def close(self) -> bool:
@@ -52,7 +52,8 @@ class InMemoryDataSource(DataSource):
         self.source.seek(0)
         return self.source.read()
 
-    def write(self, data: bytes | bytearray | np.ndarray | memoryview) -> int:
+    def write(self, data: bytes | bytearray | np.ndarray | memoryview, params: tuple | None = None, at: int = 0, append: bool = True) -> int:
+        self.source.seek(at, io.SEEK_END if append else io.SEEK_SET)
         return self.source.write(data)
 
     def close(self) -> bool:
@@ -87,7 +88,9 @@ class FileDataSource(InMemoryDataSource):
         self.source.seek(0)
         return self.file.read()
 
-    def write(self, data: bytes | bytearray | np.ndarray | memoryview) -> int:
+    def write(self, data: bytes | bytearray | np.ndarray | memoryview, params: tuple | None = None, at: int = 0, append: bool = True) -> int:
+        self.file.seek(at, io.SEEK_END if append else io.SEEK_SET)
+        self.source.seek(at, io.SEEK_END if append else io.SEEK_SET)
         self.source.write(data)
         return self.file.write(data)
 
@@ -97,31 +100,32 @@ class FileDataSource(InMemoryDataSource):
         return super().close()
 
 
-class SQLDataSource(DataSource):
+class SQLiteDataSource(DataSource):
     _connection: sqlite3.Connection
     _cursor: sqlite3.Cursor
 
     def open(self) -> bool:
         try:
             self.connection = sqlite3.connect(self.metadata["db_path"])
+            self.connection.row_factory = sqlite3.Row
             self.cursor = self.connection.cursor()
             return True
         except sqlite3.Error as e:
             print(f"An error occurred: {e}")
             return False
 
-    def read(self, query: Q, params: tuple | None = None) -> list:
+    def read(self, query: Q) -> list:
         try:
             sql, params = query.sql()
-            self.cursor.execute(sql, params or ())
+            self.cursor.execute(sql, params or [])
             return self.cursor.fetchall()  # Retrieves all rows as a list of tuples
         except sqlite3.Error as e:
             print(f"An error occurred: {e}")
             return []
 
-    def write(self, query: str, params: tuple | None = None) -> int:
+    def write(self, data: bytes, params: tuple | None = None) -> int:
         try:
-            self.cursor.execute(query, params or ())
+            self.cursor.execute(data.decode("utf-8"), params or ())
             self.connection.commit()
             return self.cursor.rowcount  # Number of rows affected
         except sqlite3.Error as e:

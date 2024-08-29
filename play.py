@@ -1,12 +1,9 @@
-from re import S
-from typing import List
-
 from pydantic import Field
 
 from blue_lugia.models.query import Q
-from blue_lugia.orm.driver import JSONDriver
+from blue_lugia.orm.driver import JSONDriver, SQLiteDriver
 from blue_lugia.orm.model import Model
-from blue_lugia.orm.source import FileDataSource, SQLDataSource
+from blue_lugia.orm.source import FileDataSource, SQLiteDataSource
 
 
 class Person(Model):
@@ -19,15 +16,25 @@ class Person(Model):
     performance_score: float = Field(...)
 
 
-PersonDB = Person.sourced(FileDataSource("db.json")).driven(JSONDriver())
+class Message(Model):
 
-SQLDB = Person.sourced(SQLDataSource(db_path="playground.db"))
+    class Meta:
+        table = "playground"
 
-query = Q(department__in=["IT", "Finance"]) & Q(salary__gt=60000) & (Q(years_experience__gt=5) | Q(performance_score__gt=4.5))
+    message: str = Field(...)
 
-people_to_export = PersonDB.objects.filter(query)
 
-SQLDB.objects.bulk_create(people_to_export)
+# PersonDB = Person.sourced(FileDataSource("db.ignore.json")).driven(JSONDriver())
+# query = Q(department__in=["IT", "Finance"]) & Q(salary__gt=60000) & (Q(years_experience__gt=5) | Q(performance_score__gt=4.5))
+# people_to_export = PersonDB.objects.filter(query)
+
+Messages = Message.sourced(SQLiteDataSource(db_path="playground.ignore.db")).driven(SQLiteDriver())
+
+Messages.objects.all()
+
+Messages.objects.create(Message(message="Bye, World!"))
+
+# SQLDB.objects.bulk_create(people_to_export)
 
 # ================= Query Language ====================
 query = Q(department__in=["IT", "Finance"]) & Q(salary__gt=60000) & (Q(years_experience__gt=5) | Q(performance_score__gt=4.5))
@@ -51,3 +58,18 @@ Person.objects.create(Me)
 
 print("All people count")
 print(Person.objects.count())
+
+
+class A:
+    pass
+
+
+class B(A):
+    pass
+
+
+def f(x: A):
+    pass
+
+
+f(B())

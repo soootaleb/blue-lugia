@@ -14,14 +14,16 @@ class ModelManager(Generic[ModelType]):
     _model: Type[ModelType]
     _datasource: DataSource
     _datadriver: DataDriver
+    _table: str
 
     _query: Q
 
-    def __init__(self, model: Type[ModelType] = BaseModel, source: DataSource = DataSource(), driver: DataDriver = DataDriver()) -> None:
+    def __init__(self, model: Type[ModelType] = BaseModel, source: DataSource = DataSource(), driver: DataDriver = DataDriver(), table: str | None = None) -> None:
         self._model = model
         self._datasource = source
         self._datadriver = driver
-        self._query = Q()
+        self._table = table or model.__name__
+        self._query = Q().from_(self._table)
 
     @property
     def model(self) -> Type[ModelType]:
@@ -49,12 +51,14 @@ class ModelManager(Generic[ModelType]):
             raise ValueError("BL::ModelManager::all:Invalid data type")
 
     def filter(self, *args, **kwargs) -> QuerySet[ModelType]:
-        query = Q(*args, **kwargs)
-
-        return self.all().filter(lambda item: query.evaluate(item.model_dump()))
+        self._query = Q(*args, **kwargs)
+        return self.all().filter(lambda item: self.query.evaluate(item.model_dump()))
 
     def create(self, item: ModelType) -> None:
-        raise NotImplementedError
+        self._datasource.open()
+        raw_data, params = self._datadriver.encode({"_table": self._table, "_item": item.model_dump()})
+        self._datasource.write(data=raw_data, params=params)
+        self._datasource.close()
 
     def count(self, f: Callable[[ModelType], bool] | None = None) -> int:
         return self.all().count(f)
