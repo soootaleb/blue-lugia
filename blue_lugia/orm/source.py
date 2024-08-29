@@ -1,9 +1,10 @@
 import io
-import json
 import sqlite3
 from typing import Any
 
 import numpy as np
+
+from blue_lugia.models.query import Q
 
 
 class DataSource:
@@ -23,7 +24,7 @@ class DataSource:
             self._opened = True
         return self._opened
 
-    def read(self, size: int | None = None) -> bytes:
+    def read(self, query: Q) -> bytes:
         return b""
 
     def write(self, data: bytes | bytearray | np.ndarray | memoryview) -> int:
@@ -47,9 +48,9 @@ class InMemoryDataSource(DataSource):
             self._source = io.BytesIO()
         return opened
 
-    def read(self, size: int | None = None) -> bytes:
+    def read(self, query: Q) -> bytes:
         self.source.seek(0)
-        return self.source.read(size)
+        return self.source.read()
 
     def write(self, data: bytes | bytearray | np.ndarray | memoryview) -> int:
         return self.source.write(data)
@@ -81,10 +82,10 @@ class FileDataSource(InMemoryDataSource):
             print(f"An error occurred: {e}")
             return False
 
-    def read(self, size: int | None = None) -> bytes:
+    def read(self, query: Q) -> bytes:
         self.file.seek(0)
         self.source.seek(0)
-        return self.file.read(size or -1)
+        return self.file.read()
 
     def write(self, data: bytes | bytearray | np.ndarray | memoryview) -> int:
         self.source.write(data)
@@ -109,9 +110,10 @@ class SQLDataSource(DataSource):
             print(f"An error occurred: {e}")
             return False
 
-    def read(self, query: str, params: tuple | None = None) -> list:
+    def read(self, query: Q, params: tuple | None = None) -> list:
         try:
-            self.cursor.execute(query, params or ())
+            sql, params = query.sql()
+            self.cursor.execute(sql, params or ())
             return self.cursor.fetchall()  # Retrieves all rows as a list of tuples
         except sqlite3.Error as e:
             print(f"An error occurred: {e}")

@@ -2,7 +2,7 @@ from typing import Callable, Generic, List
 
 import pandas as pd
 
-from playground.types import ModelType
+from blue_lugia.orm.types import ModelType
 
 
 class QuerySet(Generic[ModelType], List[ModelType]):

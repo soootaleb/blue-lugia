@@ -4,10 +4,10 @@ import pandas as pd
 from pydantic import BaseModel
 
 from blue_lugia.models.query import Q
-from playground.driver import DataDriver
-from playground.queryset import QuerySet
-from playground.source import DataSource
-from playground.types import ModelType
+from blue_lugia.orm.driver import DataDriver
+from blue_lugia.orm.queryset import QuerySet
+from blue_lugia.orm.source import DataSource
+from blue_lugia.orm.types import ModelType
 
 
 class ModelManager(Generic[ModelType]):
@@ -15,10 +15,13 @@ class ModelManager(Generic[ModelType]):
     _datasource: DataSource
     _datadriver: DataDriver
 
+    _query: Q
+
     def __init__(self, model: Type[ModelType] = BaseModel, source: DataSource = DataSource(), driver: DataDriver = DataDriver()) -> None:
         self._model = model
         self._datasource = source
         self._datadriver = driver
+        self._query = Q()
 
     @property
     def model(self) -> Type[ModelType]:
@@ -28,9 +31,13 @@ class ModelManager(Generic[ModelType]):
     def dataframe(self) -> pd.DataFrame:
         return self.all().dataframe
 
+    @property
+    def query(self) -> Q:
+        return self._query
+
     def all(self) -> QuerySet[ModelType]:
         self._datasource.open()
-        raw_data = self._datasource.read()
+        raw_data = self._datasource.read(self.query)
         self._datasource.close()
         parsed_data = self._datadriver.decode(raw_data)
 
@@ -54,6 +61,9 @@ class ModelManager(Generic[ModelType]):
 
     def first(self, f: Callable[[ModelType], bool] | None = None) -> ModelType:
         return self.all().first(f)
+
+    def bulk_create(self, items: QuerySet[ModelType]) -> None:
+        raise NotImplementedError
 
     def __repr__(self) -> str:
         return f"<{self.__class__.__name__}: {self.model.__name__}>"

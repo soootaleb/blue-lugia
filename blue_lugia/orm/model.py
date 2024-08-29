@@ -5,10 +5,10 @@ import pandas as pd
 from pydantic import BaseModel
 from pydantic._internal._model_construction import ModelMetaclass
 
-from playground.driver import DataDriver
-from playground.manager import ModelManager
-from playground.source import DataSource
-from playground.types import ModelType
+from blue_lugia.orm.driver import DataDriver
+from blue_lugia.orm.manager import ModelManager
+from blue_lugia.orm.source import DataSource
+from blue_lugia.orm.types import ModelType
 
 
 class ModelMeta(ModelMetaclass):

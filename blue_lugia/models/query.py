@@ -31,6 +31,12 @@ class Q:
     _connector: Op
     _negated: bool
 
+    _select: List[str] | None = None
+    _from: str | None = None
+    _limit: int | None = None
+    _offset: int | None = None
+    _group_by: List[str] | None = None
+
     def __init__(self, *args: "Q", **kwargs: Any) -> None:
         """
         Initializes a new Q object with optional nested Q objects and keyword conditions.
@@ -51,6 +57,13 @@ class Q:
         self._conditions.extend(self._kwargs_to_kov(**kwargs))
 
         self._negated: bool = False
+
+        self._select = None
+        self._from = None
+        self._limit = None
+        self._offset = None
+        self._group_by = None
+        self._order_by = None
 
         if len(self._conditions) == 1 and isinstance(self._conditions[0], Q):
             sub_condition = self._conditions[0]
@@ -263,3 +276,92 @@ class Q:
             return not self._evaluate(data)
         else:
             return self._evaluate(data)
+
+    def select(self, *args: str) -> "Q":
+        self._select = list(args)
+        return self
+
+    def from_(self, table: str) -> "Q":
+        self._from = table
+        return self
+
+    def limit(self, limit: int) -> "Q":
+        self._limit = limit
+        return self
+
+    def offset(self, offset: int) -> "Q":
+        self._offset = offset
+        return self
+
+    def group_by(self, *args: str) -> "Q":
+        self._group_by = list(args)
+        return self
+
+    def order_by(self, *args: str) -> "Q":
+        self._order_by = list(args)
+        return self
+
+    @property
+    def where(self) -> str:  # noqa: C901
+        conditions = []
+        for condition in self._conditions:
+            if isinstance(condition, Q):
+                nested_where = condition.where
+                if condition.negated:
+                    nested_where = f"NOT ({nested_where})"
+                conditions.append(nested_where)
+            else:
+                key, operation, value = condition
+                if operation == "equals":
+                    conditions.append(f"{key} = ?")
+                elif operation == "not_equals":
+                    conditions.append(f"{key} != ?")
+                elif operation == "gt":
+                    conditions.append(f"{key} > ?")
+                elif operation == "gte":
+                    conditions.append(f"{key} >= ?")
+                elif operation == "lt":
+                    conditions.append(f"{key} < ?")
+                elif operation == "lte":
+                    conditions.append(f"{key} <= ?")
+                elif operation == "contains":
+                    conditions.append(f"{key} LIKE ?")
+                    value = f"%{value}%"
+                elif operation == "not_contains":
+                    conditions.append(f"{key} NOT LIKE ?")
+                    value = f"%{value}%"
+                elif operation == "startswith":
+                    conditions.append(f"{key} LIKE ?")
+                    value = f"{value}%"
+                elif operation == "endswith":
+                    conditions.append(f"{key} LIKE ?")
+                    value = f"%{value}"
+                elif operation == "in":
+                    placeholders = ", ".join(["?"] * len(value))
+                    conditions.append(f"{key} IN ({placeholders})")
+                else:
+                    conditions.append(f"{key} = ?")  # default to equals if operation is unrecognized
+
+        if self._negated:
+            return f"NOT ({' AND '.join(conditions)})" if self._connector == Op.AND else f"NOT ({' OR '.join(conditions)})"
+        else:
+            return f"{' AND '.join(conditions)}" if self._connector == Op.AND else f"{' OR '.join(conditions)}"
+
+    def sql(self) -> Tuple[str, Tuple]:
+        select = ", ".join(self._select) if self._select else "*"
+
+        sql = f"SELECT {select} FROM {self._from} WHERE {self.where or '1'}"
+
+        if self._group_by:
+            sql += f" GROUP BY {', '.join(self._group_by)}"
+
+        if self._order_by:
+            sql += f" ORDER BY {', '.join(self._order_by)}"
+
+        if self._limit:
+            sql += f" LIMIT {self._limit}"
+
+        if self._offset:
+            sql += f" OFFSET {self._offset}"
+
+        return sql, ()
