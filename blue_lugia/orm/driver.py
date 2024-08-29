@@ -1,6 +1,10 @@
+import csv
 import json
+import pickle
 import sqlite3
 from typing import Any, Tuple
+
+import pandas as pd
 
 
 class DataDriver:
@@ -17,6 +21,36 @@ class JSONDriver(DataDriver):
 
     def encode(self, data: dict) -> Tuple[bytes, tuple]:
         return json.dumps(data.get("_item", {}), ensure_ascii=False, indent=2).encode("utf-8"), ()
+
+
+class CSVDriver(DataDriver):
+    def decode(self, data: bytes) -> dict | list:
+        return list(csv.DictReader(data.decode("utf-8").splitlines()))
+
+    def encode(self, data: dict) -> Tuple[bytes, tuple]:
+        # Get the column names and prepare placeholders
+        columns = data.get("_item", {}).keys()
+
+        # Create a CSV writer object
+        with open("temp.csv", "w", newline="") as file:
+            csv_writer = csv.DictWriter(file, fieldnames=columns)
+
+        # Write the column names to the CSV file
+        csv_writer.writeheader()
+
+        # Write the data to the CSV file
+        csv_writer.writerow(data.get("_item", {}))
+
+        with open("temp.csv", "rb") as file:
+            return file.read(), ()
+
+
+class BLChunkDriver(DataDriver):
+    def decode(self, data: bytes) -> list:
+        return pickle.loads(data)
+
+    def encode(self, data: dict) -> Tuple[bytes, tuple]:
+        raise NotImplementedError("BLChunkDriver::encode is not implemented")
 
 
 class SQLiteDriver(DataDriver):
@@ -38,3 +72,14 @@ class SQLiteDriver(DataDriver):
         values = tuple(data.get("_item", {}).values())
 
         return sql_query.encode("utf-8"), values
+
+
+class ExcelDriver(DataDriver):
+    def decode(self, data: bytes) -> dict | list:
+        dataframe = pd.read_excel(data, sheet_name=None)
+        return {sheet_name: dataframe[sheet_name].where(pd.notna(dataframe[sheet_name]), None).to_dict(orient="records") for sheet_name in dataframe}
+
+    def encode(self, data: dict) -> Tuple[bytes, tuple]:
+        pd.DataFrame(data.get("_item", {})).to_excel("temp.xlsx", index=False)
+        with open("temp.xlsx", "rb") as file:
+            return file.read(), ()

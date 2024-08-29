@@ -1,4 +1,4 @@
-from typing import Callable, Generic, Type
+from typing import Any, Callable, Generic, List, Type
 
 import pandas as pd
 from pydantic import BaseModel
@@ -43,6 +43,9 @@ class ModelManager(Generic[ModelType]):
         self._datasource.close()
         parsed_data = self._datadriver.decode(raw_data)
 
+        if isinstance(parsed_data, dict) and self._table in parsed_data:
+            parsed_data = parsed_data[self._table]
+
         if isinstance(parsed_data, dict):
             return QuerySet([self.model(**parsed_data)])
         elif isinstance(parsed_data, list):
@@ -68,6 +71,41 @@ class ModelManager(Generic[ModelType]):
 
     def bulk_create(self, items: QuerySet[ModelType]) -> None:
         raise NotImplementedError
+
+    def limit(self, limit: int) -> "ModelManager[ModelType]":
+        self._query = self.query.limit(limit)
+        return self
+
+    def offset(self, offset: int) -> "ModelManager[ModelType]":
+        self._query = self.query.offset(offset)
+        return self
+
+    def order_by(self, *args) -> "ModelManager[ModelType]":
+        self._query = self.query.order_by(*args)
+        return self
+
+    def group_by(self, *args) -> "ModelManager[ModelType]":
+        self._query = self.query.group_by(*args)
+        return self
+
+    def from_(self, table: str) -> "ModelManager[ModelType]":
+        self._query = self.query.from_(table)
+        return self
+
+    def values(self, *args, **kwargs) -> List[dict[str, Any]]:
+        flat = kwargs.pop("flat", False)
+
+        self._query.select(*args)
+
+        if flat and len(args) > 1:
+            raise ValueError("BL::ModelManager::values:Cannot use flat=True with multiple fields")
+        elif flat and len(args) == 1:
+            try:
+                return QuerySet([item.model_dump().get(args[0]) for item in self.all()])
+            except KeyError:
+                raise ValueError(f"BL::ModelManager::values:Field {args[0]} not found in model {self.model.__name__}")
+        else:
+            return QuerySet([item.model_dump(include=set(args)) for item in self.all()])
 
     def __repr__(self) -> str:
         return f"<{self.__class__.__name__}: {self.model.__name__}>"

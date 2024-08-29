@@ -1,9 +1,12 @@
 import io
+import pickle
 import sqlite3
 from typing import Any
 
 import numpy as np
 
+from blue_lugia.managers.file import FileManager
+from blue_lugia.models.file import ChunkList, File
 from blue_lugia.models.query import Q
 
 
@@ -97,6 +100,87 @@ class FileDataSource(InMemoryDataSource):
     def close(self) -> bool:
         if self.file and self.source and super().close():
             self.file.close()
+        return super().close()
+
+
+class BLFileDataSource(InMemoryDataSource):
+    _file: File
+
+    def __init__(self, file: File, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._file = file
+
+    @property
+    def file(self) -> File:
+        return self._file
+
+    def open(self) -> bool:
+        opened = super().open()
+        if opened:
+            self._source = self.file.data
+        return opened
+
+    def read(self, query: Q) -> bytes:
+        self.source.seek(0)
+        return self.source.read()
+
+    def write(self, data: bytes | bytearray | np.ndarray | memoryview, params: tuple | None = None, at: int = 0, append: bool = True) -> int:
+        self.source.seek(at, io.SEEK_END if append else io.SEEK_SET)
+        self.source.write(data)
+        if isinstance(data, (memoryview, np.ndarray)):
+            data = data.tobytes()
+        self.file.write(data.decode("utf-8"))
+        return len(data)
+
+    def close(self) -> bool:
+        return super().close()
+
+
+class BLFileManagerDataSource(InMemoryDataSource):
+    _chunks: ChunkList
+    _manager: FileManager
+
+    def __init__(self, manager: FileManager, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._manager = manager
+
+    @property
+    def manager(self) -> FileManager:
+        return self._manager
+
+    @property
+    def chunks(self) -> ChunkList:
+        return self._chunks
+
+    def open(self) -> bool:
+        return super().open()
+
+    def read(self, query: Q) -> bytes:
+        self._chunks = self.manager.search(query=query._from or "", limit=query._limit or 1000)
+
+        sort_key = query._order_by[0] if query._order_by else None
+
+        if sort_key:
+            if sort_key.startswith("-"):
+                sort_key = sort_key[1:]
+                self._chunks = self.chunks.sort(key=sort_key, reverse=True)
+            else:
+                self._chunks = self.chunks.sort(key=sort_key)
+
+        chunks_dicts = [c.as_dict() for c in self.chunks]
+
+        if query._offset:
+            chunks_dicts = chunks_dicts[query._offset :]
+
+        if query._limit:
+            chunks_dicts = chunks_dicts[: query._limit]
+
+        return pickle.dumps(chunks_dicts)
+
+    def write(self, data: bytes | bytearray | np.ndarray | memoryview, params: tuple | None = None, at: int = 0, append: bool = True) -> int:
+        raise NotImplementedError("BL::BLFileManagerDataSource::write:Can't create Chunk")
+
+    def close(self) -> bool:
         return super().close()
 
 

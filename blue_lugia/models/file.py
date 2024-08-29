@@ -170,6 +170,19 @@ class Chunk(Model):
             url=self.url or f"unique://content/{self.file.id}",
         )
 
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "order": self.order,
+            "content": self.content,
+            "start_page": self.start_page,
+            "end_page": self.end_page,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+            "metadata": dict(self.metadata),
+            "url": self.url,
+        }
+
     def __len__(self) -> int:
         return len(self.content)
 
@@ -625,7 +638,7 @@ class File(Model):
 
             return file
 
-    def write(self, content: str, scope: str) -> "File":
+    def write(self, content: str, scope: Optional[str] = None) -> "File":
         """
         Writes new content to the file and updates its chunks.
 

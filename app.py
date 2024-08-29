@@ -1,8 +1,14 @@
+import datetime
+from typing import Any, Optional
+
 from pydantic import BaseModel, Field
 
 from blue_lugia.app import App
 from blue_lugia.config import ModuleConfig
 from blue_lugia.models import Message
+from blue_lugia.orm.driver import BLChunkDriver, CSVDriver, ExcelDriver
+from blue_lugia.orm.model import Model
+from blue_lugia.orm.source import BLFileDataSource, BLFileManagerDataSource
 from blue_lugia.state import StateManager
 
 
@@ -28,7 +34,7 @@ class CitedSourcesFromToolMessage(BaseModel):
         )
 
         return state.llm.complete(
-            completion_name='summarize',
+            completion_name="summarize",
             messages=[
                 Message.SYSTEM("Your role is to summarize the user message and keep the cited sources as-is."),
                 Message.USER(completion.content, sources=completion.sources),
@@ -73,20 +79,57 @@ class XMLSourcesFromToolMessage(BaseModel):
 
 
 def module(state: StateManager[ModuleConfig]) -> None:
-    files_names = ", ".join([file["name"] for file in state.files.uploaded.values("name")])
+    metrics_file = state.files.filter(key="dora.fields.xlsx").fetch().first()
+    people_file = state.files.filter(key="PEOPLE.csv").fetch().first()
+    bonds_file = state.files.filter(key="bonds.csv").fetch().first()
 
-    state.context(
-        [
-            Message.SYSTEM("Your role is to help the developer test the management of sources."),
-            Message.SYSTEM("Your must always cite your sources using [source0], [source1], [source2], etc."),
-            Message.SYSTEM("The sources are provided as XML tages like <source0>, <source1>, <source2>, etc."),
-            Message.SYSTEM("You must follow the user instructions to retrieve information in various ways that will introduce sources in the context."),
-            Message.SYSTEM(f"The available uploaded files are: {files_names}"),
-        ],
-        prepend=True,
-    ).register([CitedSourcesFromToolMessage, CitedSourcesStreamed, XMLSourcesFromToolMessage]).loop(out=state.last_ass_message, completion_name="root")
+    if not metrics_file or not people_file or not bonds_file:
+        raise Exception
+
+    class Metric(Model):
+        class Meta:
+            table = "v0"
+
+        field: Optional[str | float] = Field(...)
+        rag: Optional[str | float] = Field(...)
+        type: Optional[str | float] = Field(...)
+        prompt: Optional[str | float] = Field(...)
+        chunks_mode: Optional[str | float] = Field(...)
+        deps: Optional[str | float] = Field(...)
+
+    class Person(Model):
+        FIRST_NAME: str = Field(...)
+        LAST_NAME: str = Field(...)
+        DIV_NAME: str = Field(...)
+
+    class Bond(Model):
+        isin: str = Field(..., alias="ISIN")
+        issuer: str = Field(..., alias="Issuer")
+        instrument_name: str = Field(..., alias="Instrument Name")
+
+    class Chunk(Model):
+        id: str = Field(...)
+        order: int = Field(...)
+        content: str = Field(...)
+        start_page: int = Field(...)
+        end_page: int = Field(...)
+        created_at: datetime.datetime = Field(...)
+        updated_at: datetime.datetime = Field(...)
+        metadata: dict[str, Any] = Field(...)
+        url: Optional[str] = Field(...)
+
+    Metrics = Metric.sourced(BLFileDataSource(metrics_file)).driven(ExcelDriver())
+    People = Person.sourced(BLFileDataSource(people_file)).driven(CSVDriver())
+    Bonds = Bond.sourced(BLFileDataSource(bonds_file)).driven(CSVDriver())
+
+    search = state.files.filter(key="PEOPLE.csv")
+
+    Chunks = Chunk.sourced(BLFileManagerDataSource(search)).driven(BLChunkDriver())
+
+    # Chunks.objects.from_("Tech & Ops").limit(20).filter(key="PEOPLE.csv")
+    Chunks.objects.filter(order__gt=100)
 
     return
 
 
-app = App("Petal").threaded(False).of(module) # .listen()
+app = App("Petal").threaded(False).of(module)
