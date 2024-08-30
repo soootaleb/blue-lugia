@@ -14,6 +14,7 @@ from blue_lugia.models.query import Q
 class DataSource:
     _metadata: dict[str, Any]
     _opened: bool = False
+    _source: io.BytesIO
 
     def __init__(self, metadata: dict | None = None, **kwargs) -> None:
         self._metadata = metadata or {}
@@ -23,34 +24,15 @@ class DataSource:
     def metadata(self) -> dict[str, Any]:
         return self._metadata
 
-    def open(self) -> bool:
-        if not self._opened:
-            self._opened = True
-        return self._opened
-
-    def read(self, query: Q) -> bytes:
-        return b""
-
-    def write(self, data: bytes | bytearray | np.ndarray | memoryview, params: tuple | None = None) -> int:
-        return 0
-
-    def close(self) -> bool:
-        if self._opened:
-            self._opened = False
-        return True
-
-
-class InMemoryDataSource(DataSource):
-    _source: io.BytesIO
-
     @property
     def source(self) -> io.BytesIO:
         return self._source
 
     def open(self) -> bool:
-        if opened := super().open():
+        if not self._opened:
+            self._opened = True
             self._source = io.BytesIO()
-        return opened
+        return True
 
     def read(self, query: Q) -> bytes:
         self.source.seek(0)
@@ -61,12 +43,10 @@ class InMemoryDataSource(DataSource):
         return self.source.write(data)
 
     def close(self) -> bool:
-        if closed := super().close():
-            self.source.close()
-        return closed
+        return False
 
 
-class FileDataSource(InMemoryDataSource):
+class FileDataSource(DataSource):
     _file: io.FileIO
 
     def __init__(self, file_path: str, metadata: dict | None = None, **kwargs) -> None:
@@ -104,7 +84,7 @@ class FileDataSource(InMemoryDataSource):
         return super().close()
 
 
-class BLFileDataSource(InMemoryDataSource):
+class BLFileDataSource(DataSource):
     _file: File
 
     def __init__(self, file: File, *args, **kwargs) -> None:
@@ -137,7 +117,7 @@ class BLFileDataSource(InMemoryDataSource):
         return super().close()
 
 
-class BLFileManagerDataSource(InMemoryDataSource):
+class BLFileManagerDataSource(DataSource):
     _manager: FileManager
 
     def __init__(self, manager: FileManager, *args, **kwargs) -> None:
@@ -209,7 +189,7 @@ class BLFileManagerDataSource(InMemoryDataSource):
         return super().close()
 
 
-class BLMessageManagerDataSource(InMemoryDataSource):
+class BLMessageManagerDataSource(DataSource):
     _manager: MessageManager
 
     def __init__(self, manager: MessageManager, *args, **kwargs) -> None:
@@ -244,7 +224,6 @@ class BLMessageManagerDataSource(InMemoryDataSource):
         message = pickle.loads(data)
         self.manager.create(role_or_message=message.get("role"), text=message.get("content"), debug=message.get("debug"))
         return 0
-
 
 
 class SQLiteDataSource(DataSource):

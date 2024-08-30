@@ -1,4 +1,5 @@
 import csv
+import io
 import json
 import pickle
 import sqlite3
@@ -8,11 +9,19 @@ import pandas as pd
 
 
 class DataDriver:
-    def decode(self, data: Any) -> Any:
-        return data
+    def decode(self, data: bytes) -> Any:
+        loaded = []
+        stream = io.BytesIO(data)
+        while True:
+            try:
+                obj = pickle.load(stream)
+                loaded.append(obj)
+            except EOFError:
+                break
+        return loaded
 
-    def encode(self, data: dict) -> Tuple[Any, tuple]:
-        return data, ()
+    def encode(self, data: dict) -> Tuple[bytes, tuple]:
+        return pickle.dumps(data.get("_item", {})), ()
 
 
 class JSONDriver(DataDriver):
@@ -43,15 +52,6 @@ class CSVDriver(DataDriver):
 
         with open("temp.csv", "rb") as file:
             return file.read(), ()
-
-
-class PickleDriver(DataDriver):
-    def decode(self, data: bytes) -> list:
-        return pickle.loads(data)
-
-    def encode(self, data: dict) -> Tuple[bytes, tuple]:
-        return pickle.dumps(data.get("_item", {})), ()
-
 
 class SQLiteDriver(DataDriver):
     def decode(self, data: list[sqlite3.Row]) -> dict | list:

@@ -66,6 +66,8 @@ class ModelManager(Generic[ModelType]):
                 else:
                     items_as_dict.append(dict(i))
             return QuerySet([self.model(**item) for item in items_as_dict])
+        elif not bool(parsed_data):
+            return QuerySet()
         else:
             raise ValueError("BL::ModelManager::all:Invalid data type")
 

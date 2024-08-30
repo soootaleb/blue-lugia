@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 from blue_lugia.app import App
 from blue_lugia.config import ModuleConfig
 from blue_lugia.models import Message
-from blue_lugia.orm.driver import CSVDriver, ExcelDriver, PickleDriver
+from blue_lugia.orm.driver import CSVDriver, ExcelDriver
 from blue_lugia.orm.model import Message as ORMMessage
 from blue_lugia.orm.model import Model
 from blue_lugia.orm.source import BLFileDataSource, BLMessageManagerDataSource
@@ -107,17 +107,24 @@ def module(state: StateManager[ModuleConfig]) -> None:
         issuer: str = Field(..., alias="Issuer")
         instrument_name: str = Field(..., alias="Instrument Name")
 
+    class Memory(Model):
+        message: str = Field(...)
+
+    Memory.objects.create(Memory(message="Hello, world"))
+    Memory.objects.create(Memory(message="Bye, world"))
+    Memory.objects.create(Memory(message="Just world"))
+
+    messages = Memory.objects.all()
+
     Metrics = Metric.sourced(BLFileDataSource(metrics_file)).driven(ExcelDriver())
     People = Person.sourced(BLFileDataSource(people_file)).driven(CSVDriver())
     Bonds = Bond.sourced(BLFileDataSource(bonds_file)).driven(CSVDriver())
 
-    Messages = ORMMessage.sourced(BLMessageManagerDataSource(state.messages)).driven(PickleDriver())
+    Messages = ORMMessage.sourced(BLMessageManagerDataSource(state.messages))
 
     messages = Messages.objects.all()
 
-    # Messages.objects.create(ORMMessage(role="assistant", content="Hello, world", original_content="Hello"))
-
-    return
+    Messages.objects.create(ORMMessage(role="assistant", content="Hello, world", original_content="Hello"))
 
 
 app = App("Petal").threaded(False).of(module).webhook(chat_id="chat_jnxlggqgif6ckssek103khwq", assistant_id="assistant_y4j9d9h0yoa2f084qp9jknxi")
