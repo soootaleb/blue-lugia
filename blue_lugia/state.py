@@ -139,7 +139,10 @@ class StateManager(ABC, Generic[ConfType]):
         self._tools = []
 
         # we filter empty messages notably the ASSISTANT empty message created by the API
-        self._ctx = self.messages.all().fork().filter(lambda x: bool(x.content) or bool(x.tool_calls)).expand()
+        all_messages = self.messages.all().fork()
+        non_empty_messages = all_messages.filter(lambda x: bool(x.tool_calls) or bool(x.content))
+        non_ass_messages = non_empty_messages.filter(lambda x: x.id != self.event.payload.assistant_message.id)
+        self._ctx = non_ass_messages.expand()
 
         self._app = app
         self._extra = {}

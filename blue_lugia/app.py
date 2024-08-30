@@ -397,6 +397,19 @@ class App(Flask, Generic[ConfType]):
 
         return self._run_module(event)
 
+    def expose(self, endpoint: str, *args, **kwargs) -> "App":
+        for arg in args:
+            if isinstance(arg, (tuple, list, str)):
+                methods = arg if isinstance(arg, (tuple, list)) else [arg]
+            elif callable(arg):
+                handler = arg
+
+        methods = kwargs.get("methods", methods)
+        handler = kwargs.get("handler", handler)
+
+        self.route(endpoint, methods=[m.upper() for m in methods])(self._handle(handler))
+        return self
+
     def _type_event(self, event: dict[str, Any]) -> ExternalModuleChosenEvent:
         target_timezone = datetime.timezone(datetime.timedelta(hours=2))
 
@@ -614,3 +627,43 @@ class App(Flask, Generic[ConfType]):
         self._type_event_and_run_module(event)
 
         return "OK", 200
+
+    def _handle(self, handler: Callable) -> Callable:
+        def _handler(*args, **kwargs) -> Any:
+            try:
+                json.loads(request.data)
+            except json.JSONDecodeError:
+                handled = handler(*args, **kwargs, request=request)
+
+            else:
+                if self._conf and self._conf.ENDPOINT_SECRET:
+                    # Only verify the event if there is an endpoint secret defined
+                    # Otherwise use the basic event deserialized with json
+                    sig_header = request.headers.get("X-Unique-Signature", "XXXXXX")
+                    timestamp = request.headers.get("X-Unique-Created-At", "XXXXXX")
+
+                    self.logger.info(f"X-Unique-Signature: {'*' * 3 + sig_header[-3:]}")
+                    self.logger.info(f"UNIQUE_API_KEY: {'*' * 3 + self._conf.API_KEY[-3:]}")
+                    self.logger.info(f"UNIQUE_APP_ID: {'*' * 3 + self._conf.APP_ID[-3:]}")
+
+                    if not sig_header or not timestamp:
+                        self.logger.info("⚠️  Webhook signature or timestamp headers missing.")
+                        handled = handler(*args, **kwargs, request=request)
+
+                    try:
+                        event = unique_sdk.Webhook.construct_event(request.data, sig_header, timestamp, self._conf.ENDPOINT_SECRET)
+                    except unique_sdk.SignatureVerificationError:
+                        self.logger.info("⚠️  Webhook signature verification failed.")
+                        handled = handler(*args, **kwargs, request=request)
+                    else:
+                        if event and event["event"] == "unique.chat.external-module.chosen":
+                            handled = handler(*args, **kwargs, request=request, state=self.create_state(self._type_event(event)))
+                        else:
+                            handled = handler(*args, **kwargs, request=request)
+
+                else:
+                    handled = handler(*args, **kwargs, request=request)
+
+            return handled or "OK", 200
+
+        return _handler
