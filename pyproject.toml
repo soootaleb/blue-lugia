@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "blue-lugia"
-version = "orm-1.0.0"
+version = "1.1.0"
 description = "Unique SDK Wrapper"
 authors = ["Sofiane TALEB <sofiane.ext@unique.ch>"]
 readme = "README.md"
