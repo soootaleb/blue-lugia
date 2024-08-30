@@ -618,7 +618,7 @@ class LanguageModelManager(Manager):
 
             for tool in self._verify_tools(tools):
                 tool_config = getattr(tool, "Config", None)
-                tool_config_strict = getattr(tool_config, "bl_fc_strict", True)
+                tool_config_strict = getattr(tool_config, "bl_fc_strict", False)
 
                 options["tools"].append(
                     {
