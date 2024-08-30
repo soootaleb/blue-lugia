@@ -32,7 +32,7 @@ class LanguageModelManager(Manager):
         "AZURE_GPT_35_TURBO_0613": 4_096,
         "AZURE_GPT_4o_2024_0513": 128_000,
         "AZURE_GPT_4o_2024_0806": 128_000,
-        "AZURE_GPT_4o_mini_2024_0718": 128_000,
+        "AZURE_GPT_4o_MINI_2024_0718": 128_000,
         "ptu-gpt-4o": 128_000,
         "pictet-ptu-gpt-4o": 128_000,
         "gpt-4": 8_192,
@@ -52,7 +52,7 @@ class LanguageModelManager(Manager):
         "AZURE_GPT_35_TURBO_0613": 4_096,
         "AZURE_GPT_4o_2024_0513": 4_096,
         "AZURE_GPT_4o_2024_0806": 16_384,
-        "AZURE_GPT_4o_mini_2024_0718": 16_384,
+        "AZURE_GPT_4o_MINI_2024_0718": 16_384,
         "ptu-gpt-4o": 4_096,
         "pictet-ptu-gpt-4o": 4_096,
         "gpt-4": 4_096,
@@ -68,7 +68,7 @@ class LanguageModelManager(Manager):
         "AZURE_GPT_4_0613_32K": "gpt-4",
         "AZURE_GPT_4o_2024_0513": "gpt-4o",
         "AZURE_GPT_4o_2024_0806": "gpt-4o",
-        "AZURE_GPT_4o_mini_2024_0718": "gpt-4o",
+        "AZURE_GPT_4o_MINI_2024_0718": "gpt-4o",
         "AZURE_GPT_4_TURBO_1106": "gpt-4",
         "AZURE_GPT_4_TURBO_2024_0409": "gpt-4",
         "AZURE_GPT_35_TURBO_16K": "gpt-3.5-turbo",
@@ -620,6 +620,11 @@ class LanguageModelManager(Manager):
                 tool_config = getattr(tool, "Config", None)
                 tool_config_strict = getattr(tool_config, "bl_fc_strict", False)
 
+                parameters = self._rm_titles(tool.model_json_schema())
+
+                if tool_config_strict:
+                    parameters["additionalProperties"] = parameters.get("additionalProperties", False)
+
                 options["tools"].append(
                     {
                         "type": "function",
@@ -627,7 +632,7 @@ class LanguageModelManager(Manager):
                             "name": tool.__name__,
                             "strict": tool_config_strict,
                             "description": tool.__doc__ or "",
-                            "parameters": self._rm_titles(tool.model_json_schema()),
+                            "parameters": parameters,
                         },
                     }
                 )
