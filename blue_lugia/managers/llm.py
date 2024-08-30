@@ -348,7 +348,11 @@ class LanguageModelManager(Manager):
             sources = re.findall(r"<source\d+[^>]*>.*?</source\d+>", message.content or "", re.DOTALL)
 
             for source in sources:
-                elem = ET.fromstring(source)
+                try:
+                    elem = ET.fromstring(source)
+                except ET.ParseError:
+                    raise LanguageModelManagerError("BL::Manager::LLM::rereference::InvalidSourceXML::use from xml.sax.saxutils import escape to escape the source content")
+
                 elem.tag = f"source{found_sources_counter}"
 
                 if message.content:
