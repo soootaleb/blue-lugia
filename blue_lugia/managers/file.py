@@ -201,7 +201,7 @@ class FileManager(Manager):
                 )
 
             for chunk in chunks:
-                chunk_to_add = Chunk(
+                Chunk(
                     id=chunk["id"],
                     order=chunk["order"],
                     content=chunk["text"],
@@ -215,8 +215,6 @@ class FileManager(Manager):
                     logger=self.logger.getChild(Chunk.__name__),
                     file=files_map[file_id],
                 )
-
-                files_map[file_id].chunks.append(chunk_to_add)
 
         return FileList(
             files_map.values(),
