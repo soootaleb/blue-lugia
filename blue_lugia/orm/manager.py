@@ -48,8 +48,20 @@ class ModelManager(Generic[ModelType]):
 
         if isinstance(parsed_data, dict):
             return QuerySet([self.model(**parsed_data)])
+        elif isinstance(parsed_data, QuerySet):
+            return parsed_data
         elif isinstance(parsed_data, list):
-            return QuerySet([self.model(**item) for item in parsed_data])
+            items_as_dict = []
+            for i in parsed_data:
+                if isinstance(i, dict):
+                    items_as_dict.append(i)
+                elif hasattr(i, "as_dict"):
+                    items_as_dict.append(i.as_dict())
+                elif isinstance(i, BaseModel):
+                    items_as_dict.append(i.model_dump())
+                else:
+                    items_as_dict.append(dict(i))
+            return QuerySet([self.model(**item) for item in items_as_dict])
         else:
             raise ValueError("BL::ModelManager::all:Invalid data type")
 

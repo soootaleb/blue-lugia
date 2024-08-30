@@ -167,15 +167,18 @@ class BLFileManagerDataSource(InMemoryDataSource):
             else:
                 self._chunks = self.chunks.sort(key=sort_key)
 
-        chunks_dicts = [c.as_dict() for c in self.chunks]
+        chunks = self.chunks
 
         if query._offset:
-            chunks_dicts = chunks_dicts[query._offset :]
+            chunks = chunks[query._offset :]
 
         if query._limit:
-            chunks_dicts = chunks_dicts[: query._limit]
+            chunks = chunks[: query._limit]
 
-        return pickle.dumps(chunks_dicts)
+        for chunk in chunks:
+            chunk.metadata = dict(chunk.metadata) or {}
+
+        return pickle.dumps(chunks)
 
     def write(self, data: bytes | bytearray | np.ndarray | memoryview, params: tuple | None = None, at: int = 0, append: bool = True) -> int:
         raise NotImplementedError("BL::BLFileManagerDataSource::write:Can't create Chunk")

@@ -84,7 +84,7 @@ def module(state: StateManager[ModuleConfig]) -> None:
     bonds_file = state.files.filter(key="bonds.csv").fetch().first()
 
     if not metrics_file or not people_file or not bonds_file:
-        raise Exception
+        raise Exception("File not found")
 
     class Metric(Model):
         class Meta:
@@ -132,4 +132,4 @@ def module(state: StateManager[ModuleConfig]) -> None:
     return
 
 
-app = App("Petal").threaded(False).of(module)
+app = App("Petal").threaded(False).of(module).webhook(chat_id="chat_jnxlggqgif6ckssek103khwq", assistant_id="assistant_y4j9d9h0yoa2f084qp9jknxi")

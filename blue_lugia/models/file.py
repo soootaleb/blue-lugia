@@ -44,9 +44,10 @@ class Chunk(Model):
         file: "File",
         metadata: dict[str, Any] | None = None,
         url: Optional[str] = None,
+        *args,
         **kwargs: logging.Logger,
     ) -> None:
-        super().__init__(**kwargs)
+        super().__init__(*args, **kwargs)
         self.id = id
         self.order = order
         self.content = self._clean_content(content)
@@ -194,9 +195,9 @@ class Chunk(Model):
 
 
 class ChunkList(List[Chunk], Model):
-    def __init__(self, iterable: Iterable[Chunk] = [], **kwargs: Any) -> None:
+    def __init__(self, iterable: Iterable[Chunk] = [], *args, **kwargs: Any) -> None:
         list.__init__(self, iterable)
-        Model.__init__(self, **kwargs)
+        Model.__init__(self, *args, **kwargs)
 
     @property
     def tokens(self) -> list[int]:

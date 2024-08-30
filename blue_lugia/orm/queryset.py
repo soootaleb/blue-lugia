@@ -2,6 +2,7 @@ from typing import Callable, Generic, List
 
 import pandas as pd
 
+from blue_lugia.models import Q
 from blue_lugia.orm.types import ModelType
 
 
@@ -13,7 +14,8 @@ class QuerySet(Generic[ModelType], List[ModelType]):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-    def filter(self, f: Callable[[ModelType], bool]) -> "QuerySet[ModelType]":
+    def filter(self, *args, **kwargs) -> "QuerySet[ModelType]":
+        f = args[0] if len(args) == 1 and isinstance(args[0], Callable) else Q(*args, **kwargs)
         return QuerySet(filter(f, self))
 
     def first(self, f: Callable[[ModelType], bool] | None = None) -> ModelType:

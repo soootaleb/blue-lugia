@@ -224,10 +224,10 @@ class Q:
         return data.get(key) <= value
 
     def _evaluate_contains(self, data: dict[str, Any], key: str, value: Any) -> bool:
-        return value in data.get(key)
+        return value in data.get(key, [])
 
     def _evaluate_not_contains(self, data: dict[str, Any], key: str, value: Any) -> bool:
-        return value not in data.get(key)
+        return value not in data.get(key, [])
 
     def _evaluate_startswith(self, data: dict[str, Any], key: str, value: Any) -> bool:
         found = data.get(key)
@@ -238,7 +238,7 @@ class Q:
         return found.endswith(value) if isinstance(found, str) else False
 
     def _evaluate_in(self, data: dict[str, Any], key: str, value: Any) -> bool:
-        return data.get(key) in value
+        return data.get(key) in value if value is not None else False
 
     def _evaluate(self, data: dict[str, Any]) -> bool:  # noqa: C901
         if self._connector == Op.AND:
@@ -392,3 +392,16 @@ class Q:
             sql += f" OFFSET {self._offset}"
 
         return sql, params
+
+    def __call__(self, obj: Any) -> bool:
+        """
+        Evaluates the conditions of the Q object against the attributes of the provided object.
+
+        Args:
+            obj (Any): An object whose attributes will be checked against the conditions specified in this Q object.
+
+        Returns:
+            bool: True if the object meets all the conditions defined in the Q object according to its logical operators and negation, False otherwise.
+        """
+        data = {attr: getattr(obj, attr, None) for attr in dir(obj) if not attr.startswith("__") and not callable(getattr(obj, attr))}
+        return self.evaluate(data)
