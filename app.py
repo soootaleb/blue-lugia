@@ -127,4 +127,4 @@ def module(state: StateManager[ModuleConfig]) -> None:
     Messages.objects.create(ORMMessage(role="assistant", content="Hello, world", original_content="Hello"))
 
 
-app = App("Petal").threaded(False).of(module).webhook(chat_id="chat_jnxlggqgif6ckssek103khwq", assistant_id="assistant_y4j9d9h0yoa2f084qp9jknxi")
+app = App("Petal").threaded(False).of(module)  # .webhook(chat_id="chat_jnxlggqgif6ckssek103khwq", assistant_id="assistant_y4j9d9h0yoa2f084qp9jknxi")
