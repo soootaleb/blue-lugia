@@ -732,6 +732,18 @@ class File(Model):
         """
         return self.chunks.as_context()
 
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "key": self.key,
+            "name": self.name,
+            "mime_type": self.mime_type,
+            "write_url": self.write_url,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+            "chunks": [chunk.as_dict() for chunk in self.chunks],
+        }
+
     def __str__(self) -> str:
         return self.name
 
@@ -1028,3 +1040,15 @@ class FileList(List[File], Model):
             results.extend(file.as_context())
 
         return results
+
+    def filter(self, f: Callable[[File], bool], in_place: bool = False) -> "FileList":
+        """
+        Returns a new filtered FileList.
+        You can specify in_place, defaults to creating a new list.
+        """
+
+        if in_place:
+            self[:] = [file for file in self if f(file)]
+            return self
+        else:
+            return FileList([file for file in self if f(file)], logger=self.logger)

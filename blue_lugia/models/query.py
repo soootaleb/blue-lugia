@@ -212,16 +212,16 @@ class Q:
         return data.get(key) != value
 
     def _evaluate_gt(self, data: dict[str, Any], key: str, value: Any) -> bool:
-        return data.get(key) > value
+        return data.get(key) > value if data.get(key) is not None else False
 
     def _evaluate_gte(self, data: dict[str, Any], key: str, value: Any) -> bool:
-        return data.get(key) >= value
+        return data.get(key) >= value if data.get(key) is not None else False
 
     def _evaluate_lt(self, data: dict[str, Any], key: str, value: Any) -> bool:
-        return data.get(key) < value
+        return data.get(key) < value if data.get(key) is not None else False
 
     def _evaluate_lte(self, data: dict[str, Any], key: str, value: Any) -> bool:
-        return data.get(key) <= value
+        return data.get(key) <= value if data.get(key) is not None else False
 
     def _evaluate_contains(self, data: dict[str, Any], key: str, value: Any) -> bool:
         return value in data.get(key, [])

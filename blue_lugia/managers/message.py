@@ -60,7 +60,18 @@ class MessageManager(Manager):
                 retrieved = []
 
             for m in retrieved:
-                original_citations = (m.debugInfo or {}).get("_citations", {})
+
+                def _rec_copy(d: Any) -> Any:
+                    if isinstance(d, dict):
+                        return {k: _rec_copy(v) for k, v in d.items()}
+                    elif isinstance(d, list):
+                        return [_rec_copy(v) for v in d]
+                    else:
+                        return d
+
+                di = _rec_copy(m.debugInfo or {})
+
+                original_citations = di.get("_citations", {})
 
                 if m.text and original_citations:
                     original_content = m.text
@@ -76,7 +87,7 @@ class MessageManager(Manager):
                         role=Role(m.role.lower()),
                         content=m.text,
                         original_content=original_content,
-                        remote=Message._Remote(self._event, m.id, m.debugInfo),  # type: ignore
+                        remote=Message._Remote(self._event, m.id, di),  # type: ignore
                         logger=self.logger.getChild(Message.__name__),
                     )
                     self._all.append(created)
@@ -147,7 +158,7 @@ class MessageManager(Manager):
         else:
             return mapped
 
-    def create(self, role_or_message: Role | Message, text: str = "", debug: dict[str, Any] | None = None) -> Message:
+    def create(self, role_or_message: Role | Message | str, text: str = "", debug: dict[str, Any] | None = None) -> Message:
         if debug is None:
             debug = {}
 
@@ -156,6 +167,9 @@ class MessageManager(Manager):
             content = role_or_message.content
         elif isinstance(role_or_message, Role):
             role = role_or_message
+            content = text
+        elif isinstance(role_or_message, str):
+            role = Role(role_or_message.lower())
             content = text
         else:
             raise ChatMessageManagerError("BL::Manager::ChatMessage::create::TypeError::role_or_message must be of type Role or Message")

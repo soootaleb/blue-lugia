@@ -20,8 +20,12 @@ class ModelManager(Generic[ModelType]):
 
     def __init__(self, model: Type[ModelType] = BaseModel, source: DataSource = DataSource(), driver: DataDriver = DataDriver(), table: str | None = None) -> None:
         self._model = model
+
         self._datasource = source
         self._datadriver = driver
+
+        self._datasource.metadata.update({"model_name": model.__name__})
+
         self._table = table or model.__name__
         self._query = Q().from_(self._table)
 

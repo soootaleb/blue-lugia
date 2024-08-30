@@ -6,7 +6,8 @@ from typing import Any
 import numpy as np
 
 from blue_lugia.managers.file import FileManager
-from blue_lugia.models.file import ChunkList, File
+from blue_lugia.managers.message import MessageManager
+from blue_lugia.models.file import File
 from blue_lugia.models.query import Q
 
 
@@ -137,7 +138,6 @@ class BLFileDataSource(InMemoryDataSource):
 
 
 class BLFileManagerDataSource(InMemoryDataSource):
-    _chunks: ChunkList
     _manager: FileManager
 
     def __init__(self, manager: FileManager, *args, **kwargs) -> None:
@@ -148,26 +148,17 @@ class BLFileManagerDataSource(InMemoryDataSource):
     def manager(self) -> FileManager:
         return self._manager
 
-    @property
-    def chunks(self) -> ChunkList:
-        return self._chunks
-
-    def open(self) -> bool:
-        return super().open()
-
-    def read(self, query: Q) -> bytes:
-        self._chunks = self.manager.search(query=query._from or "", limit=query._limit or 1000)
+    def _read_chunks(self, query: Q) -> bytes:
+        chunks = self.manager.search(query=query._from or "", limit=query._limit or 1000)
 
         sort_key = query._order_by[0] if query._order_by else None
 
         if sort_key:
             if sort_key.startswith("-"):
                 sort_key = sort_key[1:]
-                self._chunks = self.chunks.sort(key=sort_key, reverse=True)
+                chunks = chunks.sort(key=sort_key, reverse=True)
             else:
-                self._chunks = self.chunks.sort(key=sort_key)
-
-        chunks = self.chunks
+                chunks = chunks.sort(key=sort_key)
 
         if query._offset:
             chunks = chunks[query._offset :]
@@ -180,11 +171,80 @@ class BLFileManagerDataSource(InMemoryDataSource):
 
         return pickle.dumps(chunks)
 
+    def _read_files(self, query: Q) -> bytes:
+        files = self.manager.fetch()
+
+        sort_key = query._order_by[0] if query._order_by else None
+
+        if sort_key:
+            if sort_key.startswith("-"):
+                sort_key = sort_key[1:]
+                files = files.sort(key=sort_key, reverse=True)
+            else:
+                files = files.sort(key=sort_key)
+
+        if query._offset:
+            files = files[query._offset :]
+
+        if query._limit:
+            files = files[: query._limit]
+
+        for file in files:
+            file.chunks.sort("order", in_place=True)
+
+        return pickle.dumps(files)
+
+    def read(self, query: Q) -> bytes:
+        if self.metadata.get("model_name") == "Chunk":
+            return self._read_chunks(query)
+        elif self.metadata.get("model_name") == "File":
+            return self._read_files(query)
+        else:
+            raise NotImplementedError("BL::BLFileManagerDataSource::read:Can't read Chunk")
+
     def write(self, data: bytes | bytearray | np.ndarray | memoryview, params: tuple | None = None, at: int = 0, append: bool = True) -> int:
         raise NotImplementedError("BL::BLFileManagerDataSource::write:Can't create Chunk")
 
     def close(self) -> bool:
         return super().close()
+
+
+class BLMessageManagerDataSource(InMemoryDataSource):
+    _manager: MessageManager
+
+    def __init__(self, manager: MessageManager, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._manager = manager
+
+    @property
+    def manager(self) -> MessageManager:
+        return self._manager
+
+    def read(self, query: Q) -> bytes:
+        messages = self.manager.all()
+
+        sort_key = query._order_by[0] if query._order_by else None
+
+        if sort_key:
+            if sort_key.startswith("-"):
+                sort_key = sort_key[1:]
+                messages.sort(key=lambda m: getattr(m, sort_key), reverse=True)
+            else:
+                messages.sort(key=lambda m: getattr(m, sort_key))
+
+        if query._offset:
+            messages = messages[query._offset :]
+
+        if query._limit:
+            messages = messages[: query._limit]
+
+        return pickle.dumps([m.to_dict() for m in messages])
+
+    def write(self, data: bytes | bytearray | np.ndarray | memoryview, params: tuple | None = None, at: int = 0, append: bool = True) -> int:
+        message = pickle.loads(data)
+        self.manager.create(role_or_message=message.get("role"), text=message.get("content"), debug=message.get("debug"))
+        return 0
+
 
 
 class SQLiteDataSource(DataSource):

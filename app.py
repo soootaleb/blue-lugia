@@ -1,14 +1,14 @@
-import datetime
-from typing import Any, Optional
+from typing import Optional
 
 from pydantic import BaseModel, Field
 
 from blue_lugia.app import App
 from blue_lugia.config import ModuleConfig
 from blue_lugia.models import Message
-from blue_lugia.orm.driver import BLChunkDriver, CSVDriver, ExcelDriver
+from blue_lugia.orm.driver import CSVDriver, ExcelDriver, PickleDriver
+from blue_lugia.orm.model import Message as ORMMessage
 from blue_lugia.orm.model import Model
-from blue_lugia.orm.source import BLFileDataSource, BLFileManagerDataSource
+from blue_lugia.orm.source import BLFileDataSource, BLMessageManagerDataSource
 from blue_lugia.state import StateManager
 
 
@@ -107,27 +107,15 @@ def module(state: StateManager[ModuleConfig]) -> None:
         issuer: str = Field(..., alias="Issuer")
         instrument_name: str = Field(..., alias="Instrument Name")
 
-    class Chunk(Model):
-        id: str = Field(...)
-        order: int = Field(...)
-        content: str = Field(...)
-        start_page: int = Field(...)
-        end_page: int = Field(...)
-        created_at: datetime.datetime = Field(...)
-        updated_at: datetime.datetime = Field(...)
-        metadata: dict[str, Any] = Field(...)
-        url: Optional[str] = Field(...)
-
     Metrics = Metric.sourced(BLFileDataSource(metrics_file)).driven(ExcelDriver())
     People = Person.sourced(BLFileDataSource(people_file)).driven(CSVDriver())
     Bonds = Bond.sourced(BLFileDataSource(bonds_file)).driven(CSVDriver())
 
-    search = state.files.filter(key="PEOPLE.csv")
+    Messages = ORMMessage.sourced(BLMessageManagerDataSource(state.messages)).driven(PickleDriver())
 
-    Chunks = Chunk.sourced(BLFileManagerDataSource(search)).driven(BLChunkDriver())
+    messages = Messages.objects.all()
 
-    # Chunks.objects.from_("Tech & Ops").limit(20).filter(key="PEOPLE.csv")
-    Chunks.objects.filter(order__gt=100)
+    # Messages.objects.create(ORMMessage(role="assistant", content="Hello, world", original_content="Hello"))
 
     return
 

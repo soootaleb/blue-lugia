@@ -1,8 +1,9 @@
+import datetime
 import types
-from typing import Type
+from typing import Any, List, Optional, Type
 
 import pandas as pd
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from pydantic._internal._model_construction import ModelMetaclass
 
 from blue_lugia.orm.driver import DataDriver
@@ -52,3 +53,51 @@ class Model(BaseModel, metaclass=ModelMeta):
         driven_meta = cls.__class__.driven(driver)  # type: ignore
         # return types.new_class(f"{cls.__name__}::{driven_meta.__name__}", (cls,), {"metaclass": driven_meta})
         return types.new_class(cls.__name__, (cls,), {"metaclass": driven_meta})
+
+
+class Chunk(Model):
+    id: str = Field(...)
+    order: int = Field(...)
+    content: str = Field(...)
+    start_page: Optional[int] = Field(...)
+    end_page: Optional[int] = Field(...)
+    created_at: datetime.datetime = Field(...)
+    updated_at: datetime.datetime = Field(...)
+    metadata: dict[str, Any] = Field(...)
+    url: Optional[str] = Field(...)
+
+
+class File(Model):
+    id: str = Field(...)
+    key: str = Field(...)
+    name: str = Field(...)
+    chunks: List[Chunk] = Field(...)
+    mime_type: str = Field(...)
+    write_url: str = Field(...)
+    created_at: datetime.datetime = Field(...)
+    updated_at: datetime.datetime = Field(...)
+
+
+class Remote(Model):  # noqa: N801
+    id: str = Field(...)
+    debug: dict = Field(...)
+
+
+class ToolCallFunction(Model):  # noqa: N801
+    name: str = Field(...)
+    arguments: dict = Field(...)
+
+
+class ToolCall(Model):  # noqa: N801
+    id: str = Field(...)
+    type: str = Field(...)
+    function: ToolCallFunction
+
+
+class Message(Model):
+    role: str = Field(...)
+    content: str = Field(...)
+    original_content: str = Field(...)
+    tool_calls: Optional[List[ToolCall]] = Field([])
+    tool_call_id: Optional[str] = Field(None)
+    remote: Optional[Remote] = Field(None)

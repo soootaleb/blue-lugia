@@ -45,12 +45,12 @@ class CSVDriver(DataDriver):
             return file.read(), ()
 
 
-class BLChunkDriver(DataDriver):
+class PickleDriver(DataDriver):
     def decode(self, data: bytes) -> list:
         return pickle.loads(data)
 
     def encode(self, data: dict) -> Tuple[bytes, tuple]:
-        raise NotImplementedError("BLChunkDriver::encode is not implemented")
+        return pickle.dumps(data.get("_item", {})), ()
 
 
 class SQLiteDriver(DataDriver):

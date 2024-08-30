@@ -260,6 +260,9 @@ class Message(Model):
 
         return base
 
+    def as_dict(self) -> dict:
+        return self.to_dict()
+
     def to_json(self, indent: int = 2) -> str:
         return json.dumps(self.to_dict(), indent=indent, ensure_ascii=False)
 
