@@ -600,7 +600,7 @@ class LanguageModelManager(Manager):
             logger=self.logger.getChild(Message.__name__),
         )
 
-    def _build_options(
+    def _build_options(  # noqa: C901
         self,
         formated_messages: List[dict],
         tools: List[type[BaseModel]] | None = None,

@@ -27,3 +27,19 @@ class Op(Enum):
     OR = "OR"
     AND = "AND"
     NOT = "NOT"
+
+
+class Truncate(Enum):
+    """
+    Truncate type
+
+    - KEEP_START: Keep the n tokens from the start
+    - KEEP_END: Keep the n tokens from the end
+    - KEEP_INNER: Keep the n tokens in the middle of the list
+    - KEEP_OUTER: Keep the outer n tokens of the list
+    """
+
+    KEEP_START = "KEEP_START"
+    KEEP_END = "KEEP_END"
+    KEEP_INNER = "KEEP_INNER"
+    KEEP_OUTER = "KEEP_OUTER"

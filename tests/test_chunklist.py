@@ -1,6 +1,7 @@
 import datetime
 import unittest
 
+from blue_lugia.enums import Truncate
 from blue_lugia.models import Chunk
 from blue_lugia.models.file import ChunkList, File
 from tests.mocks.event import MockEvent
@@ -285,7 +286,7 @@ class TestChunkList(unittest.TestCase):
         self.assertEqual(chunks[0], chunk_2)
         self.assertEqual(len(chunks), 1)
 
-    def test_truncate(self) -> None:
+    def test_truncate_default(self) -> None:
         chunks = ChunkList()
 
         file = File(
@@ -298,9 +299,9 @@ class TestChunkList(unittest.TestCase):
         )
 
         chunk_1 = Chunk(
-            id="chunk_id",
+            id="chunk_id_1",
             order=0,
-            content="""<|document|>doc.txt<|/document|><|info|>info<|/info|>Content 1""",
+            content="""<|document|>doc.txt<|/document|><|info|>info<|/info|>Content x 1""",
             start_page=0,
             end_page=0,
             created_at=datetime.datetime.now(),
@@ -310,9 +311,9 @@ class TestChunkList(unittest.TestCase):
         )
 
         chunk_2 = Chunk(
-            id="chunk_id",
+            id="chunk_id_2",
             order=0,
-            content="""<|document|>doc.txt<|/document|><|info|>info<|/info|>Content 2""",
+            content="""<|document|>doc.txt<|/document|><|info|>info<|/info|>Content xx 2""",
             start_page=0,
             end_page=0,
             created_at=datetime.datetime.now(),
@@ -322,9 +323,9 @@ class TestChunkList(unittest.TestCase):
         )
 
         chunk_3 = Chunk(
-            id="chunk_id",
+            id="chunk_id_3",
             order=0,
-            content="""<|document|>doc.txt<|/document|><|info|>info<|/info|>Content 3""",
+            content="""<|document|>doc.txt<|/document|><|info|>info<|/info|>Content xxx 3""",
             start_page=0,
             end_page=0,
             created_at=datetime.datetime.now(),
@@ -356,8 +357,226 @@ class TestChunkList(unittest.TestCase):
             chunk_1_tokens_count + chunk_2_tokens_count,
         )
 
-    def test_as_file(self) -> None:
+    def test_truncate_end(self) -> None:
+        chunks = ChunkList()
 
+        file = File(
+            event=self.event,
+            id="file_id",
+            name="file_name",
+            mime_type="text/plain",
+            chunks=chunks,
+            tokenizer=Tokenizer(),
+        )
+
+        chunk_1 = Chunk(
+            id="chunk_id_1",
+            order=0,
+            content="""<|document|>doc.txt<|/document|><|info|>info<|/info|>Content x 1""",
+            start_page=0,
+            end_page=0,
+            created_at=datetime.datetime.now(),
+            updated_at=datetime.datetime.now(),
+            tokenizer=Tokenizer(),
+            file=file,
+        )
+
+        chunk_2 = Chunk(
+            id="chunk_id_2",
+            order=0,
+            content="""<|document|>doc.txt<|/document|><|info|>info<|/info|>Content xx 2""",
+            start_page=0,
+            end_page=0,
+            created_at=datetime.datetime.now(),
+            updated_at=datetime.datetime.now(),
+            tokenizer=Tokenizer(),
+            file=file,
+        )
+
+        chunk_3 = Chunk(
+            id="chunk_id_3",
+            order=0,
+            content="""<|document|>doc.txt<|/document|><|info|>info<|/info|>Content xxx 3""",
+            start_page=0,
+            end_page=0,
+            created_at=datetime.datetime.now(),
+            updated_at=datetime.datetime.now(),
+            tokenizer=Tokenizer(),
+            file=file,
+        )
+
+        chunks.extend(
+            [
+                chunk_1,
+                chunk_2,
+                chunk_3,
+            ],
+        )
+
+        chunk_1_tokens_count = len(chunk_1.tokens)
+        chunk_2_tokens_count = len(chunk_2.tokens)
+        chunk_3_tokens_count = len(chunk_3.tokens)
+
+        total_tokens_count = chunk_1_tokens_count + chunk_2_tokens_count + chunk_3_tokens_count
+
+        self.assertEqual(len(chunks.truncate(0, strategy=Truncate.KEEP_END).tokens), 0)
+        self.assertEqual(len(chunks.truncate(total_tokens_count, strategy=Truncate.KEEP_END).tokens), total_tokens_count)
+        self.assertEqual(len(chunks.truncate(chunk_1_tokens_count, strategy=Truncate.KEEP_END).tokens), chunk_1_tokens_count)
+        self.assertEqual(chunks.truncate(chunk_3_tokens_count, strategy=Truncate.KEEP_END).tokens, chunk_3.tokens)
+        self.assertEqual(
+            len(chunks.truncate(chunk_1_tokens_count + chunk_2_tokens_count, strategy=Truncate.KEEP_END).tokens),
+            chunk_1_tokens_count + chunk_2_tokens_count,
+        )
+
+    def test_truncate_inner(self) -> None:
+        chunks = ChunkList()
+
+        file = File(
+            event=self.event,
+            id="file_id",
+            name="file_name",
+            mime_type="text/plain",
+            chunks=chunks,
+            tokenizer=Tokenizer(),
+        )
+
+        chunk_1 = Chunk(
+            id="chunk_id_1",
+            order=0,
+            content="""<|document|>doc.txt<|/document|><|info|>info<|/info|>Content xxx 1""",
+            start_page=0,
+            end_page=0,
+            created_at=datetime.datetime.now(),
+            updated_at=datetime.datetime.now(),
+            tokenizer=Tokenizer(),
+            file=file,
+        )
+
+        chunk_2 = Chunk(
+            id="chunk_id_2",
+            order=0,
+            content="""<|document|>doc.txt<|/document|><|info|>info<|/info|>Content xx 2""",
+            start_page=0,
+            end_page=0,
+            created_at=datetime.datetime.now(),
+            updated_at=datetime.datetime.now(),
+            tokenizer=Tokenizer(),
+            file=file,
+        )
+
+        chunk_3 = Chunk(
+            id="chunk_id_3",
+            order=0,
+            content="""<|document|>doc.txt<|/document|><|info|>info<|/info|>Content xxx 3""",
+            start_page=0,
+            end_page=0,
+            created_at=datetime.datetime.now(),
+            updated_at=datetime.datetime.now(),
+            tokenizer=Tokenizer(),
+            file=file,
+        )
+
+        chunks.extend(
+            [
+                chunk_1,
+                chunk_2,
+                chunk_3,
+            ],
+        )
+
+        chunk_1_tokens_count = len(chunk_1.tokens)
+        chunk_2_tokens_count = len(chunk_2.tokens)
+        chunk_3_tokens_count = len(chunk_3.tokens)
+
+        total_tokens_count = chunk_1_tokens_count + chunk_2_tokens_count + chunk_3_tokens_count
+
+        self.assertEqual(len(chunks.truncate(0, strategy=Truncate.KEEP_INNER).tokens), 0)
+        self.assertEqual(len(chunks.truncate(total_tokens_count, strategy=Truncate.KEEP_INNER).tokens), total_tokens_count)
+        self.assertEqual(len(chunks.truncate(chunk_1_tokens_count, strategy=Truncate.KEEP_INNER).tokens), chunk_1_tokens_count)
+
+        # This test passes only because the chunklist is symetric so removing sides results in keeping the exact middle chunk
+        self.assertEqual(chunks.truncate(chunk_2_tokens_count, strategy=Truncate.KEEP_INNER).tokens, chunk_2.tokens)
+
+        self.assertEqual(
+            len(chunks.truncate(chunk_1_tokens_count + chunk_2_tokens_count, strategy=Truncate.KEEP_INNER).tokens),
+            chunk_1_tokens_count + chunk_2_tokens_count,
+        )
+
+    def test_truncate_outer(self) -> None:
+        chunks = ChunkList()
+
+        file = File(
+            event=self.event,
+            id="file_id",
+            name="file_name",
+            mime_type="text/plain",
+            chunks=chunks,
+            tokenizer=Tokenizer(),
+        )
+
+        chunk_1 = Chunk(
+            id="chunk_id_1",
+            order=0,
+            content="""<|document|>doc.txt<|/document|><|info|>info<|/info|>Content x 1""",
+            start_page=0,
+            end_page=0,
+            created_at=datetime.datetime.now(),
+            updated_at=datetime.datetime.now(),
+            tokenizer=Tokenizer(),
+            file=file,
+        )
+
+        chunk_2 = Chunk(
+            id="chunk_id_2",
+            order=0,
+            content="""<|document|>doc.txt<|/document|><|info|>info<|/info|>Content xx 2""",
+            start_page=0,
+            end_page=0,
+            created_at=datetime.datetime.now(),
+            updated_at=datetime.datetime.now(),
+            tokenizer=Tokenizer(),
+            file=file,
+        )
+
+        chunk_3 = Chunk(
+            id="chunk_id_3",
+            order=0,
+            content="""<|document|>doc.txt<|/document|><|info|>info<|/info|>Content xxx 3""",
+            start_page=0,
+            end_page=0,
+            created_at=datetime.datetime.now(),
+            updated_at=datetime.datetime.now(),
+            tokenizer=Tokenizer(),
+            file=file,
+        )
+
+        chunks.extend(
+            [
+                chunk_1,
+                chunk_2,
+                chunk_3,
+            ],
+        )
+
+        chunk_1_tokens_count = len(chunk_1.tokens)
+        chunk_2_tokens_count = len(chunk_2.tokens)
+        chunk_3_tokens_count = len(chunk_3.tokens)
+
+        total_tokens_count = chunk_1_tokens_count + chunk_2_tokens_count + chunk_3_tokens_count
+
+        self.assertEqual(len(chunks.truncate(0, strategy=Truncate.KEEP_OUTER).tokens), 0)
+        self.assertEqual(len(chunks.truncate(total_tokens_count, strategy=Truncate.KEEP_OUTER).tokens), total_tokens_count)
+        self.assertEqual(len(chunks.truncate(chunk_1_tokens_count, strategy=Truncate.KEEP_OUTER).tokens), chunk_1_tokens_count)
+
+        # This test passes only because the chunklist is symetric so removing sides results in keeping the exact middle chunk
+        self.assertEqual(chunks.truncate(chunk_1_tokens_count + chunk_3_tokens_count, strategy=Truncate.KEEP_OUTER).tokens, chunk_1.tokens + chunk_3.tokens)
+
+        self.assertEqual(
+            len(chunks.truncate(chunk_1_tokens_count + chunk_2_tokens_count, strategy=Truncate.KEEP_OUTER).tokens),
+            chunk_1_tokens_count + chunk_2_tokens_count,
+        )
+
+    def test_as_file(self) -> None:
         file = File(
             event=self.event,
             id="file_id",
