@@ -36,6 +36,7 @@ class ModuleConfig(BaseSettings):
     CONTEXT_WINDOW_N_MAX_MESSAGES: int = 10
 
     # Function calling
+    FUNCTION_CALL_MAX_WORKERS: int = 4
     FUNCTION_CALL_MAX_ITERATIONS: int = 5
 
     # Failure message

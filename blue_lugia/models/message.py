@@ -188,7 +188,6 @@ class Message(Model):
         if self._remote:
             return self._remote._debug
         else:
-            self.logger.warning("BL::Model::Message::debug::NoRemoteCounterPart")
             return {}
 
     @property
@@ -331,7 +330,7 @@ class Message(Model):
             )
 
         elif debug:
-            self.logger.warning("BL::Model::Message::update::NoRemoteCounterPart::Setting debug info on a message without a remote counterpart.")
+            self.logger.warning("BL::Model::Message::update::NoRemoteCounterPart::Setting debug info on a message without a remote message.")
 
         return self
 
