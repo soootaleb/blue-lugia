@@ -45,7 +45,7 @@ def module(state: StateManager[ModuleConfig]) -> None:
     state.last_ass_message.update(f"Got {len(completion.tool_calls)} tool calls")
 
     if len(completion.tool_calls) > 1:
-        state.call(completion)
+        state.call(completion, run_async=True)
 
     state.last_ass_message.append("Finished")
 

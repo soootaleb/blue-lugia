@@ -20,4 +20,4 @@ class ToolNotCalled(TypedDict):
     tool: type[BaseModel]
     arguments: dict
     handled: Optional[Any]
-    error: ValidationError
+    error: ValidationError | Exception
