@@ -6,87 +6,31 @@ from blue_lugia.models import Message
 from blue_lugia.state import StateManager
 
 
-class CitedSourcesFromToolMessage(BaseModel):
-    """Use this tool to add a tool message that cites sources that won't appear in the context later."""
+class Describe(BaseModel):
+    """Use this tool if the user asks to describe an image. The user can provide the image as a URL or a file name"""
 
-    search: str = Field(..., description="The text to search in the file.")
-    file_name: str = Field(..., description="The name of the file to search in.")
+    image: str = Field(..., title="Can be the URL of an image of the name of a file provided by the user")
+    is_file_name: bool = Field(False, title="If the image is a file name")
 
-    def run(self, call_id: str, state: StateManager, extra: dict, out: Message, *args) -> Message | None:
-        sources = state.files.uploaded.filter(key=self.file_name).search(self.search).truncate(1000)
-
-        state.last_ass_message.append("_Using CitedSourcesFromToolMessage_")
-
-        completion = state.llm.complete(
-            completion_name="tool",
-            messages=[
-                Message.SYSTEM("Your must always cite your sources using [source0], [source1], [source2], etc."),
-                Message.SYSTEM("The sources available are:"),
-                Message.SYSTEM(sources.xml()),
-                Message.USER(self.search),
-            ],
-        )
+    def run(self, call_id: str, state: StateManager, extra: dict, *args) -> Message:
+        image = state.files.filter(key=self.image).fetch().first() if self.is_file_name else self.image
 
         return state.llm.complete(
-            completion_name='summarize',
-            messages=[
-                Message.SYSTEM("Your role is to summarize the user message and keep the cited sources as-is."),
-                Message.USER(completion.content, sources=completion.sources),
+            [
+                Message.SYSTEM("Your role is to help the user with the image provided"),
+                Message.USER(state.last_usr_message.content, image=image),
             ],
+            out=state.last_ass_message,
         )
 
-
-class CitedSourcesStreamed(BaseModel):
-    """Use this tool to trigger a completion citing sources but without a completion after."""
-
-    search: str = Field(..., description="The text to search in the file.")
-    file_name: str = Field(..., description="The name of the file to search in.")
-
-    def run(self, call_id: str, state: StateManager, extra: dict, out: Message, *args) -> bool:
-        sources = state.files.uploaded.filter(key=self.file_name).search(self.search).truncate(1000)
-
-        state.last_ass_message.append("_Using CitedSourcesStreamed_")
-
-        state.llm.complete(
-            completion_name="tool",
-            messages=[
-                Message.SYSTEM("Your must always cite your sources using [source0], [source1], [source2], etc."),
-                Message.SYSTEM("The sources available are:"),
-                Message.SYSTEM(sources.xml()),
-                Message.USER(self.search),
-            ],
-            out=out,
-            start_text=out.content or "",
-        )
-
+    def post_run_hook(self, *args) -> bool:
         return False
 
 
-class XMLSourcesFromToolMessage(BaseModel):
-    """Use this tool to read an uploaded file."""
-
-    file_name: str = Field(..., description="The name of the file to read.")
-
-    def run(self, call_id: str, state: StateManager, extra: dict, out: Message, *args) -> str:
-        state.last_ass_message.append("_Using XMLSourcesFromToolMessage_")
-        return state.files.uploaded.filter(key=self.file_name).first().truncate(3000).xml()
-
-
 def module(state: StateManager[ModuleConfig]) -> None:
-    files_names = ", ".join([file["name"] for file in state.files.uploaded.values("name")])
+    uploaded_files_names = state.files.uploaded.values("name", flat=True)
 
-    state.context(
-        [
-            Message.SYSTEM("Your role is to help the developer test the management of sources."),
-            Message.SYSTEM("Your must always cite your sources using [source0], [source1], [source2], etc."),
-            Message.SYSTEM("The sources are provided as XML tages like <source0>, <source1>, <source2>, etc."),
-            Message.SYSTEM("You must follow the user instructions to retrieve information in various ways that will introduce sources in the context."),
-            Message.SYSTEM(f"The available uploaded files are: {files_names}"),
-        ],
-        prepend=True,
-    ).register([CitedSourcesFromToolMessage, CitedSourcesStreamed, XMLSourcesFromToolMessage]).loop(out=state.last_ass_message, completion_name="root")
-
-    return
+    state.context([Message.SYSTEM(f"Here is a list of uploaded files: {', '.join(uploaded_files_names)}")]).register(Describe).loop()
 
 
-app = App("Petal").threaded(False).of(module).listen()
+app = App("Petal").threaded(False).of(module)  # .listen()

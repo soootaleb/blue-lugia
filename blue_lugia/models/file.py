@@ -12,9 +12,8 @@ import requests
 import tiktoken
 import unique_sdk
 
-from blue_lugia.enums import Role, Truncate
+from blue_lugia.enums import Truncate
 from blue_lugia.models import ExternalModuleChosenEvent
-from blue_lugia.models.message import Message, MessageList
 from blue_lugia.models.model import Model
 
 
@@ -480,7 +479,6 @@ class File(Model):
         using: Assigns a tokenizer model to the file.
         truncate: Truncates the file's content to a specified token limit.
         write: Writes new content to the file and updates its chunks.
-        as_message: Constructs a system message containing the file's content.
         as_context: Converts the file into search results based on its chunks.
         __str__: Returns the name of the file as its string representation.
         __repr__: Returns the name of the file as its official string representation.
@@ -764,22 +762,6 @@ class File(Model):
 
         return self
 
-    def as_message(self, role: Role = Role.SYSTEM) -> Message:
-        """
-        Constructs a system message containing the file's content.
-
-        Args:
-            role (Role): The role of the message within the system, typically indicates the message's origin or purpose.
-
-        Returns:
-            Message: A message object containing the content of the file.
-        """
-        return Message(
-            role=role,
-            content=self.content,
-            logger=self.logger.getChild(Message.__name__),
-        )
-
     def as_context(self) -> List[unique_sdk.Integrated.SearchResult]:
         """
         Converts the file into search results based on its chunks.
@@ -815,7 +797,6 @@ class FileList(List[File], Model):
         last: Returns the last file in the list that matches a specified lookup function, or the last file if no function is provided.
         append: Appends a File object to the list.
         extend: Extends the list by appending elements from another iterable of File objects.
-        as_messages: Converts the list of files into a list of messages.
         as_context: Converts the list of files into a list of search results based on their content and metadata.
         truncate: Truncates the content of all files in the list to a specified token limit, optionally in place.
     """
@@ -1033,23 +1014,6 @@ class FileList(List[File], Model):
         """
         super().extend(iterable)
         return self
-
-    def as_messages(self, role: Role = Role.SYSTEM, tokenizer: str | tiktoken.Encoding | None = None) -> MessageList:
-        """
-        Converts the list of files into a list of messages, each representing the content of a file.
-
-        Args:
-            role (Role): The role of the messages within the system, typically indicates the message's origin or purpose.
-            tokenizer (str | tiktoken.Encoding | None): An optional tokenizer for encoding the content of the files into messages, default is the tokenizer set for the file list.
-
-        Returns:
-            MessageList: A list of messages, each containing the content of a file.
-        """
-        return MessageList(
-            [file.as_message(role) for file in self],
-            tokenizer=tokenizer or self._tokenizer,
-            logger=self.logger.getChild(MessageList.__name__),
-        )
 
     def truncate(self, tokens_limit: int, in_place: bool = False, strategy: Truncate = Truncate.KEEP_START) -> "FileList":
         """

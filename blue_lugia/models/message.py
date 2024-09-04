@@ -1,5 +1,7 @@
+import base64
 import json
 import logging
+import mimetypes
 import re
 from typing import Any, Callable, Iterable, List, Optional, SupportsIndex, Type, TypeVar
 
@@ -10,6 +12,7 @@ from pydantic import BaseModel
 from blue_lugia.enums import Role
 from blue_lugia.errors import MessageFormatError, MessageRemoteError
 from blue_lugia.models import ExternalModuleChosenEvent
+from blue_lugia.models.file import File
 from blue_lugia.models.model import Model
 
 Parsed = TypeVar("Parsed", bound=BaseModel)
@@ -120,12 +123,15 @@ class Message(Model):
     _sources: List[unique_sdk.Integrated.SearchResult]
     _citations: dict[str, int]
 
+    _image: Optional[str] = None
+
     _remote: _Remote | None = None
 
     def __init__(
         self,
         role: Role,
         content: Optional[str | _Content] = None,
+        image: Optional[str | bytes | File] = None,
         remote: _Remote | None = None,
         tool_call_id: Optional[str] = None,
         tool_calls: List[dict[str, Any]] | None = None,
@@ -157,6 +163,8 @@ class Message(Model):
 
         self._sources = sources or []
         self._citations = citations or {}
+
+        self._image = self._ingest_image(image)
 
         if role.value.lower() not in [r.value.lower() for r in Role]:  # python 3.11 does not allow the in operator to work with enums
             raise MessageFormatError(f"BL::Model::Message::init::InvalidRole::{role.value}")
@@ -194,6 +202,14 @@ class Message(Model):
     @property
     def content(self) -> Optional[_Content]:
         return self._content
+
+    @property
+    def image(self) -> Optional[str]:
+        return self._image
+
+    @image.setter
+    def image(self, value: str | bytes | None) -> None:
+        self._image = self._ingest_image(value)
 
     @property
     def original_content(self) -> Optional[_Content]:
@@ -238,6 +254,21 @@ class Message(Model):
             return chosen_module_response.split("Language: ")[1]
         else:
             return "English"
+
+    def _ingest_image(self, image: str | bytes | File | None) -> Optional[str]:
+        if isinstance(image, str):
+            return image
+        elif isinstance(image, bytes):
+            return f"data:application/octet-stream;base64,{base64.b64encode(image).decode('utf-8')}"
+        elif isinstance(image, File):
+            mime_type = image.mime_type
+
+            if mime_type == "application/pdf":
+                mime_type, _ = mimetypes.guess_type(image.name.removesuffix(".pdf"))
+
+            return f"data:{mime_type or image.mime_type};base64,{base64.b64encode(image.data.getvalue()).decode('utf-8')}"
+        else:
+            return None
 
     def to_dict(self) -> dict:
         base = {
@@ -362,7 +393,7 @@ class Message(Model):
 
     @classmethod
     def USER(  # noqa: N802
-        cls, content: str | _Content | None, sources: List[unique_sdk.Integrated.SearchResult] | None = None, **kwargs: Any
+        cls, content: str | _Content | None, sources: List[unique_sdk.Integrated.SearchResult] | None = None, image: str | bytes | File | None = None, **kwargs: Any
     ) -> "Message":
         """
         Factory method to create a user-type message.
@@ -374,7 +405,7 @@ class Message(Model):
         Returns:
             Message: A new message instance with the role set to USER.
         """
-        return cls(role=Role.USER, content=content, sources=sources, **kwargs)
+        return cls(role=Role.USER, content=content, sources=sources, image=image, **kwargs)
 
     @classmethod
     def SYSTEM(  # noqa: N802
@@ -445,6 +476,7 @@ class Message(Model):
         return self.__class__(
             role=Role(self.role.value),
             content=self.__class__._Content(self.content) if self.content else None,
+            image=self.image,
             original_content=self.__class__._Content(self.original_content) if self.original_content else None,
             remote=(self.__class__._Remote(self._remote._event, self._remote._id, self.debug.copy()) if self._remote else None),
             citations=self.citations.copy(),
@@ -543,6 +575,9 @@ class MessageList(List[Message], Model):
                     all_tokens += self.tokenizer.encode(json.dumps(message.tool_calls, ensure_ascii=False))
                 if message.tool_call_id:
                     all_tokens += self.tokenizer.encode(message.tool_call_id)
+            if message.image:
+                all_tokens += self.tokenizer.encode(message.image)
+
         return all_tokens
 
     @property
@@ -690,10 +725,13 @@ class MessageList(List[Message], Model):
                         tools_called = message.debug.get("_tool_calls", [])
                         message_index = self.index(message)
 
+                        image = message.debug.get("_image", None)
+
                         self[message_index + 1 : message_index + 1] = [
                             Message(
                                 role=Role(value=tc["role"]),
                                 content=tc.get("content", None),
+                                image=image,
                                 original_content=tc.get("original_content", None),
                                 tool_calls=tc.get("tools_called", []),
                                 tool_call_id=tc.get("tool_call_id", None),

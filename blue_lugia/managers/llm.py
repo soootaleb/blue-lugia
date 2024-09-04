@@ -221,9 +221,27 @@ class LanguageModelManager(Manager):
 
         for message in messages:
             if isinstance(message, Message):
+
+
+                if message.image:
+                    message_content = [
+                        {
+                            "type": "text",
+                            "text": message.original_content or message.content or ""
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": message.image
+                            }
+                        }
+                    ]
+                else:
+                    message_content = message.original_content or message.content or ""
+
                 message_to_append = {
                     "role": message.role.value,
-                    "content": message.original_content or message.content or "",
+                    "content": message_content,
                 }
 
                 if message.tool_calls:
