@@ -633,7 +633,7 @@ class App(Flask, Generic[ConfType]):
             try:
                 json.loads(request.data)
             except json.JSONDecodeError:
-                handled = handler(*args, **kwargs, request=request)
+                handled = handler(*args, **kwargs, request=request, app=self)
 
             else:
                 if self._conf and self._conf.ENDPOINT_SECRET:
@@ -648,21 +648,21 @@ class App(Flask, Generic[ConfType]):
 
                     if not sig_header or not timestamp:
                         self.logger.info("⚠️  Webhook signature or timestamp headers missing.")
-                        handled = handler(*args, **kwargs, request=request)
+                        handled = handler(*args, **kwargs, request=request, app=self)
 
                     try:
                         event = unique_sdk.Webhook.construct_event(request.data, sig_header, timestamp, self._conf.ENDPOINT_SECRET)
                     except unique_sdk.SignatureVerificationError:
                         self.logger.info("⚠️  Webhook signature verification failed.")
-                        handled = handler(*args, **kwargs, request=request)
+                        handled = handler(*args, **kwargs, request=request, app=self)
                     else:
                         if event and event["event"] == "unique.chat.external-module.chosen":
-                            handled = handler(*args, **kwargs, request=request, state=self.create_state(self._type_event(event)))
+                            handled = handler(*args, **kwargs, request=request, state=self.create_state(self._type_event(event)), app=self)
                         else:
-                            handled = handler(*args, **kwargs, request=request)
+                            handled = handler(*args, **kwargs, request=request, app=self)
 
                 else:
-                    handled = handler(*args, **kwargs, request=request)
+                    handled = handler(*args, **kwargs, request=request, app=self)
 
             return handled or "OK", 200
 
