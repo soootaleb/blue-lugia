@@ -363,21 +363,25 @@ class LanguageModelManager(Manager):
         found_sources_counter = 0
 
         for index, message in enumerate(processed_messages):
-            sources = re.findall(r"<source\d+[^>]*>.*?</source\d+>", message.content or "", re.DOTALL)
+            sources = re.findall(r"(<source\d+[^>]*>)(.*?)(</source\d+>)", message.content or "", re.DOTALL)
 
-            for source in sources:
+            for full_source, content, closing_tag in sources:
                 try:
-                    elem = ET.fromstring(source)
+                    elem = ET.fromstring(full_source + closing_tag)
                 except ET.ParseError:
-                    raise LanguageModelManagerError("BL::Manager::LLM::rereference::InvalidSourceXML::use from xml.sax.saxutils import escape to escape the source content")
+                    raise LanguageModelManagerError("BL::Manager::LLM::rereference::InvalidSourceXML::use from xml.sax.saxutils import escape to escape the source attributes")
 
                 elem.tag = f"source{found_sources_counter}"
 
                 if message.content:
-                    message.content = message.content.replace(source, ET.tostring(elem, encoding="unicode"))
+                    # message.content = message.content.replace(source, ET.tostring(elem, encoding="unicode"))
+
+                    updated_content = ET.tostring(elem, encoding="unicode").replace("/>", f">{content}</{elem.tag}>")
+                    message.content = message.content.replace(full_source + content + closing_tag, updated_content)
 
                     if message.original_content:
-                        message.original_content = message.original_content.replace(source, ET.tostring(elem, encoding="unicode"))
+                        # message.original_content = message.original_content.replace(source, ET.tostring(elem, encoding="unicode"))
+                        message.original_content = message.original_content.replace(full_source + content + closing_tag, updated_content)
 
                 if found_sources_counter >= len(messages.sources):
                     references.append(
