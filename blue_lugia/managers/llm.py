@@ -221,21 +221,8 @@ class LanguageModelManager(Manager):
 
         for message in messages:
             if isinstance(message, Message):
-
-
                 if message.image:
-                    message_content = [
-                        {
-                            "type": "text",
-                            "text": message.original_content or message.content or ""
-                        },
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": message.image
-                            }
-                        }
-                    ]
+                    message_content = [{"type": "text", "text": message.original_content or message.content or ""}, {"type": "image_url", "image_url": {"url": message.image}}]
                 else:
                     message_content = message.original_content or message.content or ""
 
@@ -639,6 +626,13 @@ class LanguageModelManager(Manager):
         if self._seed is not None:
             options["seed"] = self._seed
 
+        if tool_choice:
+            if tools is None:
+                tools = []
+
+            if tool_choice not in tools:
+                tools.append(tool_choice)
+
         if tools:
             options["tools"] = []
 
@@ -646,10 +640,10 @@ class LanguageModelManager(Manager):
                 tool_config = getattr(tool, "Config", None)
                 tool_config_strict = getattr(tool_config, "bl_fc_strict", False)
 
-                parameters = self._rm_titles(tool.model_json_schema())
-
                 if tool_config_strict:
-                    parameters["additionalProperties"] = parameters.get("additionalProperties", False)
+                    tool.model_config["extra"] = "forbid"
+
+                parameters = self._rm_titles(tool.model_json_schema())
 
                 options["tools"].append(
                     {
