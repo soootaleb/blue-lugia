@@ -221,9 +221,14 @@ class LanguageModelManager(Manager):
 
         for message in messages:
             if isinstance(message, Message):
+                if message.image:
+                    message_content = [{"type": "text", "text": message.original_content or message.content or ""}, {"type": "image_url", "image_url": {"url": message.image}}]
+                else:
+                    message_content = message.original_content or message.content or ""
+
                 message_to_append = {
                     "role": message.role.value,
-                    "content": message.original_content or message.content or "",
+                    "content": message_content,
                 }
 
                 if message.tool_calls:
@@ -345,21 +350,25 @@ class LanguageModelManager(Manager):
         found_sources_counter = 0
 
         for index, message in enumerate(processed_messages):
-            sources = re.findall(r"<source\d+[^>]*>.*?</source\d+>", message.content or "", re.DOTALL)
+            sources = re.findall(r"(<source\d+[^>]*>)(.*?)(</source\d+>)", message.content or "", re.DOTALL)
 
-            for source in sources:
+            for full_source, content, closing_tag in sources:
                 try:
-                    elem = ET.fromstring(source)
+                    elem = ET.fromstring(full_source + closing_tag)
                 except ET.ParseError:
-                    raise LanguageModelManagerError("BL::Manager::LLM::rereference::InvalidSourceXML::use from xml.sax.saxutils import escape to escape the source content")
+                    raise LanguageModelManagerError("BL::Manager::LLM::rereference::InvalidSourceXML::use from xml.sax.saxutils import escape to escape the source attributes")
 
                 elem.tag = f"source{found_sources_counter}"
 
                 if message.content:
-                    message.content = message.content.replace(source, ET.tostring(elem, encoding="unicode"))
+                    # message.content = message.content.replace(source, ET.tostring(elem, encoding="unicode"))
+
+                    updated_content = ET.tostring(elem, encoding="unicode").replace("/>", f">{content}</{elem.tag}>")
+                    message.content = message.content.replace(full_source + content + closing_tag, updated_content)
 
                     if message.original_content:
-                        message.original_content = message.original_content.replace(source, ET.tostring(elem, encoding="unicode"))
+                        # message.original_content = message.original_content.replace(source, ET.tostring(elem, encoding="unicode"))
+                        message.original_content = message.original_content.replace(full_source + content + closing_tag, updated_content)
 
                 if found_sources_counter >= len(messages.sources):
                     references.append(
@@ -523,8 +532,8 @@ class LanguageModelManager(Manager):
         ]
 
         typed_message = Message(
-            role=Role(completion.message.role.lower()),
-            content=(Message._Content(completion.message.text) if completion.message.text else None),
+            role=completion.message.role.lower(),
+            content=completion.message.text,
             original_content=completion.message.originalText,
             sources=new_references,
             citations=debug_sources,
@@ -600,7 +609,7 @@ class LanguageModelManager(Manager):
             logger=self.logger.getChild(Message.__name__),
         )
 
-    def _build_options(
+    def _build_options(  # noqa: C901
         self,
         formated_messages: List[dict],
         tools: List[type[BaseModel]] | None = None,
@@ -617,6 +626,13 @@ class LanguageModelManager(Manager):
         if self._seed is not None:
             options["seed"] = self._seed
 
+        if tool_choice:
+            if tools is None:
+                tools = []
+
+            if tool_choice not in tools:
+                tools.append(tool_choice)
+
         if tools:
             options["tools"] = []
 
@@ -624,10 +640,10 @@ class LanguageModelManager(Manager):
                 tool_config = getattr(tool, "Config", None)
                 tool_config_strict = getattr(tool_config, "bl_fc_strict", False)
 
-                parameters = self._rm_titles(tool.model_json_schema())
-
                 if tool_config_strict:
-                    parameters["additionalProperties"] = parameters.get("additionalProperties", False)
+                    tool.model_config["extra"] = "forbid"
+
+                parameters = self._rm_titles(tool.model_json_schema())
 
                 options["tools"].append(
                     {

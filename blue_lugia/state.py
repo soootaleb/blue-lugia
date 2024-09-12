@@ -1,5 +1,6 @@
 import logging
 from abc import ABC
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Callable, Generic, List, Tuple
 
 import unique_sdk
@@ -8,6 +9,7 @@ from pydantic_core import ValidationError
 
 from blue_lugia.config import ConfType
 from blue_lugia.enums import Role
+from blue_lugia.errors import StateError
 from blue_lugia.managers import (
     FileManager,
     LanguageModelManager,
@@ -369,12 +371,125 @@ class StateManager(ABC, Generic[ConfType]):
                 self._tools.append(tool)
                 self.logger.debug(f"BL::StateManager::register::Registering tool {tool.__name__}")
             else:
-                self.logger.warning(f"BL::StateManager::register::Tool {tool.__name__} already registered.")
+                self.logger.debug(f"BL::StateManager::register::Tool {tool.__name__} already registered.")
 
         return self
 
+    def _execute_tool(
+        self,
+        tc: dict[str, Any],
+        tc_index: int,
+        tools_routes: dict[str, type[BaseModel]],
+        extra: dict[str, Any],
+        raise_on_missing_tool: bool = False,
+        out: Message | None = None,
+    ) -> Tuple[ToolCalled | ToolNotCalled, bool]:
+        self.logger.debug(f"BL::StateManager::_execute_tool::{tc_index} - Calling tool {tc['function']['name']}")
+
+        tool_name = tc["function"]["name"]
+        arguments = tc["function"]["arguments"]
+
+        if tool_name not in tools_routes:
+            self.logger.error(f"BL::StateManager::_execute_tool::Tool {tc['function']['name']} not registered. Skipping.")
+            if raise_on_missing_tool:
+                raise ValueError(f"BL::StateManager::_execute_tool::Tool {tc['function']['name']} not registered.")
+            else:
+                return {
+                    "id": tc["id"],
+                    "tool": BaseModel,
+                    "arguments": arguments,
+                    "handled": None,
+                    "error": StateError(f"BL::StateManager::_execute_tool::ToolNotFound::{tool_name}"),
+                }, False
+
+        tool = tools_routes[tool_name]
+
+        all_extras = {
+            **self._extra,
+            **extra,
+            "tool_call_index": tc_index,
+        }
+
+        self.logger.debug(f"BL::StateManager::_execute_tool::Extra contains {', '.join(all_extras.keys())}")
+
+        try:
+            tool_call = tool(**arguments)
+        except ValidationError as e:
+            self.logger.error(f"Tool {tc['function']['name']} failed to validate.")
+
+            tool_validation_handler = getattr(tool, "on_validation_error", None)
+
+            if tool_validation_handler:
+                self.logger.debug(f"BL::StateManager::_execute_tool::Calling {tool.__name__}.on_validation_error")
+
+                all_extras["validation_error"] = e
+
+                handled = tool_validation_handler(tc["id"], arguments, self, all_extras, out)
+
+            else:
+                self.logger.debug(f"BL::StateManager::_execute_tool::No on_validation_error handler for {tool.__name__}.")
+                handled = None
+
+            return {"id": tc["id"], "tool": tool, "arguments": arguments, "handled": handled, "error": e}, False
+
+        else:
+            self.logger.debug(f"BL::StateManager::_execute_tool::Tool {tc['function']['name']} is {tool_call}")
+
+            pre = (
+                tool_call.pre_run_hook(  # type: ignore
+                    tc["id"],
+                    self,
+                    all_extras,
+                    out,
+                )
+                if hasattr(tool_call, "pre_run_hook")
+                else None
+            )
+
+            self.logger.debug(f"BL::StateManager::_execute_tool::Pre run hook is {pre}")
+
+            if isinstance(pre, bool) and not pre:
+                run = None
+                self.logger.debug("BL::StateManager::_execute_tool::Pre run hook returned False, skipping run.")
+            else:
+                run = (
+                    tool_call.run(  # type: ignore
+                        tc["id"],
+                        self,
+                        all_extras,
+                        out,
+                    )
+                    if hasattr(tool_call, "run")
+                    else None
+                )
+
+                self.logger.debug(f"BL::StateManager::_execute_tool::Run is {str(run)[:100]}")
+
+            post = (
+                tool_call.post_run_hook(  # type: ignore
+                    tc["id"],
+                    self,
+                    all_extras,
+                    out,
+                )
+                if hasattr(tool_call, "post_run_hook")
+                else None
+            )
+
+            self.logger.debug(f"BL::StateManager::_execute_tool::Post run hook is {str(post)[:100]}")
+
+            return {
+                "id": tc["id"],
+                "tool": tool_call,
+                "call": {
+                    "pre_run_hook": pre,
+                    "run": run,
+                    "post_run_hook": post,
+                },
+            }, True
+
     def _call_tools(
-        self, message: Message, extra: dict | None = None, out: Message | None = None, raise_on_missing_tool: bool = False
+        self, message: Message, extra: dict | None = None, out: Message | None = None, raise_on_missing_tool: bool = False, run_async: bool = False
     ) -> Tuple[List[ToolCalled], List[ToolNotCalled]]:
         tools_called: List[ToolCalled] = []
         tools_not_called: List[ToolNotCalled] = []
@@ -390,107 +505,31 @@ class StateManager(ABC, Generic[ConfType]):
 
         tool_call_index = 0
 
-        for tc in tool_calls:
-            self.logger.debug(f"BL::StateManager::_call_tools::{tool_call_index} - Calling tool {tc['function']['name']}")
+        with ThreadPoolExecutor(max_workers=self.config.FUNCTION_CALL_MAX_WORKERS) as executor:
+            tool_excutions = []
 
-            if tc["function"]["name"] not in tools_routes:
-                self.logger.error(f"BL::StateManager::_call_tools::Tool {tc['function']['name']} not registered. Skipping.")
-                if raise_on_missing_tool:
-                    raise ValueError(f"BL::StateManager::_call_tools::Tool {tc['function']['name']} not registered.")
-                else:
-                    continue
-
-            tool = tools_routes[tc["function"]["name"]]
-
-            all_extras = {
-                **self._extra,
-                **extra,
-                "tool_call_index": tool_call_index,
-            }
-
-            self.logger.debug(f"BL::StateManager::_call_tools::Extra contains {', '.join(all_extras.keys())}")
-
-            try:
-                tool_call = tool(**tc["function"]["arguments"])
-            except ValidationError as e:
-                self.logger.error(f"Tool {tc['function']['name']} failed to validate.")
-
-                arguments = tc["function"]["arguments"]
-
-                tool_validation_handler = getattr(tool, "on_validation_error", None)
-
-                if tool_validation_handler:
-                    self.logger.debug(f"BL::StateManager::_call_tools::Calling {tool.__name__}.on_validation_error")
-
-                    all_extras["validation_error"] = e
-
-                    handled = tool_validation_handler(tc["id"], arguments, self, all_extras, out)
-
-                else:
-                    self.logger.debug(f"BL::StateManager::_call_tools::No on_validation_error handler for {tool.__name__}.")
-                    handled = None
-
-                tools_not_called.append({"id": tc["id"], "tool": tool, "arguments": arguments, "handled": handled, "error": e})
-
-            else:
-                self.logger.debug(f"BL::StateManager::_call_tools::Tool {tc['function']['name']} is {tool_call}")
-
-                pre = (
-                    tool_call.pre_run_hook(  # type: ignore
-                        tc["id"],
-                        self,
-                        all_extras,
-                        out,
-                    )
-                    if hasattr(tool_call, "pre_run_hook")
-                    else None
-                )
-
-                self.logger.debug(f"BL::StateManager::_call_tools::Pre run hook is {pre}")
-
-                if isinstance(pre, bool) and not pre:
-                    run = None
-                    self.logger.debug("BL::StateManager::_call_tools::Pre run hook returned False, skipping run.")
-                else:
-                    run = (
-                        tool_call.run(  # type: ignore
-                            tc["id"],
-                            self,
-                            all_extras,
-                            out,
-                        )
-                        if hasattr(tool_call, "run")
-                        else None
-                    )
-
-                    self.logger.debug(f"BL::StateManager::_call_tools::Run is {str(run)[:100]}")
-
-                post = (
-                    tool_call.post_run_hook(  # type: ignore
-                        tc["id"],
-                        self,
-                        all_extras,
-                        out,
-                    )
-                    if hasattr(tool_call, "post_run_hook")
-                    else None
-                )
-
-                self.logger.debug(f"BL::StateManager::_call_tools::Post run hook is {str(post)[:100]}")
-
-                tools_called.append(
-                    {
-                        "id": tc["id"],
-                        "tool": tool_call,
-                        "call": {
-                            "pre_run_hook": pre,
-                            "run": run,
-                            "post_run_hook": post,
-                        },
-                    }
-                )
-
+            for tc_ in tool_calls:
                 tool_call_index += 1
+
+                if run_async:
+                    tool_excutions.append(executor.submit(self._execute_tool, tc_, tool_call_index, tools_routes, extra, raise_on_missing_tool, out))
+
+                else:
+                    execution, executed = self._execute_tool(tc_, tool_call_index, tools_routes, extra, raise_on_missing_tool, out)
+
+                    if executed:
+                        tools_called.append(execution)  # type: ignore
+                    else:
+                        tools_not_called.append(execution)  # type: ignore
+
+            if run_async:
+                for tool_excution in as_completed(tool_excutions):
+                    execution, executed = tool_excution.result()
+
+                    if executed:
+                        tools_called.append(execution)
+                    else:
+                        tools_not_called.append(execution)
 
         return tools_called, tools_not_called
 
@@ -596,7 +635,7 @@ class StateManager(ABC, Generic[ConfType]):
                         {
                             "role": m.role.value,
                             "content": m.content,
-                            "original_content": message.original_content,
+                            "original_content": m.original_content,
                             "tool_call_id": m.tool_call_id,
                             "citations": m.citations,
                             "sources": m.sources,
@@ -621,6 +660,7 @@ class StateManager(ABC, Generic[ConfType]):
         extra: dict | None = None,
         out: Message | None = None,
         raise_on_missing_tool: bool = False,
+        run_async: bool = False,
     ) -> Tuple[List[ToolCalled], List[ToolNotCalled], bool]:
         """
         Facilitates calling registered tools with a given message.
@@ -639,7 +679,7 @@ class StateManager(ABC, Generic[ConfType]):
             This method is central for tool execution, handling the orchestration of tool calls in response to message events, applying additional parameters,
             and managing the continuation of processing based on tool outputs.
         """
-        tools_called, tools_not_called = self._call_tools(message=message, extra=extra or {}, out=out, raise_on_missing_tool=raise_on_missing_tool)
+        tools_called, tools_not_called = self._call_tools(message=message, extra=extra or {}, out=out, raise_on_missing_tool=raise_on_missing_tool, run_async=run_async)
 
         complete = self._process_tools_called(message=message, tools_called=tools_called, tools_not_called=tools_not_called)
 
@@ -724,6 +764,7 @@ class StateManager(ABC, Generic[ConfType]):
         output_json: bool = False,
         completion_name: str = "",
         search_context: List[unique_sdk.Integrated.SearchResult] | None = None,
+        run_async: bool = False,
     ) -> List[Tuple[Message, List[ToolCalled], List[ToolNotCalled]]]:
         """
         Executes a loop of message processing and tool interactions to handle complex scenarios that require iterative processing.
@@ -779,6 +820,7 @@ class StateManager(ABC, Generic[ConfType]):
                 },
                 out=out,
                 raise_on_missing_tool=raise_on_missing_tool,
+                run_async=run_async,
             )
 
             completions.append((completion, tools_called, tools_not_called))

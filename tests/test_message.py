@@ -1,5 +1,4 @@
 import unittest
-from typing import cast
 
 import unique_sdk
 
@@ -241,13 +240,8 @@ class TestMessage(unittest.TestCase):
 
     def test_constructor(self) -> None:
         with self.assertRaises(MessageFormatError) as e:
-
-            class InvalidRole:
-                value = "INVALID_ROLE"
-
-            invalid_role = cast(Role, InvalidRole)
-            Message(role=invalid_role, content="What's the weather in Bangkok?", tool_call_id="tc1")
-        self.assertEqual(str(e.exception), f"BL::Model::Message::init::InvalidRole::{InvalidRole.value}")
+            Message(role="INVALID_ROLE", content="What's the weather in Bangkok?", tool_call_id="tc1")
+        self.assertEqual(str(e.exception), "BL::Model::Message::init::InvalidRole::INVALID_ROLE")
 
         with self.assertRaises(MessageFormatError) as e:
             Message(role=Role.TOOL, content="What's the weather in Bangkok?")

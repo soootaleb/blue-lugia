@@ -32,3 +32,7 @@ class LanguageModelManagerError(Exception):
 
 class QError(Exception):
     pass
+
+
+class StateError(Exception):
+    pass

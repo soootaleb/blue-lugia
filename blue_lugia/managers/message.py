@@ -83,11 +83,14 @@ class MessageManager(Manager):
                     original_content = None
 
                 try:
+                    remote = Message._Remote(self._event, m.id, di)  # type: ignore
+
                     created = Message(
                         role=Role(m.role.lower()),
                         content=m.text,
+                        image=remote.debug.get("_image", None),
                         original_content=original_content,
-                        remote=Message._Remote(self._event, m.id, di),  # type: ignore
+                        remote=remote,
                         logger=self.logger.getChild(Message.__name__),
                     )
                     self._all.append(created)
@@ -134,10 +137,13 @@ class MessageManager(Manager):
             id=message_id,
         )
 
+        remote = Message._Remote(self._event, retrieved.id, retrieved.debugInfo)  # type: ignore
+
         return Message(
             role=Role(retrieved.role.lower()),
             content=retrieved.text,
-            remote=Message._Remote(self._event, retrieved.id, retrieved.debugInfo),  # type: ignore
+            image=remote.debug.get("_image", None),
+            remote=remote,  # type: ignore
             logger=self.logger.getChild(Message.__name__),
         )
 
@@ -165,6 +171,10 @@ class MessageManager(Manager):
         if isinstance(role_or_message, Message):
             role = role_or_message.role
             content = role_or_message.content
+
+            if "_image" not in debug:
+                debug["_image"] = role_or_message.image
+
         elif isinstance(role_or_message, Role):
             role = role_or_message
             content = text
@@ -185,10 +195,13 @@ class MessageManager(Manager):
                 debugInfo=debug,
             )  # type: ignore
 
+            remote = Message._Remote(self._event, created.id, created.debugInfo)  # type: ignore
+
             int_created = Message(
                 role=role,
                 content=content,
-                remote=Message._Remote(self._event, created.id, created.debugInfo),
+                image=remote.debug.get("_image", None),
+                remote=remote,
                 logger=self.logger.getChild(Message.__name__),
             )
 

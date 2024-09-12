@@ -12,26 +12,14 @@ from blue_lugia.orm.source import BLFileDataSource, BLMessageManagerDataSource
 from blue_lugia.state import StateManager
 
 
-class CitedSourcesFromToolMessage(BaseModel):
-    """Use this tool to add a tool message that cites sources that won't appear in the context later."""
+class Describe(BaseModel):
+    """Use this tool if the user asks to describe an image. The user can provide the image as a URL or a file name"""
 
-    search: str = Field(..., description="The text to search in the file.")
-    file_name: str = Field(..., description="The name of the file to search in.")
+    image: str = Field(..., title="Can be the URL of an image of the name of a file provided by the user")
+    is_file_name: bool = Field(False, title="If the image is a file name")
 
-    def run(self, call_id: str, state: StateManager, extra: dict, out: Message, *args) -> Message | None:
-        sources = state.files.uploaded.filter(key=self.file_name).search(self.search).truncate(1000)
-
-        state.last_ass_message.append("_Using CitedSourcesFromToolMessage_")
-
-        completion = state.llm.complete(
-            completion_name="tool",
-            messages=[
-                Message.SYSTEM("Your must always cite your sources using [source0], [source1], [source2], etc."),
-                Message.SYSTEM("The sources available are:"),
-                Message.SYSTEM(sources.xml()),
-                Message.USER(self.search),
-            ],
-        )
+    def run(self, call_id: str, state: StateManager, extra: dict, *args) -> Message:
+        image = state.files.filter(key=self.image).fetch().first() if self.is_file_name else self.image
 
         return state.llm.complete(
             completion_name="summarize",
@@ -39,43 +27,11 @@ class CitedSourcesFromToolMessage(BaseModel):
                 Message.SYSTEM("Your role is to summarize the user message and keep the cited sources as-is."),
                 Message.USER(completion.content, sources=completion.sources),
             ],
+            out=state.last_ass_message,
         )
 
-
-class CitedSourcesStreamed(BaseModel):
-    """Use this tool to trigger a completion citing sources but without a completion after."""
-
-    search: str = Field(..., description="The text to search in the file.")
-    file_name: str = Field(..., description="The name of the file to search in.")
-
-    def run(self, call_id: str, state: StateManager, extra: dict, out: Message, *args) -> bool:
-        sources = state.files.uploaded.filter(key=self.file_name).search(self.search).truncate(1000)
-
-        state.last_ass_message.append("_Using CitedSourcesStreamed_")
-
-        state.llm.complete(
-            completion_name="tool",
-            messages=[
-                Message.SYSTEM("Your must always cite your sources using [source0], [source1], [source2], etc."),
-                Message.SYSTEM("The sources available are:"),
-                Message.SYSTEM(sources.xml()),
-                Message.USER(self.search),
-            ],
-            out=out,
-            start_text=out.content or "",
-        )
-
+    def post_run_hook(self, *args) -> bool:
         return False
-
-
-class XMLSourcesFromToolMessage(BaseModel):
-    """Use this tool to read an uploaded file."""
-
-    file_name: str = Field(..., description="The name of the file to read.")
-
-    def run(self, call_id: str, state: StateManager, extra: dict, out: Message, *args) -> str:
-        state.last_ass_message.append("_Using XMLSourcesFromToolMessage_")
-        return state.files.uploaded.filter(key=self.file_name).first().truncate(3000).xml()
 
 
 def module(state: StateManager[ModuleConfig]) -> None:
