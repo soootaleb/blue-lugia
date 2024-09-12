@@ -1,5 +1,4 @@
 import unittest
-from typing import cast
 
 import unique_sdk
 
