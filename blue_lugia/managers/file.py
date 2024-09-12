@@ -195,7 +195,7 @@ class FileManager(Manager):
                     chunks=ChunkList(logger=self.logger.getChild(ChunkList.__name__)),
                     tokenizer=self.tokenizer,
                     write_url=write_url,
-                    created_at=datetime.datetime.fromisoformat(found_file["updatedAt"]),
+                    created_at=datetime.datetime.fromisoformat(found_file["createdAt"]),
                     updated_at=datetime.datetime.fromisoformat(found_file["updatedAt"]),
                     logger=self.logger.getChild(File.__name__),
                 )
