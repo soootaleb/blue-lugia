@@ -1,37 +1,14 @@
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from blue_lugia.app import App
 from blue_lugia.config import ModuleConfig
-from blue_lugia.models import Message
 from blue_lugia.orm.driver import CSVDriver, ExcelDriver
 from blue_lugia.orm.model import Message as ORMMessage
 from blue_lugia.orm.model import Model
 from blue_lugia.orm.source import BLFileDataSource, BLMessageManagerDataSource
 from blue_lugia.state import StateManager
-
-
-class Describe(BaseModel):
-    """Use this tool if the user asks to describe an image. The user can provide the image as a URL or a file name"""
-
-    image: str = Field(..., title="Can be the URL of an image of the name of a file provided by the user")
-    is_file_name: bool = Field(False, title="If the image is a file name")
-
-    def run(self, call_id: str, state: StateManager, extra: dict, *args) -> Message:
-        image = state.files.filter(key=self.image).fetch().first() if self.is_file_name else self.image
-
-        return state.llm.complete(
-            completion_name="summarize",
-            messages=[
-                Message.SYSTEM("Your role is to summarize the user message and keep the cited sources as-is."),
-                Message.USER(completion.content, sources=completion.sources),
-            ],
-            out=state.last_ass_message,
-        )
-
-    def post_run_hook(self, *args) -> bool:
-        return False
 
 
 def module(state: StateManager[ModuleConfig]) -> None:
