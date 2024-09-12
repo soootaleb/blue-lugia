@@ -545,8 +545,8 @@ class LanguageModelManager(Manager):
         ]
 
         typed_message = Message(
-            role=Role(completion.message.role.lower()),
-            content=(Message._Content(completion.message.text) if completion.message.text else None),
+            role=completion.message.role.lower(),
+            content=completion.message.text,
             original_content=completion.message.originalText,
             sources=new_references,
             citations=debug_sources,

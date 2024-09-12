@@ -635,7 +635,7 @@ class StateManager(ABC, Generic[ConfType]):
                         {
                             "role": m.role.value,
                             "content": m.content,
-                            "original_content": message.original_content,
+                            "original_content": m.original_content,
                             "tool_call_id": m.tool_call_id,
                             "citations": m.citations,
                             "sources": m.sources,

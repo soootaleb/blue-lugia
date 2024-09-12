@@ -129,7 +129,7 @@ class Message(Model):
 
     def __init__(
         self,
-        role: Role,
+        role: Role | str,
         content: Optional[str | _Content] = None,
         image: Optional[str | bytes | File] = None,
         remote: _Remote | None = None,
@@ -166,12 +166,9 @@ class Message(Model):
 
         self._image = self._ingest_image(image)
 
-        if role.value.lower() not in [r.value.lower() for r in Role]:  # python 3.11 does not allow the in operator to work with enums
-            raise MessageFormatError(f"BL::Model::Message::init::InvalidRole::{role.value}")
-        else:
-            self._role = role
-            self.content = content if content else None
-            self.original_content = original_content if original_content else self.content
+        self.role = role
+        self.content = content
+        self.original_content = original_content or self.content
 
         if self.role == Role.TOOL and not self._tool_call_id:
             raise MessageFormatError("BL::Model::Message::init::ToolMessageWithoutToolCallId")
@@ -182,6 +179,18 @@ class Message(Model):
     @property
     def role(self) -> Role:
         return self._role
+
+    @role.setter
+    def role(self, value: Role | str) -> None:
+        if isinstance(value, Role):
+            self._role = value
+        else:
+            try:
+                role = Role(str(value))
+            except ValueError:
+                raise MessageFormatError(f"BL::Model::Message::init::InvalidRole::{str(value)}")
+            else:
+                self._role = role
 
     @property
     def debug(self) -> dict:
