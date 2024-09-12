@@ -86,10 +86,10 @@ class App(Flask, Generic[ConfType]):
         instance_relative_config: bool = False,
         root_path: str | None = None,
     ) -> None:
-        # load_dotenv()
+        env_app_name = os.getenv("MOD_CONF_NAME")
 
         super().__init__(
-            import_name,
+            env_app_name or import_name,
             static_url_path,
             static_folder,
             static_host,
