@@ -694,7 +694,7 @@ class File(Model):
 
             return file
 
-    def write(self, content: str, scope: str) -> "File":
+    def write(self, content: str | bytes, scope: str) -> "File":
         """
         Writes new content to the file and updates its chunks.
 
@@ -737,7 +737,7 @@ class File(Model):
                 "byteSize": len(content),
             },
             scopeId=scope,
-            fileUrl=self.write_url,
+            fileUrl=existing.readUrl,
         )  # type: ignore
 
         self.chunks = ChunkList(
@@ -745,7 +745,7 @@ class File(Model):
                 Chunk(
                     id=f"{self.id}_1",
                     order=0,
-                    content=content,
+                    content=str(content),
                     start_page=0,
                     end_page=0,
                     created_at=datetime.datetime.now(),

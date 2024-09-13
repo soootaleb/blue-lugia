@@ -632,7 +632,7 @@ class App(Flask, Generic[ConfType]):
         def _handler(*args, **kwargs) -> Any:
             try:
                 json.loads(request.data)
-            except json.JSONDecodeError:
+            except Exception:
                 handled = handler(*args, **kwargs, request=request, app=self)
 
             else:
