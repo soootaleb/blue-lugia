@@ -694,7 +694,7 @@ class File(Model):
 
             return file
 
-    def write(self, content: str | bytes, scope: str) -> "File":
+    def write(self, content: str | bytes, scope: str, ingest: bool = True) -> "File":
         """
         Writes new content to the file and updates its chunks.
 
@@ -727,18 +727,19 @@ class File(Model):
             },
         )
 
-        unique_sdk.Content.upsert(
-            user_id=self._event.user_id,
-            company_id=self._event.company_id,
-            input={
-                "key": self.name,
-                "title": self.name,
-                "mimeType": self.mime_type,
-                "byteSize": len(content),
-            },
-            scopeId=scope,
-            fileUrl=existing.readUrl,
-        )  # type: ignore
+        if ingest:
+            unique_sdk.Content.upsert(
+                user_id=self._event.user_id,
+                company_id=self._event.company_id,
+                input={
+                    "key": self.name,
+                    "title": self.name,
+                    "mimeType": self.mime_type,
+                    "byteSize": len(content),
+                },
+                scopeId=scope,
+                fileUrl=existing.readUrl,
+            )  # type: ignore
 
         self.chunks = ChunkList(
             [
