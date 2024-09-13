@@ -592,46 +592,13 @@ class FileManager(Manager):
         else:
             return mapped
 
-    def create(self, name: str, mime: str = "text/plain", scope: str | None = None) -> File:
-        existing = unique_sdk.Content.upsert(
-            user_id=self._event.user_id,
-            company_id=self._event.company_id,
-            input={
-                "key": name,
-                "title": name,
-                "mimeType": mime,
-            },
-            scopeId=self._scopes[0] if self._scopes else scope,
-        )  # type: ignore
+    def create(self, name: str, content: str | bytes | None, mime: str = "text/plain", scope: str | None = None, ingest: bool = True, **kwargs) -> File:
+        file = File.create(event=self.event, name=name, content=content or "", mime_type=mime, **kwargs)
 
-        unique_sdk.Content.upsert(
-            user_id=self._event.user_id,
-            company_id=self._event.company_id,
-            input={
-                "key": name,
-                "title": name,
-                "mimeType": mime,
-                "byteSize": 0,
-            },
-            scopeId=self._scopes[0] if self._scopes else scope,
-            fileUrl=existing.writeUrl,
-        )  # type: ignore
+        if content and scope:
+            file.write(content=content, scope=scope, ingest=ingest)
 
-        return File(
-            event=self._event,
-            id=existing["id"],
-            name=name,
-            mime_type=mime,
-            chunks=ChunkList(logger=self.logger.getChild(ChunkList.__name__)),
-            tokenizer=self.tokenizer,
-            write_url=existing.writeUrl,
-            created_at=datetime.datetime.now(),
-            updated_at=datetime.datetime.now(),
-            logger=self.logger.getChild(File.__name__),
-        )
-
-    def as_messages(self, role: Role = Role.SYSTEM) -> MessageList:
-        return self.all().as_messages(role, self.tokenizer)
+        return file
 
     def as_context(self) -> List[unique_sdk.Integrated.SearchResult]:
         return self.all().as_context()

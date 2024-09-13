@@ -286,13 +286,9 @@ class StateManager(ABC, Generic[ConfType]):
             It allows for dynamically changing the context in which subsequent operations are evaluated.
         """
         if isinstance(messages, File):
-            _ctx = MessageList(
-                [messages.as_message()],
-                self.messages.tokenizer,
-                logger=self.logger.getChild(MessageList.__name__),
-            )
+            raise StateError("BL::StateManager::context::Cannot set a file as the context.")
         elif isinstance(messages, (FileList, FileManager)):
-            _ctx = messages.as_messages()
+            raise StateError("BL::StateManager::context::Cannot set a file list as the context.")
         elif isinstance(messages, Message):
             _ctx = MessageList(
                 [messages],

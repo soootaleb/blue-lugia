@@ -585,7 +585,7 @@ class File(Model):
         return self.chunks.xml(offset=chunks_offset, chunk_extra_attrs=chunk_extra_attrs)
 
     @classmethod
-    def create(cls, event: ExternalModuleChosenEvent, name: str, content: str, **kwargs: Any) -> "File":
+    def create(cls, event: ExternalModuleChosenEvent, name: str, content: str | bytes, **kwargs: Any) -> "File":
         random_string = "".join(random.choices(string.ascii_lowercase + string.digits, k=10))
 
         file = cls(
@@ -601,7 +601,7 @@ class File(Model):
         Chunk(
             id=kwargs.get("id", f"chunk_{random_string}"),
             order=kwargs.get("order", 0),
-            content=content,
+            content=str(content),
             start_page=kwargs.get("start_page", -1),
             end_page=kwargs.get("end_page", -1),
             created_at=datetime.datetime.now(),
