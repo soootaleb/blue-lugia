@@ -5,7 +5,7 @@ import tiktoken
 import unique_sdk
 from typing_extensions import deprecated
 
-from blue_lugia.enums import Op, Role, SearchType
+from blue_lugia.enums import Op, SearchType
 from blue_lugia.errors import ChatFileManagerError
 from blue_lugia.managers.manager import Manager
 from blue_lugia.models import (
@@ -13,7 +13,6 @@ from blue_lugia.models import (
     ChunkList,
     File,
     FileList,
-    MessageList,
     Q,
 )
 
@@ -592,8 +591,8 @@ class FileManager(Manager):
         else:
             return mapped
 
-    def create(self, name: str, content: str | bytes | None, mime: str = "text/plain", scope: str | None = None, ingest: bool = True, **kwargs) -> File:
-        file = File.create(event=self.event, name=name, content=content or "", mime_type=mime, **kwargs)
+    def create(self, name: str, content: str | bytes | None, mime_type: str = "text/plain", scope: str | None = None, ingest: bool = True, **kwargs) -> File:
+        file = File.create(event=self.event, name=name, content=content or "", mime_type=mime_type, **kwargs)
 
         if content and scope:
             file.write(content=content, scope=scope, ingest=ingest)

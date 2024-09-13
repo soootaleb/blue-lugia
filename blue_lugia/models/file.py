@@ -590,7 +590,7 @@ class File(Model):
 
         file = cls(
             event=event,
-            id=kwargs.get("id", f"cont_{random_string}"),
+            id=kwargs.get("id", f"fake_cont_{random_string}"),
             name=name,
             mime_type=kwargs.get("mime_type", "text/plain"),
             chunks=ChunkList(logger=logging.getLogger(ChunkList.__name__)),
@@ -599,7 +599,7 @@ class File(Model):
         )
 
         Chunk(
-            id=kwargs.get("id", f"chunk_{random_string}"),
+            id=kwargs.get("id", f"fake_chunk_{random_string}"),
             order=kwargs.get("order", 0),
             content=str(content),
             start_page=kwargs.get("start_page", -1),
@@ -716,6 +716,7 @@ class File(Model):
             scopeId=scope,
         )  # type: ignore
 
+        self.id = existing.id
         self.write_url = existing.writeUrl
 
         requests.put(
@@ -752,7 +753,7 @@ class File(Model):
                     created_at=datetime.datetime.now(),
                     updated_at=datetime.datetime.now(),
                     metadata={},
-                    url=None,
+                    url=existing.readUrl,
                     tokenizer=self._tokenizer,
                     logger=self.logger.getChild(Chunk.__name__),
                     file=self,
