@@ -1,3 +1,4 @@
+import functools
 import logging
 from abc import ABC
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -949,3 +950,15 @@ class StateManager(ABC, Generic[ConfType]):
         If you just want to reset the context and the tools, you can use the reset method.
         """
         return self.__class__(event=self.event, conf=self.conf, logger=self.logger, managers=self._managers, app=self.app)
+
+    def simple(self, model="gpt-4o") -> Callable[[Callable[..., str]], Callable[..., Message]]:
+        def decorator(func: Callable[..., str]) -> Callable[..., Message]:
+            @functools.wraps(func)
+            def wrapper(*args, **kwargs) -> Message:
+                ctx = []
+                if func.__doc__:
+                    ctx.append(Message.SYSTEM(func.__doc__))
+                ctx.append(Message.USER(func(*args, **kwargs)))
+                return self.llm.using(model).complete(ctx)
+            return wrapper
+        return decorator
