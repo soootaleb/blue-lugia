@@ -126,41 +126,41 @@ class Q:
 
     def _combine(self, other: "Q", connector: Op) -> "Q":
         query = Q()
-        query._connector = connector
 
-        # Handle self conditions, respecting negation
         if self._connector == connector:
-            if self._negated:
-                self_wrapped = Q()
-                self_wrapped._conditions = self._conditions
-                self_wrapped._connector = self._connector
-                self_wrapped._negated = True
-                query._conditions.append(self_wrapped)
-            else:
-                query._conditions.extend(self._conditions)
+            # Merge conditions if the current connector matches the one being applied
+            query._conditions = self._conditions + other._conditions
+            query._connector = connector
         else:
-            self_wrapped = Q()
-            self_wrapped._conditions = self._conditions
-            self_wrapped._connector = self._connector
-            self_wrapped._negated = self._negated
-            query._conditions.append(self_wrapped)
+            if connector == Op.AND:
+                # Case 1: Combining with AND (AND takes precedence)
+                # Example: (self = x=1 OR y=2), (other = a=3 AND b=4)
+                # Desired: (x=1 OR y=2) AND (a=3 AND b=4)
+                query._conditions = []
 
-        # Handle other conditions, respecting negation
-        if other._connector == connector:
-            if other._negated:
-                other_wrapped = Q()
-                other_wrapped._conditions = other._conditions
-                other_wrapped._connector = other._connector
-                other_wrapped._negated = True
-                query._conditions.append(other_wrapped)
-            else:
-                query._conditions.extend(other._conditions)
-        else:
-            other_wrapped = Q()
-            other_wrapped._conditions = other._conditions
-            other_wrapped._connector = other._connector
-            other_wrapped._negated = other._negated
-            query._conditions.append(other_wrapped)
+                if len(self._conditions) == 1:
+                    query._conditions.append(self._conditions[0])
+                else:
+                    query._conditions.append(self)
+
+                if len(other._conditions) == 1:
+                    query._conditions.append(other._conditions[0])
+                else:
+                    query._conditions.append(other)
+
+                query._connector = Op.AND
+            elif connector == Op.OR:
+                # Case 2: Combining with OR (OR after AND)
+                if self._connector == Op.AND and len(self._conditions) > 1:
+                    # The current query is an AND, so the entire AND condition should be preserved
+                    query._conditions = [self]
+                else:
+                    # Otherwise, just add the current conditions directly
+                    query._conditions = self._conditions
+
+                # Always add the "other" query to the conditions
+                query._conditions.append(other if len(other._conditions) > 1 else other._conditions[0])
+                query._connector = Op.OR
 
         return query
 
