@@ -213,7 +213,7 @@ class TestQ(unittest.TestCase):
         q = Q(x=1) & Q(x=2)
         self.assertFalse(q.evaluate({"x": 1}))
         self.assertFalse(q.evaluate({"x": 2}))
-        self.assertFalse(q.evaluate({"x": 1, "x": 2}))
+        self.assertFalse(q.evaluate({"x": 1, "x": 2}))  # noqa: F601
 
     def test_combining_q_with_different_connectors(self) -> None:
         """Test combining Q objects with different connectors."""
@@ -270,6 +270,7 @@ class TestQ(unittest.TestCase):
         q = Q(x="1")
         self.assertTrue(q.evaluate({"x": "1"}))
         self.assertFalse(q.evaluate({"x": 1}))  # Different types
+
     def test_missing_key_with_negation(self) -> None:
         """Test condition where the key is missing and combined with negation."""
         q = ~Q(x=1)
@@ -313,7 +314,7 @@ class TestQ(unittest.TestCase):
         q = Q() & Q(x=1) & Q(x=2)
         self.assertFalse(q.evaluate({"x": 1}))
         self.assertFalse(q.evaluate({"x": 2}))
-        self.assertFalse(q.evaluate({"x": 1, "x": 2}))
+        self.assertFalse(q.evaluate({"x": 1, "x": 2}))  # noqa: F601
 
     def test_q_with_invalid_operator(self) -> None:
         """Test behavior when an invalid operator is used in a condition."""
@@ -338,7 +339,6 @@ class TestQ(unittest.TestCase):
         q = Q(x__gt=5)
         self.assertTrue(q.evaluate({"x": 6}))
         self.assertFalse(q.evaluate({"x": 5}))
-
 
 
 if __name__ == "__main__":

@@ -454,6 +454,21 @@ class ChunkList(List[Chunk], Model):
 
         return [chunk.as_context() for chunk in self]
 
+    def distinct(self, key: str | None = None) -> "ChunkList":
+        if key is None:
+            key = "id"
+
+        found_chunks_keys = set()
+        unique_chunks = ChunkList()
+
+        for chunk in self:
+            chunk_key = getattr(chunk, key)
+            if chunk_key not in found_chunks_keys:
+                unique_chunks.append(chunk)
+                found_chunks_keys.add(chunk_key)
+
+        return unique_chunks
+
 
 class File(Model):
     """
@@ -1057,3 +1072,18 @@ class FileList(List[File], Model):
             results.extend(file.as_context())
 
         return results
+
+    def distinct(self, key: str | None = None) -> "FileList":
+        if key is None:
+            key = "id"
+
+        found_files_keys = set()
+        unique_files = FileList()
+
+        for file in self:
+            file_key = getattr(file, key)
+            if file_key not in found_files_keys:
+                unique_files.append(file)
+                found_files_keys.add(file_key)
+
+        return unique_files

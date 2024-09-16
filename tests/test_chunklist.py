@@ -629,6 +629,81 @@ class TestChunkList(unittest.TestCase):
         self.assertEqual(len(files[0].chunks), 3)
         self.assertEqual(files[0].name, "file_name")
 
+    def test_distinct(self) -> None:
+        chunks = ChunkList()
+
+        file = File(
+            event=self.event,
+            id="file_id",
+            name="file_name",
+            mime_type="text/plain",
+            chunks=chunks,
+            tokenizer=Tokenizer(),
+        )
+
+        chunk_1 = Chunk(
+            id="chunk_id_1",
+            order=0,
+            content="""<|document|>doc.txt<|/document|><|info|>info<|/info|>Content x 1""",
+            start_page=0,
+            end_page=0,
+            created_at=datetime.datetime.now(),
+            updated_at=datetime.datetime.now(),
+            tokenizer=Tokenizer(),
+            file=file,
+        )
+
+        chunk_1_dup = Chunk(
+            id="chunk_id_1",
+            order=0,
+            content="""<|document|>doc.txt<|/document|><|info|>info<|/info|>Content x 1""",
+            start_page=0,
+            end_page=0,
+            created_at=datetime.datetime.now(),
+            updated_at=datetime.datetime.now(),
+            tokenizer=Tokenizer(),
+            file=file,
+        )
+
+        chunk_2 = Chunk(
+            id="chunk_id_2",
+            order=0,
+            content="""<|document|>doc.txt<|/document|><|info|>info<|/info|>Content xx 2""",
+            start_page=0,
+            end_page=0,
+            created_at=datetime.datetime.now(),
+            updated_at=datetime.datetime.now(),
+            tokenizer=Tokenizer(),
+            file=file,
+        )
+
+        chunk_3 = Chunk(
+            id="chunk_id_3",
+            order=0,
+            content="""<|document|>doc.txt<|/document|><|info|>info<|/info|>Content xxx 3""",
+            start_page=0,
+            end_page=0,
+            created_at=datetime.datetime.now(),
+            updated_at=datetime.datetime.now(),
+            tokenizer=Tokenizer(),
+            file=file,
+        )
+
+        chunks.extend(
+            [
+                chunk_1,
+                chunk_1_dup,
+                chunk_2,
+                chunk_3,
+            ],
+        )
+
+        unique_chunks = chunks.distinct()
+        unique_first_chunks = chunks.distinct("order")
+
+        self.assertEqual(len(unique_chunks), 3)
+        self.assertEqual(len(unique_first_chunks), 1)
+
 
 if __name__ == "__main__":
     unittest.main()
