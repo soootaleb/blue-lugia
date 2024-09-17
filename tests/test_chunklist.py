@@ -1,7 +1,7 @@
 import datetime
 import unittest
 
-from blue_lugia.enums import Truncate
+from blue_lugia.enums import Truncate, TruncateLevel
 from blue_lugia.models import Chunk
 from blue_lugia.models.file import ChunkList, File
 from tests.mocks.event import MockEvent
@@ -356,6 +356,10 @@ class TestChunkList(unittest.TestCase):
             len(chunks.truncate(chunk_1_tokens_count + chunk_2_tokens_count).tokens),
             chunk_1_tokens_count + chunk_2_tokens_count,
         )
+        self.assertEqual(
+            len(chunks.truncate(tokens_limit=chunk_1_tokens_count + chunk_2_tokens_count + chunk_3_tokens_count - 1, level=TruncateLevel.CHUNK).tokens),
+            chunk_1_tokens_count + chunk_2_tokens_count,
+        )
 
     def test_truncate_end(self) -> None:
         chunks = ChunkList()
@@ -424,8 +428,12 @@ class TestChunkList(unittest.TestCase):
         self.assertEqual(len(chunks.truncate(chunk_1_tokens_count, strategy=Truncate.KEEP_END).tokens), chunk_1_tokens_count)
         self.assertEqual(chunks.truncate(chunk_3_tokens_count, strategy=Truncate.KEEP_END).tokens, chunk_3.tokens)
         self.assertEqual(
-            len(chunks.truncate(chunk_1_tokens_count + chunk_2_tokens_count, strategy=Truncate.KEEP_END).tokens),
-            chunk_1_tokens_count + chunk_2_tokens_count,
+            len(chunks.truncate(chunk_2_tokens_count + chunk_3_tokens_count, strategy=Truncate.KEEP_END).tokens),
+            chunk_2_tokens_count + chunk_3_tokens_count,
+        )
+        self.assertEqual(
+            len(chunks.truncate(chunk_2_tokens_count + chunk_3_tokens_count + chunk_1_tokens_count - 1, strategy=Truncate.KEEP_END, level=TruncateLevel.CHUNK).tokens),
+            chunk_2_tokens_count + chunk_3_tokens_count,
         )
 
     def test_truncate_inner(self) -> None:
@@ -502,6 +510,11 @@ class TestChunkList(unittest.TestCase):
             chunk_1_tokens_count + chunk_2_tokens_count,
         )
 
+        self.assertEqual(
+            len(chunks.truncate(chunk_1_tokens_count + chunk_2_tokens_count + chunk_3_tokens_count - 1, strategy=Truncate.KEEP_INNER, level=TruncateLevel.CHUNK).tokens),
+            chunk_1_tokens_count + chunk_2_tokens_count,
+        )
+
     def test_truncate_outer(self) -> None:
         chunks = ChunkList()
 
@@ -574,6 +587,11 @@ class TestChunkList(unittest.TestCase):
         self.assertEqual(
             len(chunks.truncate(chunk_1_tokens_count + chunk_2_tokens_count, strategy=Truncate.KEEP_OUTER).tokens),
             chunk_1_tokens_count + chunk_2_tokens_count,
+        )
+
+        self.assertEqual(
+            len(chunks.truncate(chunk_1_tokens_count + chunk_2_tokens_count + chunk_3_tokens_count - 1, strategy=Truncate.KEEP_OUTER, level=TruncateLevel.CHUNK).tokens),
+            chunk_1_tokens_count + chunk_3_tokens_count,
         )
 
     def test_as_file(self) -> None:

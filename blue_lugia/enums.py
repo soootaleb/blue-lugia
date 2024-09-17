@@ -43,3 +43,15 @@ class Truncate(Enum):
     KEEP_END = "KEEP_END"
     KEEP_INNER = "KEEP_INNER"
     KEEP_OUTER = "KEEP_OUTER"
+
+
+class TruncateLevel(Enum):
+    """
+    Truncate level
+
+    - TOKEN: Truncate at token level
+    - CHUNK: Truncate at chunk level
+    """
+
+    TOKEN = "TOKEN"
+    CHUNK = "CHUNK"

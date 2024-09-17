@@ -671,6 +671,7 @@ class MessageList(List[Message], Model):
     def truncate(self, max_tokens: int, in_place: bool = False) -> "MessageList":
         """
         Reduces the list to fit within a specified maximum number of tokens, optionally modifying the original list.
+        A message that does not fit the limit is removed, this method does not cut messages.
 
         Args:
             max_tokens (int): The maximum number of tokens allowed in the list.

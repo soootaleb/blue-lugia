@@ -12,7 +12,7 @@ import requests
 import tiktoken
 import unique_sdk
 
-from blue_lugia.enums import Truncate
+from blue_lugia.enums import Truncate, TruncateLevel
 from blue_lugia.models import ExternalModuleChosenEvent
 from blue_lugia.models.model import Model
 
@@ -137,11 +137,16 @@ class Chunk(Model):
 
         return self
 
-    def truncate(self, tokens_limit: int, strategy: Truncate = Truncate.KEEP_START) -> "Chunk":
+    def truncate(self, tokens_limit: int, strategy: Truncate = Truncate.KEEP_START, level: TruncateLevel = TruncateLevel.TOKEN) -> "Chunk":
         """Truncates the content of the chunks to the given number of tokens. Also affects the content of the file."""
 
         if not self._tokenizer:
             raise ValueError("No tokenizer set for the chunk")
+
+        if level == TruncateLevel.CHUNK and len(self.tokens) > tokens_limit:
+            self.content = ""
+            self.file.chunks.remove(self)
+            return self
 
         tokens_limit = max(tokens_limit, 0)
         tokens_count = len(self.tokens)
@@ -296,11 +301,11 @@ class ChunkList(List[Chunk], Model):
         else:
             return ChunkList([chunk for chunk in self if f(chunk)], logger=self.logger)
 
-    def _truncate_in_place(self, remaining_tokens: int, strategy: Truncate) -> "ChunkList":  # noqa: C901
+    def _truncate_in_place(self, remaining_tokens: int, strategy: Truncate, level: TruncateLevel = TruncateLevel.TOKEN) -> "ChunkList":  # noqa: C901
         if strategy == Truncate.KEEP_START:
             to_remove = []
             for chunk in self:
-                chunk.truncate(remaining_tokens, strategy)
+                chunk.truncate(tokens_limit=remaining_tokens, strategy=strategy, level=level)
                 remaining_tokens -= len(chunk.tokens)
                 if not chunk.content:
                     to_remove.append(chunk)
@@ -311,7 +316,7 @@ class ChunkList(List[Chunk], Model):
         elif strategy == Truncate.KEEP_END:
             to_remove = []
             for chunk in reversed(self):
-                chunk.truncate(remaining_tokens, strategy)
+                chunk.truncate(tokens_limit=remaining_tokens, strategy=strategy, level=level)
                 remaining_tokens -= len(chunk.tokens)
                 if not chunk.content:
                     to_remove.append(chunk)
@@ -323,8 +328,8 @@ class ChunkList(List[Chunk], Model):
             tokens_to_remove = len(self.tokens) - remaining_tokens
             truncate_sides_by = ceil(tokens_to_remove / 2)
 
-            self._truncate_in_place(remaining_tokens=len(self.tokens) - truncate_sides_by, strategy=Truncate.KEEP_START)
-            self._truncate_in_place(remaining_tokens=remaining_tokens, strategy=Truncate.KEEP_END)
+            self._truncate_in_place(remaining_tokens=len(self.tokens) - truncate_sides_by, strategy=Truncate.KEEP_START, level=level)
+            self._truncate_in_place(remaining_tokens=remaining_tokens, strategy=Truncate.KEEP_END, level=level)
 
             return self
 
@@ -335,9 +340,9 @@ class ChunkList(List[Chunk], Model):
                 tokens_to_remove = len(self.tokens) - remaining_tokens
 
                 if middle_chunk_tokens > tokens_to_remove:
-                    middle_chunk.truncate(middle_chunk_tokens - tokens_to_remove, Truncate.KEEP_OUTER)
+                    middle_chunk.truncate(tokens_limit=middle_chunk_tokens - tokens_to_remove, strategy=Truncate.KEEP_OUTER, level=level)
                 else:
-                    middle_chunk.truncate(0)
+                    middle_chunk.truncate(tokens_limit=0)
                     self.remove(middle_chunk)
 
             return self
@@ -346,7 +351,14 @@ class ChunkList(List[Chunk], Model):
             self.logger.error(f"BL::Truncate strategy {strategy} not implemented")
             return self
 
-    def truncate(self, tokens_limit: int, in_place: bool = False, files_map: dict[str, "File"] | None = None, strategy: Truncate = Truncate.KEEP_START) -> "ChunkList":
+    def truncate(
+        self,
+        tokens_limit: int,
+        in_place: bool = False,
+        files_map: dict[str, "File"] | None = None,
+        strategy: Truncate = Truncate.KEEP_START,
+        level: TruncateLevel = TruncateLevel.TOKEN,
+    ) -> "ChunkList":
         """
         Truncates the content of a ChunkList to a specified limit of tokens.
 
@@ -364,6 +376,9 @@ class ChunkList(List[Chunk], Model):
                                     - KEEP_END: Keep the n tokens from the end
                                     - KEEP_INNER: Keep the n tokens in the middle of the list
                                     - KEEP_OUTER: Keep the outer n tokens of the list
+            level (TruncateLevel) = TruncateLevel.TOKEN: The level at which to truncate the content.
+                                    - TOKEN: Truncate the content at the token level, removing tokens as necessary but keeping the chunks even partially
+                                    - CHUNK: Remove a chunk entirely if it exceeds the token limit
 
         Returns:
             ChunkList: The truncated ChunkList. If 'in_place' is True, this is the same modified ChunkList,
@@ -380,7 +395,7 @@ class ChunkList(List[Chunk], Model):
             files_map = {}
 
         if in_place:
-            return self._truncate_in_place(remaining_tokens=tokens_limit, strategy=strategy)
+            return self._truncate_in_place(remaining_tokens=tokens_limit, strategy=strategy, level=level)
 
         else:
             chunks = ChunkList(logger=self.logger.getChild(ChunkList.__name__))
@@ -417,7 +432,7 @@ class ChunkList(List[Chunk], Model):
                     )
                 )
 
-            return chunks.truncate(tokens_limit, in_place=True, files_map=files_map, strategy=strategy)
+            return chunks.truncate(tokens_limit, in_place=True, files_map=files_map, strategy=strategy, level=level)
 
     def as_files(self) -> "FileList":
         """
@@ -669,7 +684,7 @@ class File(Model):
             self._tokenizer = model
         return self
 
-    def truncate(self, tokens_limit: int, in_place: bool = False, strategy: Truncate = Truncate.KEEP_START) -> "File":
+    def truncate(self, tokens_limit: int, in_place: bool = False, strategy: Truncate = Truncate.KEEP_START, level: TruncateLevel = TruncateLevel.TOKEN) -> "File":
         """
         Truncates the file's content to a specified token limit.
 
@@ -683,13 +698,16 @@ class File(Model):
                                 - KEEP_END: Keep the n tokens from the end
                                 - KEEP_INNER: Keep the n tokens in the middle of the list
                                 - KEEP_OUTER: Keep the outer n tokens of the list
+            level (TruncateLevel) = TruncateLevel.TOKEN: The level at which to truncate the content.
+                                    - TOKEN: Truncate the content at the token level, removing tokens as necessary but keeping the chunks even partially
+                                    - CHUNK: Remove a chunk entirely if it exceeds the token limit
 
         Returns:
             File: The truncated file. If 'in_place' is True, this is the same modified File instance,
                   otherwise, it is a new File instance containing the truncated chunks.
         """
         if in_place:
-            self.chunks.truncate(tokens_limit, in_place=True, strategy=strategy)
+            self.chunks.truncate(tokens_limit, in_place=True, strategy=strategy, level=level)
             return self
         else:
             file = File(
@@ -705,7 +723,7 @@ class File(Model):
                 logger=self.logger,
             )
 
-            self.chunks.truncate(tokens_limit, files_map={file.id: file}, strategy=strategy)
+            self.chunks.truncate(tokens_limit, files_map={file.id: file}, strategy=strategy, level=level)
 
             return file
 
@@ -1032,7 +1050,7 @@ class FileList(List[File], Model):
         super().extend(iterable)
         return self
 
-    def truncate(self, tokens_limit: int, in_place: bool = False, strategy: Truncate = Truncate.KEEP_START) -> "FileList":
+    def truncate(self, tokens_limit: int, in_place: bool = False, strategy: Truncate = Truncate.KEEP_START, level: TruncateLevel = TruncateLevel.TOKEN) -> "FileList":
         """
         Truncates the content of all files in the list to a specified token limit, optionally in place.
 
@@ -1046,6 +1064,9 @@ class FileList(List[File], Model):
                                 - KEEP_END: Keep the n tokens from the end
                                 - KEEP_INNER: Keep the n tokens in the middle of the list
                                 - KEEP_OUTER: Keep the outer n tokens of the list
+            level (TruncateLevel) = TruncateLevel.TOKEN: The level at which to truncate the content.
+                                    - TOKEN: Truncate the content at the token level, removing tokens as necessary but keeping the chunks even partially
+                                    - CHUNK: Remove a chunk entirely if it exceeds the token limit
 
         Returns:
             FileList: The truncated list of files. If 'in_place' is True, this is the same modified FileList instance,
@@ -1055,10 +1076,10 @@ class FileList(List[File], Model):
 
         if in_place:
             for file in self:
-                file.truncate(file_token_limit, in_place=True, strategy=strategy)
+                file.truncate(file_token_limit, in_place=True, strategy=strategy, level=level)
             return self
         else:
-            return FileList([file.truncate(tokens_limit=file_token_limit, strategy=strategy) for file in self], logger=self.logger.getChild(FileList.__name__))
+            return FileList([file.truncate(tokens_limit=file_token_limit, strategy=strategy, level=level) for file in self], logger=self.logger.getChild(FileList.__name__))
 
     def as_context(self) -> List[unique_sdk.Integrated.SearchResult]:
         """
