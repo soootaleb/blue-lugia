@@ -407,7 +407,10 @@ class App(Flask, Generic[ConfType]):
         methods = kwargs.get("methods", methods)
         handler = kwargs.get("handler", handler)
 
-        self.route(endpoint, methods=[m.upper() for m in methods])(self._handle(handler))
+        view = self._handle(handler)
+        view.__name__ = f"{handler.__name__}_{'_'.join(methods).lower()}_{endpoint.replace('/', '_')}"
+
+        self.route(endpoint, methods=[m.upper() for m in methods])(view)
         return self
 
     def _type_event(self, event: dict[str, Any]) -> ExternalModuleChosenEvent:
