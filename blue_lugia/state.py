@@ -114,9 +114,10 @@ class StateManager(ABC, Generic[ConfType]):
         self._llm = self._LanguageModelManager(
             event=event,
             model=self.cfg.languageModel or self.cfg.LLM_DEFAULT_MODEL,
+            seed=self.cfg.LLM_SEED,
+            temperature=self.cfg.LLM_TEMPERATURE,
             timeout=self.cfg.LLM_TIMEOUT,
             context_max_tokens=self.cfg.CONTEXT_WINDOW_TOKEN_LIMIT,
-            seed=self.cfg.LLM_SEED,
             logger=self.logger.getChild(self._LanguageModelManager.__name__),
         )
 
@@ -909,8 +910,9 @@ class StateManager(ABC, Generic[ConfType]):
         self._llm = self._LanguageModelManager(
             event=self.event,
             model=self.cfg.languageModel or self.cfg.LLM_DEFAULT_MODEL,
-            timeout=self.cfg.LLM_TIMEOUT,
             seed=self.cfg.LLM_SEED,
+            timeout=self.cfg.LLM_TIMEOUT,
+            temperature=self.cfg.LLM_TEMPERATURE,
             context_max_tokens=self.cfg.CONTEXT_WINDOW_TOKEN_LIMIT,
             logger=self.logger.getChild(self._LanguageModelManager.__name__),
         )

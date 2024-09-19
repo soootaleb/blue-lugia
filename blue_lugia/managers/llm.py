@@ -210,6 +210,11 @@ class LanguageModelManager(Manager):
         llm._seed = seed
         return llm
 
+    def tmp(self, temperature: float = 0.0) -> "LanguageModelManager":
+        llm = self.fork()
+        llm._temperature = temperature
+        return llm
+
     def fork(self) -> "LanguageModelManager":
         llm = self.__class__(event=self._event, model=self._model, temperature=self._temperature, timeout=self._timeout, logger=self.logger)
         llm._use_open_ai = self._use_open_ai

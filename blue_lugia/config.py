@@ -48,6 +48,7 @@ class ModuleConfig(BaseSettings):
     # LLM
     LLM_SEED: int | None = None
     LLM_TIMEOUT: int = 60000
+    LLM_TEMPERATURE: float = 0.0
     LLM_DEFAULT_MODEL: str = "AZURE_GPT_4_TURBO_2024_0409"
 
     def model_dump(
