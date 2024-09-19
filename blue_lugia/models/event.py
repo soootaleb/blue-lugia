@@ -1,5 +1,5 @@
 import datetime
-from typing import Any
+from typing import Any, Optional
 
 from pydantic import BaseModel
 
@@ -19,7 +19,7 @@ class Payload(BaseModel):
     name: str
     description: str
     configuration: dict[str, Any]
-    chat_id: str
+    chat_id: Optional[str]
     assistant_id: str
     user_message: UserMessage
     assistant_message: AssistantMessage
