@@ -15,6 +15,17 @@ class AssistantMessage(BaseModel):
     created_at: datetime.datetime
 
 
+class ToolParameters(BaseModel):
+    language: str
+
+
+class UserMetadata(BaseModel):
+    username: str
+    first_name: str
+    last_name: str
+    email: str
+
+
 class Payload(BaseModel):
     name: str
     description: str
@@ -23,6 +34,8 @@ class Payload(BaseModel):
     assistant_id: str
     user_message: UserMessage
     assistant_message: AssistantMessage
+    tool_parameters: ToolParameters
+    user_metadata: UserMetadata
 
 
 class ExternalModuleChosenEvent(BaseModel):

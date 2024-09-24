@@ -25,7 +25,7 @@ from blue_lugia.managers import (
     StorageManager,
 )
 from blue_lugia.models import ExternalModuleChosenEvent
-from blue_lugia.models.event import AssistantMessage, Payload, UserMessage
+from blue_lugia.models.event import AssistantMessage, Payload, ToolParameters, UserMessage, UserMetadata
 from blue_lugia.state import StateManager
 
 
@@ -383,6 +383,8 @@ class App(Flask, Generic[ConfType]):
                 configuration=config,
                 chat_id=chat_id,
                 assistant_id=assistant_id,
+                tool_parameters=ToolParameters(language="en"),
+                user_metadata=UserMetadata(username="admin", first_name="admin", last_name="admin", email="admin@admin.com"),
                 user_message=UserMessage(
                     id=user_message_id,
                     text=user_message,
@@ -429,6 +431,8 @@ class App(Flask, Generic[ConfType]):
                 configuration=event["payload"]["configuration"],
                 chat_id=event["payload"]["chatId"],
                 assistant_id=event["payload"]["assistantId"],
+                tool_parameters=event["payload"].get("toolParameters", {}),
+                user_metadata=event["payload"].get("userMetadata", {}),
                 user_message=UserMessage(
                     id=event["payload"]["userMessage"]["id"],
                     text=event["payload"]["userMessage"]["text"],
