@@ -324,14 +324,7 @@ class App(Flask, Generic[ConfType]):
             try:
                 event_data = json.loads(sse_event.data or "{}")
                 if "event" in event_data:
-                    self._type_event_and_run_module(
-                        {
-                            "id": "evt_mock_event_1234",
-                            "version": "1.0.0",
-                            "createdAt": datetime.datetime.now().timestamp(),
-                            **event_data,
-                        }
-                    )
+                    self._type_event_and_run_module(event_data)
             except Exception as e:
                 self.logger.error(f"BL::State::listen::Error processing event: {e.__class__.__name__}", exc_info=False)
 
@@ -418,6 +411,9 @@ class App(Flask, Generic[ConfType]):
     def _type_event(self, event: dict[str, Any]) -> ExternalModuleChosenEvent:
         target_timezone = datetime.timezone(datetime.timedelta(hours=2))
 
+        tool_params = event["payload"].get("toolParameters", {})
+        user_metadata = event["payload"].get("userMetadata", {})
+
         return ExternalModuleChosenEvent(
             id=event["id"],
             version=event["version"],
@@ -431,8 +427,15 @@ class App(Flask, Generic[ConfType]):
                 configuration=event["payload"]["configuration"],
                 chat_id=event["payload"]["chatId"],
                 assistant_id=event["payload"]["assistantId"],
-                tool_parameters=event["payload"].get("toolParameters", {}),
-                user_metadata=event["payload"].get("userMetadata", {}),
+                tool_parameters=ToolParameters(
+                    language=tool_params.get("language", "en"),
+                ),
+                user_metadata=UserMetadata(
+                    username=user_metadata.get("userName", "__unknown"),
+                    first_name=user_metadata.get("firstName", "__unknown"),
+                    last_name=user_metadata.get("lastName", "__unknown"),
+                    email=user_metadata.get("email", "__unknown@unknown.com"),
+                ),
                 user_message=UserMessage(
                     id=event["payload"]["userMessage"]["id"],
                     text=event["payload"]["userMessage"]["text"],
