@@ -109,13 +109,13 @@ class Chunk(Model):
             key += f" : {','.join(pages)}"
 
         return f"""<source{i}
-                    id="{escape(self.id)}"
+                    id="{escape(self.id, {"\"": "&quot;", "'": "&apos;"})}"
                     order="{self.order}"
                     start_page="{self.start_page}"
-                    label="{escape(key)}"
-                    url="{escape(self.url or f"unique://content/{self.file.id}")}"
+                    label="{escape(key, {"\"": "&quot;", "'": "&apos;"})}"
+                    url="{escape(self.url or f"unique://content/{self.file.id}", {"\"": "&quot;", "'": "&apos;"})}"
                     end_page="{self.end_page}" {extra_attrs_str}>
-                    {escape(self.content)}
+                    {escape(self.content, {"\"": "&quot;", "'": "&apos;"})}
                 </source{i}>"""
 
     def _clean_content(self, _content: str) -> str:
