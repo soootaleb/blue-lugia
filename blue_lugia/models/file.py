@@ -638,7 +638,7 @@ class File(Model):
             updated_at=datetime.datetime.now(),
             file=file,
             metadata=kwargs.get("metadata", {}),
-            url=kwargs.get("url", None),
+            url=kwargs.get("url"),
             tokenizer=file._tokenizer,
         )
 
