@@ -1,6 +1,6 @@
 import inspect
 import os
-from typing import Callable, Any
+from typing import Any, Callable
 
 import toml
 
