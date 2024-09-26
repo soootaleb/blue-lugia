@@ -1,6 +1,6 @@
 import datetime
 
-from blue_lugia.models.event import AssistantMessage, ExternalModuleChosenEvent, Payload, UserMessage
+from blue_lugia.models.event import AssistantMessage, ExternalModuleChosenEvent, Payload, ToolParameters, UserMessage, UserMetadata
 
 
 class MockEvent(ExternalModuleChosenEvent):
@@ -19,6 +19,8 @@ class MockEvent(ExternalModuleChosenEvent):
                 configuration={"key": "value"},
                 chat_id="chat_mock_id",
                 assistant_id="assistant_mock_id",
+                user_metadata=UserMetadata(username="admin", first_name="admin", last_name="admin", email="admin@admin.com"),
+                tool_parameters=ToolParameters(language="en"),
                 user_message=UserMessage(
                     id="user_message_mock_id",
                     text="User message",
