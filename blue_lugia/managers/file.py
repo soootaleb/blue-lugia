@@ -475,15 +475,20 @@ class FileManager(Manager):
             return typed_search
 
     def fetch(self) -> FileList:
-        wheres = self._q_to_content_filters(self._query) if self._query else {}
 
-        if self._scopes:
-            self.logger.warning("BL::Manager::Files::fetch::ScopesIgnored::Content search API does not support scopes.")
+        query = self._query or Q()
 
         if self._chat_only:
-            wheres["ownerId"] = {
-                "equals": self._event.payload.chat_id,
-            }
+            query &= Q(ownerId=self._event.payload.chat_id)
+
+        if self._scopes:
+            query &= Q(ownerId__in=self._scopes)
+
+        wheres = self._q_to_content_filters(query)
+
+        if self._chat_only and self._scopes:
+            self.logger.warning("BL::Manager::Files::fetch::EmptyQuery::Using uploaded and scoped filters together will result in empty results")
+
 
         found = unique_sdk.Content.search(
             user_id=self._event.user_id,
