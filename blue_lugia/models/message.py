@@ -725,9 +725,10 @@ class MessageList(List[Message], Model):
         Returns:
             MessageList: The expanded message list, either the original or a new instance, depending on the value of in_place.
         """
-        self.logger.debug("BL::Model::MessageList::expand")
 
         if in_place:
+            self.logger.debug("BL::Model::MessageList::expand")
+
             if not self._expanded:
                 for message in self:
                     if message.debug:
