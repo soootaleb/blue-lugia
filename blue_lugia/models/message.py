@@ -583,8 +583,6 @@ class MessageList(List[Message], Model):
                     all_tokens += self.tokenizer.encode(json.dumps(message.tool_calls, ensure_ascii=False))
                 if message.tool_call_id:
                     all_tokens += self.tokenizer.encode(message.tool_call_id)
-            if message.image:
-                all_tokens += self.tokenizer.encode(message.image)
 
         return all_tokens
 
