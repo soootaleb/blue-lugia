@@ -648,7 +648,13 @@ class LanguageModelManager(Manager):
                 if tool_config_strict:
                     tool.model_config["extra"] = "forbid"
 
-                parameters = self._rm_titles(tool.model_json_schema())
+                # Get the JSON schema of the tool
+                tool_json_schema = tool.model_json_schema()
+                # Remove the redundant description
+                if "description" in tool_json_schema:
+                    tool_json_schema.pop("description")
+                # Remove the redundant titles
+                parameters = self._rm_titles(tool_json_schema)
 
                 options["tools"].append(
                     {
