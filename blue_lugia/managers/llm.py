@@ -523,6 +523,8 @@ class LanguageModelManager(Manager):
         out.debug["_sources"] = new_references
         out.debug["_citations"] = debug_sources
 
+        _tool_calls = completion.toolCalls if hasattr(completion, "toolCalls") else completion.tool_calls
+
         out._tool_calls = out._tool_calls + [
             {
                 "id": call.id,
@@ -532,7 +534,7 @@ class LanguageModelManager(Manager):
                     "arguments": json.loads(call.arguments),
                 },
             }
-            for call in completion.toolCalls
+            for call in _tool_calls
             if call.id not in [call["id"] for call in out._tool_calls]
         ]
 
@@ -556,7 +558,7 @@ class LanguageModelManager(Manager):
                         "arguments": json.loads(call.arguments),
                     },
                 }
-                for call in completion.toolCalls
+                for call in _tool_calls
             ],
             logger=self.logger.getChild(Message.__name__),
         )
@@ -610,7 +612,7 @@ class LanguageModelManager(Manager):
                         "arguments": json.loads(call.function.arguments),
                     },
                 }
-                for call in completion.choices[0].message.toolCalls
+                for call in (completion.choices[0].message.toolCalls if hasattr(completion.choices[0].message, "toolCalls") else completion.choices[0].message.tool_calls)
             ],
             logger=self.logger.getChild(Message.__name__),
         )
