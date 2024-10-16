@@ -523,7 +523,12 @@ class LanguageModelManager(Manager):
         out.debug["_sources"] = new_references
         out.debug["_citations"] = debug_sources
 
-        _tool_calls = completion.toolCalls if hasattr(completion, "toolCalls") else completion.tool_calls
+        _tool_calls = []
+
+        if hasattr(completion, "toolCalls"):
+            _tool_calls = completion.toolCalls
+        elif hasattr(completion, "tool_calls"):
+            _tool_calls = completion.tool_calls
 
         out._tool_calls = out._tool_calls + [
             {
@@ -598,6 +603,13 @@ class LanguageModelManager(Manager):
                 debug_sources[source] = source_index
                 source_index += 1
 
+        _tool_calls = []
+
+        if hasattr(completion.choices[0].message, "toolCalls"):
+            _tool_calls = completion.choices[0].message.toolCalls
+        elif hasattr(completion.choices[0].message, "tool_calls"):
+            _tool_calls = completion.choices[0].message.tool_calls
+
         return Message(
             role=Role(completion.choices[0].message.role.lower()),
             content=completion.choices[0].message.content,
@@ -612,7 +624,7 @@ class LanguageModelManager(Manager):
                         "arguments": json.loads(call.function.arguments),
                     },
                 }
-                for call in (completion.choices[0].message.toolCalls if hasattr(completion.choices[0].message, "toolCalls") else completion.choices[0].message.tool_calls)
+                for call in _tool_calls
             ],
             logger=self.logger.getChild(Message.__name__),
         )
