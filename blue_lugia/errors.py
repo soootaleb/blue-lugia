@@ -36,3 +36,7 @@ class QError(Exception):
 
 class StateError(Exception):
     pass
+
+
+class DataSourceError(Exception):
+    pass

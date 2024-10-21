@@ -18,7 +18,10 @@ class DataDriver:
                 loaded.append(obj)
             except EOFError:
                 break
-        return loaded
+        if len(loaded) == 1:
+            return loaded[0]
+        else:
+            return loaded
 
     def encode(self, data: dict) -> Tuple[bytes, tuple]:
         return pickle.dumps(data.get("_item", {})), ()

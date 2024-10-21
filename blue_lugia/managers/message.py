@@ -39,7 +39,7 @@ class MessageManager(Manager):
         self._tokenizer = model
         return self
 
-    def all(self, force_refresh: bool = False) -> MessageList:
+    def all(self, force_refresh: bool = False) -> MessageList:  # noqa: C901
         if not self._retrieved or force_refresh:
             if force_refresh:
                 self._all = MessageList(

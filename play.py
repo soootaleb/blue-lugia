@@ -1,9 +1,9 @@
 from pydantic import Field
 
 from blue_lugia.models.query import Q
-from blue_lugia.orm.driver import JSONDriver, SQLiteDriver
+from blue_lugia.orm.driver import SQLiteDriver
 from blue_lugia.orm.model import Model
-from blue_lugia.orm.source import FileDataSource, SQLiteDataSource
+from blue_lugia.orm.source import SQLiteDataSource
 
 
 class Person(Model):
@@ -67,9 +67,3 @@ class A:
 class B(A):
     pass
 
-
-def f(x: A):
-    pass
-
-
-f(B())

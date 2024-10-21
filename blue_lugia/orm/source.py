@@ -1,3 +1,4 @@
+import importlib
 import io
 import pickle
 import sqlite3
@@ -5,8 +6,10 @@ from typing import Any
 
 import numpy as np
 
+from blue_lugia.errors import DataSourceError
 from blue_lugia.managers.file import FileManager
 from blue_lugia.managers.message import MessageManager
+from blue_lugia.models.event import ExternalModuleChosenEvent
 from blue_lugia.models.file import File
 from blue_lugia.models.query import Q
 
@@ -223,6 +226,81 @@ class BLMessageManagerDataSource(DataSource):
     def write(self, data: bytes | bytearray | np.ndarray | memoryview, params: tuple | None = None, at: int = 0, append: bool = True) -> int:
         message = pickle.loads(data)
         self.manager.create(role_or_message=message.get("role"), text=message.get("content"), debug=message.get("debug"))
+        return 0
+
+
+class UniqueDataSource(DataSource):
+    _event: ExternalModuleChosenEvent
+
+    def __init__(self, event: ExternalModuleChosenEvent, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._event = event
+
+    def read(self, query: Q) -> bytes:
+        _from = query._from
+
+        if not _from:
+            raise DataSourceError("BL::orm::UniqueDataSource::read:Missing table name")
+
+        path = _from.removeprefix("unique_sdk.").split(".")
+
+        unique_sdk: Any = importlib.import_module("unique_sdk")
+
+        for p in path:
+            if not hasattr(unique_sdk, p):
+                raise DataSourceError(f"BL::orm::UniqueDataSource::read:Invalid table name {_from}")
+            else:
+                unique_sdk = getattr(unique_sdk, p)
+
+        if not unique_sdk:
+            raise DataSourceError(f"BL::orm::UniqueDataSource::read:Invalid table name {_from}")
+
+        def to_native_dict(obj: Any) -> Any:
+            """
+            Recursively convert custom objects (that act like dicts) or lists to native Python dicts or lists.
+            Scalar values will be kept as is.
+            """
+            if isinstance(obj, dict):
+                # If the object is a dict-like, convert its values recursively
+                return {key: to_native_dict(value) for key, value in obj.items()}
+            elif isinstance(obj, list):
+                # If the object is a list, convert each item recursively
+                return [to_native_dict(item) for item in obj]
+            elif hasattr(obj, "__dict__"):  # Handle custom instances
+                # If the object has a __dict__ attribute, treat it like a dict
+                return {key: to_native_dict(value) for key, value in obj.__dict__.items()}
+            else:
+                # If it's a scalar value, return it as is
+                return obj
+
+        response = unique_sdk(user_id=self._event.user_id, company_id=self._event.company_id, chatId=self._event.payload.chat_id, **query.as_dict())
+
+        return pickle.dumps([to_native_dict(o) for o in response])
+
+    def write(self, data: bytes | bytearray | np.ndarray | memoryview, params: tuple | None = None, at: int = 0, append: bool = True) -> int:
+        query: dict = pickle.loads(data)
+
+        _to: str = query["to"]
+
+        if not _to:
+            raise DataSourceError("BL::orm::UniqueDataSource::write:Missing table name")
+
+        path = _to.removeprefix("unique_sdk.").split(".")
+
+        unique_sdk = importlib.import_module("unique_sdk")
+        unique_sdk_function = None
+
+        for p in path:
+            if not hasattr(unique_sdk, p):
+                raise DataSourceError(f"BL::orm::UniqueDataSource::write:Invalid table name {_to}")
+            else:
+                unique_sdk = getattr(unique_sdk, p)
+
+        if not unique_sdk_function:
+            raise DataSourceError(f"BL::orm::UniqueDataSource::write:Invalid table name {_to}")
+
+        unique_sdk_function(**{**query["params"], **self._event.model_dump()})
+
         return 0
 
 
