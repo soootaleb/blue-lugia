@@ -210,6 +210,11 @@ class LanguageModelManager(Manager):
         llm._seed = seed
         return llm
 
+    def tmp(self, temperature: float = 0.0) -> "LanguageModelManager":
+        llm = self.fork()
+        llm._temperature = temperature
+        return llm
+
     def fork(self) -> "LanguageModelManager":
         llm = self.__class__(event=self._event, model=self._model, temperature=self._temperature, timeout=self._timeout, logger=self.logger)
         llm._use_open_ai = self._use_open_ai
@@ -292,6 +297,7 @@ class LanguageModelManager(Manager):
         - deduplicate system messages by content
         - merge them in one system message
         - put it on top of the input messages
+        - remove messages with empty content & without image
 
         Besides, this method truncates the input messages to fit the model's input size.
         It makes sure the system messages are not truncated.
@@ -329,19 +335,25 @@ class LanguageModelManager(Manager):
 
         self.logger.debug(f"BL::Manager::LLM::reformat::NonSystemMessagesTruncatedTo::{history_tokens_limit} tokens")
 
-        final_history = not_system_messages.truncate(history_tokens_limit)
+        history = not_system_messages.truncate(history_tokens_limit)
 
         if unique_system_messages:
-            final_history.insert(
+            history.insert(
                 0,
                 Message.SYSTEM(
                     "\n".join([str(m.content) for m in unique_system_messages]),
                 ),
             )
 
-        self.logger.debug(f"BL::Manager::LLM::reformat::ContextTruncatedTo::{len(final_history.tokens)} tokens.")
+        self.logger.debug(f"BL::Manager::LLM::reformat::ContextTruncatedTo::{len(history.tokens)} tokens.")
 
-        return final_history
+        # Remove messages with empty content & without image nor tool calls, since it's not accepted by Unique API
+        history = history.filter(lambda x: bool(x.content) or bool(x.original_content) or bool(x.image) or bool(x.tool_calls))
+
+        if not history:
+            raise LanguageModelManagerError("BL::Manager::LLM::reformat::EmptyContext::After reformatting context, no messages remain.")
+
+        return history
 
     def _rereference(self, messages: MessageList) -> Tuple[MessageList, List[unique_sdk.Integrated.SearchResult], List[unique_sdk.Integrated.SearchResult]]:
         processed_messages = messages.fork()
@@ -518,6 +530,13 @@ class LanguageModelManager(Manager):
         out.debug["_sources"] = new_references
         out.debug["_citations"] = debug_sources
 
+        _tool_calls = []
+
+        if hasattr(completion, "toolCalls"):
+            _tool_calls = completion.toolCalls
+        elif hasattr(completion, "tool_calls"):
+            _tool_calls = completion.tool_calls
+
         out._tool_calls = out._tool_calls + [
             {
                 "id": call.id,
@@ -527,7 +546,7 @@ class LanguageModelManager(Manager):
                     "arguments": json.loads(call.arguments),
                 },
             }
-            for call in completion.toolCalls
+            for call in _tool_calls
             if call.id not in [call["id"] for call in out._tool_calls]
         ]
 
@@ -551,7 +570,7 @@ class LanguageModelManager(Manager):
                         "arguments": json.loads(call.arguments),
                     },
                 }
-                for call in completion.toolCalls
+                for call in _tool_calls
             ],
             logger=self.logger.getChild(Message.__name__),
         )
@@ -580,6 +599,7 @@ class LanguageModelManager(Manager):
             messages=formated_messages,
             timeout=self._timeout,
             options=options,  # type: ignore
+            temperature=self._temperature,
         )
 
         completion_sources = re.findall(r"\[source\d+\]", completion.choices[0].message.content or "", re.DOTALL)
@@ -589,6 +609,13 @@ class LanguageModelManager(Manager):
             if source not in debug_sources:
                 debug_sources[source] = source_index
                 source_index += 1
+
+        _tool_calls = []
+
+        if hasattr(completion.choices[0].message, "toolCalls"):
+            _tool_calls = completion.choices[0].message.toolCalls
+        elif hasattr(completion.choices[0].message, "tool_calls"):
+            _tool_calls = completion.choices[0].message.tool_calls
 
         return Message(
             role=Role(completion.choices[0].message.role.lower()),
@@ -604,7 +631,7 @@ class LanguageModelManager(Manager):
                         "arguments": json.loads(call.function.arguments),
                     },
                 }
-                for call in completion.choices[0].message.toolCalls
+                for call in _tool_calls
             ],
             logger=self.logger.getChild(Message.__name__),
         )
@@ -643,7 +670,13 @@ class LanguageModelManager(Manager):
                 if tool_config_strict:
                     tool.model_config["extra"] = "forbid"
 
-                parameters = self._rm_titles(tool.model_json_schema())
+                # Get the JSON schema of the tool
+                tool_json_schema = tool.model_json_schema()
+                # Remove the redundant description
+                if "description" in tool_json_schema:
+                    tool_json_schema.pop("description")
+                # Remove the redundant titles
+                parameters = self._rm_titles(tool_json_schema)
 
                 options["tools"].append(
                     {

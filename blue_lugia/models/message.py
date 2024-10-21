@@ -586,8 +586,6 @@ class MessageList(List[Message], Model):
                     all_tokens += self.tokenizer.encode(json.dumps(message.tool_calls, ensure_ascii=False))
                 if message.tool_call_id:
                     all_tokens += self.tokenizer.encode(message.tool_call_id)
-            if message.image:
-                all_tokens += self.tokenizer.encode(message.image)
 
         return all_tokens
 
@@ -674,6 +672,7 @@ class MessageList(List[Message], Model):
     def truncate(self, max_tokens: int, in_place: bool = False) -> "MessageList":
         """
         Reduces the list to fit within a specified maximum number of tokens, optionally modifying the original list.
+        A message that does not fit the limit is removed, this method does not cut messages.
 
         Args:
             max_tokens (int): The maximum number of tokens allowed in the list.
@@ -727,9 +726,10 @@ class MessageList(List[Message], Model):
         Returns:
             MessageList: The expanded message list, either the original or a new instance, depending on the value of in_place.
         """
-        self.logger.debug("BL::Model::MessageList::expand")
 
         if in_place:
+            self.logger.debug("BL::Model::MessageList::expand")
+
             if not self._expanded:
                 for message in self:
                     if message.debug:

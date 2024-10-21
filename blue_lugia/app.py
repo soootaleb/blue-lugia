@@ -25,7 +25,7 @@ from blue_lugia.managers import (
     StorageManager,
 )
 from blue_lugia.models import ExternalModuleChosenEvent
-from blue_lugia.models.event import AssistantMessage, Payload, UserMessage
+from blue_lugia.models.event import AssistantMessage, Payload, ToolParameters, UserMessage, UserMetadata
 from blue_lugia.state import StateManager
 
 
@@ -324,14 +324,7 @@ class App(Flask, Generic[ConfType]):
             try:
                 event_data = json.loads(sse_event.data or "{}")
                 if "event" in event_data:
-                    self._type_event_and_run_module(
-                        {
-                            "id": "evt_mock_event_1234",
-                            "version": "1.0.0",
-                            "createdAt": datetime.datetime.now().timestamp(),
-                            **event_data,
-                        }
-                    )
+                    self._type_event_and_run_module(event_data)
             except Exception as e:
                 self.logger.error(f"BL::State::listen::Error processing event: {e.__class__.__name__}", exc_info=False)
 
@@ -383,6 +376,8 @@ class App(Flask, Generic[ConfType]):
                 configuration=config,
                 chat_id=chat_id,
                 assistant_id=assistant_id,
+                tool_parameters=ToolParameters(language="en"),
+                user_metadata=UserMetadata(username="admin", first_name="admin", last_name="admin", email="admin@admin.com"),
                 user_message=UserMessage(
                     id=user_message_id,
                     text=user_message,
@@ -407,11 +402,17 @@ class App(Flask, Generic[ConfType]):
         methods = kwargs.get("methods", methods)
         handler = kwargs.get("handler", handler)
 
-        self.route(endpoint, methods=[m.upper() for m in methods])(self._handle(handler))
+        view = self._handle(handler)
+        view.__name__ = f"{handler.__name__}_{'_'.join(methods).lower()}_{endpoint.replace('/', '_')}"
+
+        self.route(endpoint, methods=[m.upper() for m in methods])(view)
         return self
 
     def _type_event(self, event: dict[str, Any]) -> ExternalModuleChosenEvent:
         target_timezone = datetime.timezone(datetime.timedelta(hours=2))
+
+        tool_params = event["payload"].get("toolParameters", {})
+        user_metadata = event["payload"].get("userMetadata", {})
 
         return ExternalModuleChosenEvent(
             id=event["id"],
@@ -426,6 +427,15 @@ class App(Flask, Generic[ConfType]):
                 configuration=event["payload"]["configuration"],
                 chat_id=event["payload"]["chatId"],
                 assistant_id=event["payload"]["assistantId"],
+                tool_parameters=ToolParameters(
+                    language=tool_params.get("language", "en"),
+                ),
+                user_metadata=UserMetadata(
+                    username=user_metadata.get("userName", "__unknown"),
+                    first_name=user_metadata.get("firstName", "__unknown"),
+                    last_name=user_metadata.get("lastName", "__unknown"),
+                    email=user_metadata.get("email", "__unknown@unknown.com"),
+                ),
                 user_message=UserMessage(
                     id=event["payload"]["userMessage"]["id"],
                     text=event["payload"]["userMessage"]["text"],
@@ -445,11 +455,11 @@ class App(Flask, Generic[ConfType]):
         if not self._conf:
             self._conf = cast(ConfType, ModuleConfig())
 
-        self._conf = self._conf.model_copy(update=event.payload.configuration)
+        conf = self._conf.model_copy(update=event.payload.configuration, deep=True)
 
         return self._state_manager(
             event=event,
-            conf=self._conf,
+            conf=conf,
             logger=self.logger.getChild(self._state_manager.__name__),
             managers=self._managers,
             app=self,

@@ -5,7 +5,7 @@ import tiktoken
 import unique_sdk
 from typing_extensions import deprecated
 
-from blue_lugia.enums import Op, Role, SearchType
+from blue_lugia.enums import Op, SearchType
 from blue_lugia.errors import ChatFileManagerError
 from blue_lugia.managers.manager import Manager
 from blue_lugia.models import (
@@ -13,7 +13,6 @@ from blue_lugia.models import (
     ChunkList,
     File,
     FileList,
-    MessageList,
     Q,
 )
 
@@ -476,15 +475,20 @@ class FileManager(Manager):
             return typed_search
 
     def fetch(self) -> FileList:
-        wheres = self._q_to_content_filters(self._query) if self._query else {}
 
-        if self._scopes:
-            self.logger.warning("BL::Manager::Files::fetch::ScopesIgnored::Content search API does not support scopes.")
+        query = self._query or Q()
 
         if self._chat_only:
-            wheres["ownerId"] = {
-                "equals": self._event.payload.chat_id,
-            }
+            query &= Q(ownerId=self._event.payload.chat_id)
+
+        if self._scopes:
+            query &= Q(ownerId__in=self._scopes)
+
+        wheres = self._q_to_content_filters(query)
+
+        if self._chat_only and self._scopes:
+            self.logger.warning("BL::Manager::Files::fetch::EmptyQuery::Using uploaded and scoped filters together will result in empty results")
+
 
         found = unique_sdk.Content.search(
             user_id=self._event.user_id,
@@ -592,46 +596,13 @@ class FileManager(Manager):
         else:
             return mapped
 
-    def create(self, name: str, mime: str = "text/plain", scope: str | None = None) -> File:
-        existing = unique_sdk.Content.upsert(
-            user_id=self._event.user_id,
-            company_id=self._event.company_id,
-            input={
-                "key": name,
-                "title": name,
-                "mimeType": mime,
-            },
-            scopeId=self._scopes[0] if self._scopes else scope,
-        )  # type: ignore
+    def create(self, name: str, content: str | bytes | None, mime_type: str = "text/plain", scope: str | None = None, ingest: bool = True, **kwargs) -> File:
+        file = File.create(event=self.event, name=name, content=content or "", mime_type=mime_type, **kwargs)
 
-        unique_sdk.Content.upsert(
-            user_id=self._event.user_id,
-            company_id=self._event.company_id,
-            input={
-                "key": name,
-                "title": name,
-                "mimeType": mime,
-                "byteSize": 0,
-            },
-            scopeId=self._scopes[0] if self._scopes else scope,
-            fileUrl=existing.writeUrl,
-        )  # type: ignore
+        if content and scope:
+            file.write(content=content, scope=scope, ingest=ingest)
 
-        return File(
-            event=self._event,
-            id=existing["id"],
-            name=name,
-            mime_type=mime,
-            chunks=ChunkList(logger=self.logger.getChild(ChunkList.__name__)),
-            tokenizer=self.tokenizer,
-            write_url=existing.writeUrl,
-            created_at=datetime.datetime.now(),
-            updated_at=datetime.datetime.now(),
-            logger=self.logger.getChild(File.__name__),
-        )
-
-    def as_messages(self, role: Role = Role.SYSTEM) -> MessageList:
-        return self.all().as_messages(role, self.tokenizer)
+        return file
 
     def as_context(self) -> List[unique_sdk.Integrated.SearchResult]:
         return self.all().as_context()

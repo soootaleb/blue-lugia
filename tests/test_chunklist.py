@@ -1,7 +1,7 @@
 import datetime
 import unittest
 
-from blue_lugia.enums import Truncate
+from blue_lugia.enums import Truncate, TruncateLevel
 from blue_lugia.models import Chunk
 from blue_lugia.models.file import ChunkList, File
 from tests.mocks.event import MockEvent
@@ -356,6 +356,10 @@ class TestChunkList(unittest.TestCase):
             len(chunks.truncate(chunk_1_tokens_count + chunk_2_tokens_count).tokens),
             chunk_1_tokens_count + chunk_2_tokens_count,
         )
+        self.assertEqual(
+            len(chunks.truncate(tokens_limit=chunk_1_tokens_count + chunk_2_tokens_count + chunk_3_tokens_count - 1, level=TruncateLevel.CHUNK).tokens),
+            chunk_1_tokens_count + chunk_2_tokens_count,
+        )
 
     def test_truncate_end(self) -> None:
         chunks = ChunkList()
@@ -424,8 +428,12 @@ class TestChunkList(unittest.TestCase):
         self.assertEqual(len(chunks.truncate(chunk_1_tokens_count, strategy=Truncate.KEEP_END).tokens), chunk_1_tokens_count)
         self.assertEqual(chunks.truncate(chunk_3_tokens_count, strategy=Truncate.KEEP_END).tokens, chunk_3.tokens)
         self.assertEqual(
-            len(chunks.truncate(chunk_1_tokens_count + chunk_2_tokens_count, strategy=Truncate.KEEP_END).tokens),
-            chunk_1_tokens_count + chunk_2_tokens_count,
+            len(chunks.truncate(chunk_2_tokens_count + chunk_3_tokens_count, strategy=Truncate.KEEP_END).tokens),
+            chunk_2_tokens_count + chunk_3_tokens_count,
+        )
+        self.assertEqual(
+            len(chunks.truncate(chunk_2_tokens_count + chunk_3_tokens_count + chunk_1_tokens_count - 1, strategy=Truncate.KEEP_END, level=TruncateLevel.CHUNK).tokens),
+            chunk_2_tokens_count + chunk_3_tokens_count,
         )
 
     def test_truncate_inner(self) -> None:
@@ -499,6 +507,11 @@ class TestChunkList(unittest.TestCase):
 
         self.assertEqual(
             len(chunks.truncate(chunk_1_tokens_count + chunk_2_tokens_count, strategy=Truncate.KEEP_INNER).tokens),
+            chunk_1_tokens_count + chunk_2_tokens_count,
+        )
+
+        self.assertEqual(
+            len(chunks.truncate(chunk_1_tokens_count + chunk_2_tokens_count + chunk_3_tokens_count - 1, strategy=Truncate.KEEP_INNER, level=TruncateLevel.CHUNK).tokens),
             chunk_1_tokens_count + chunk_2_tokens_count,
         )
 
@@ -576,6 +589,11 @@ class TestChunkList(unittest.TestCase):
             chunk_1_tokens_count + chunk_2_tokens_count,
         )
 
+        self.assertEqual(
+            len(chunks.truncate(chunk_1_tokens_count + chunk_2_tokens_count + chunk_3_tokens_count - 1, strategy=Truncate.KEEP_OUTER, level=TruncateLevel.CHUNK).tokens),
+            chunk_1_tokens_count + chunk_3_tokens_count,
+        )
+
     def test_as_file(self) -> None:
         file = File(
             event=self.event,
@@ -628,6 +646,81 @@ class TestChunkList(unittest.TestCase):
         self.assertEqual(len(file.chunks), 3)
         self.assertEqual(len(files[0].chunks), 3)
         self.assertEqual(files[0].name, "file_name")
+
+    def test_distinct(self) -> None:
+        chunks = ChunkList()
+
+        file = File(
+            event=self.event,
+            id="file_id",
+            name="file_name",
+            mime_type="text/plain",
+            chunks=chunks,
+            tokenizer=Tokenizer(),
+        )
+
+        chunk_1 = Chunk(
+            id="chunk_id_1",
+            order=0,
+            content="""<|document|>doc.txt<|/document|><|info|>info<|/info|>Content x 1""",
+            start_page=0,
+            end_page=0,
+            created_at=datetime.datetime.now(),
+            updated_at=datetime.datetime.now(),
+            tokenizer=Tokenizer(),
+            file=file,
+        )
+
+        chunk_1_dup = Chunk(
+            id="chunk_id_1",
+            order=0,
+            content="""<|document|>doc.txt<|/document|><|info|>info<|/info|>Content x 1""",
+            start_page=0,
+            end_page=0,
+            created_at=datetime.datetime.now(),
+            updated_at=datetime.datetime.now(),
+            tokenizer=Tokenizer(),
+            file=file,
+        )
+
+        chunk_2 = Chunk(
+            id="chunk_id_2",
+            order=0,
+            content="""<|document|>doc.txt<|/document|><|info|>info<|/info|>Content xx 2""",
+            start_page=0,
+            end_page=0,
+            created_at=datetime.datetime.now(),
+            updated_at=datetime.datetime.now(),
+            tokenizer=Tokenizer(),
+            file=file,
+        )
+
+        chunk_3 = Chunk(
+            id="chunk_id_3",
+            order=0,
+            content="""<|document|>doc.txt<|/document|><|info|>info<|/info|>Content xxx 3""",
+            start_page=0,
+            end_page=0,
+            created_at=datetime.datetime.now(),
+            updated_at=datetime.datetime.now(),
+            tokenizer=Tokenizer(),
+            file=file,
+        )
+
+        chunks.extend(
+            [
+                chunk_1,
+                chunk_1_dup,
+                chunk_2,
+                chunk_3,
+            ],
+        )
+
+        unique_chunks = chunks.distinct()
+        unique_first_chunks = chunks.distinct("order")
+
+        self.assertEqual(len(unique_chunks), 3)
+        self.assertEqual(len(unique_first_chunks), 1)
 
 
 if __name__ == "__main__":

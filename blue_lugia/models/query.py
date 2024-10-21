@@ -272,7 +272,7 @@ class Q:
                         return False
             return False  # Op.NOT should return False if there are no conditions
 
-    def evaluate(self, data: dict[str, Any]) -> bool:
+    def evaluate(self, data: dict[str, Any], *args, **kwargs) -> bool:
         if self._negated:
             return not self._evaluate(data)
         else:
