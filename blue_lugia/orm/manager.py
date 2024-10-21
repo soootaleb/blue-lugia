@@ -28,10 +28,6 @@ class ModelManager(Generic[ModelType]):
 
         self._table = table or model.__name__
 
-        if hasattr(model, "Config"):
-            model_config = getattr(model, "Config", None)
-            self._table = getattr(model_config, "table") or self._table
-
         self._query = Q().from_(self._table)
 
     @property

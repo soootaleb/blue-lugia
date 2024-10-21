@@ -71,7 +71,7 @@ def module(state: StateManager[ModuleConfig]) -> None:
         def validate_role(cls, v: str) -> Role:
             return Role(v.lower())
 
-        class Config:
+        class Meta:
             table = "unique_sdk.Message.list"
 
     chat = ChatMessage.sourced(UniqueDataSource(state.event))
