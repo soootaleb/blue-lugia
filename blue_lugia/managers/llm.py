@@ -297,6 +297,7 @@ class LanguageModelManager(Manager):
         - deduplicate system messages by content
         - merge them in one system message
         - put it on top of the input messages
+        - remove messages with empty content & without image
 
         Besides, this method truncates the input messages to fit the model's input size.
         It makes sure the system messages are not truncated.
@@ -334,19 +335,25 @@ class LanguageModelManager(Manager):
 
         self.logger.debug(f"BL::Manager::LLM::reformat::NonSystemMessagesTruncatedTo::{history_tokens_limit} tokens")
 
-        final_history = not_system_messages.truncate(history_tokens_limit)
+        history = not_system_messages.truncate(history_tokens_limit)
 
         if unique_system_messages:
-            final_history.insert(
+            history.insert(
                 0,
                 Message.SYSTEM(
                     "\n".join([str(m.content) for m in unique_system_messages]),
                 ),
             )
 
-        self.logger.debug(f"BL::Manager::LLM::reformat::ContextTruncatedTo::{len(final_history.tokens)} tokens.")
+        self.logger.debug(f"BL::Manager::LLM::reformat::ContextTruncatedTo::{len(history.tokens)} tokens.")
 
-        return final_history
+        # Remove messages with empty content & without image nor tool calls, since it's not accepted by Unique API
+        history = history.filter(lambda x: bool(x.content) or bool(x.original_content) or bool(x.image) or bool(x.tool_calls))
+
+        if not history:
+            raise LanguageModelManagerError("BL::Manager::LLM::reformat::EmptyContext::After reformatting context, no messages remain.")
+
+        return history
 
     def _rereference(self, messages: MessageList) -> Tuple[MessageList, List[unique_sdk.Integrated.SearchResult], List[unique_sdk.Integrated.SearchResult]]:
         processed_messages = messages.fork()
