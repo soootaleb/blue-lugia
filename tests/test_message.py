@@ -1,4 +1,5 @@
 import unittest
+from datetime import datetime
 
 import unique_sdk
 
@@ -250,6 +251,35 @@ class TestMessage(unittest.TestCase):
         with self.assertRaises(MessageFormatError) as e:
             Message(role=Role.USER, content="What's the weather in Bangkok?", tool_calls=[{"id": "tc1"}])
         self.assertEqual(str(e.exception), "BL::Model::Message::init::NonAssistantMessageWithToolCalls")
+
+    def test_completed_at(self) -> None:
+        message = Message(role=Role.USER, content="What's the weather in Bangkok?")
+        self.assertIsNone(message.completed_at)
+        message.complete(when=datetime(year=1994, month=8, day=15, hour=0, minute=0, second=0, microsecond=0))
+        self.assertIsNotNone(message.completed_at)
+        self.assertIsInstance(message.completed_at, datetime)
+
+        completed_at = message.completed_at or datetime.now()
+
+        self.assertEqual(completed_at.year, 1994)
+        self.assertEqual(completed_at.month, 8)
+        self.assertEqual(completed_at.day, 15)
+        self.assertEqual(completed_at.hour, 0)
+        self.assertEqual(completed_at.minute, 0)
+        self.assertEqual(completed_at.second, 0)
+
+        forked_message = message.fork()
+
+        completed_at = forked_message.completed_at or datetime.now()
+
+        self.assertIsNot(forked_message.completed_at, message.completed_at)
+
+        self.assertEqual(completed_at.year, 1994)
+        self.assertEqual(completed_at.month, 8)
+        self.assertEqual(completed_at.day, 15)
+        self.assertEqual(completed_at.hour, 0)
+        self.assertEqual(completed_at.minute, 0)
+        self.assertEqual(completed_at.second, 0)
 
 
 if __name__ == "__main__":

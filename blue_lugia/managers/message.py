@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Any, Callable, Iterable, List
 
 import tiktoken
@@ -81,6 +82,7 @@ class MessageManager(Manager):
                         original_content=original_content,
                         remote=remote,  # type: ignore
                         logger=self.logger.getChild(Message.__name__),
+                        completed_at=datetime.fromisoformat(m.completedAt) if m.completedAt else None,  # type: ignore
                     )
                     self._all.append(created)
                 except MessageFormatError as e:
@@ -134,6 +136,7 @@ class MessageManager(Manager):
             image=remote.debug.get("_image", None),
             remote=remote,  # type: ignore
             logger=self.logger.getChild(Message.__name__),
+            completed_at=datetime.fromisoformat(retrieved.completedAt) if retrieved.completedAt else None,  # type: ignore
         )
 
     def values(self, *args, **kwargs) -> List:

@@ -3,6 +3,7 @@ import json
 import logging
 import mimetypes
 import re
+from datetime import datetime
 from typing import Any, Callable, Iterable, List, Optional, SupportsIndex, Type, TypeVar
 
 import tiktoken
@@ -127,6 +128,8 @@ class Message(Model):
 
     _remote: _Remote | None = None
 
+    _completed_at: datetime | None = None
+
     def __init__(
         self,
         role: Role | str,
@@ -138,6 +141,7 @@ class Message(Model):
         citations: dict[str, int] | None = None,
         sources: List[unique_sdk.Integrated.SearchResult] | None = None,
         original_content: Optional[str | _Content] = None,
+        completed_at: datetime | None = None,
         **kwargs: logging.Logger,
     ) -> None:
         """
@@ -165,6 +169,8 @@ class Message(Model):
         self._citations = citations or {}
 
         self._image = self._ingest_image(image)
+
+        self._completed_at = completed_at
 
         self.role = role
         self.content = content
@@ -202,6 +208,10 @@ class Message(Model):
     @property
     def sources(self) -> List[unique_sdk.Integrated.SearchResult]:
         return self.debug.get("_sources", []) or self._sources
+
+    @property
+    def completed_at(self) -> datetime | None:
+        return self._completed_at
 
     @property
     def citations(self) -> dict[str, int]:
@@ -302,7 +312,9 @@ class Message(Model):
     def to_json(self, indent: int = 2) -> str:
         return json.dumps(self.to_dict(), indent=indent, ensure_ascii=False)
 
-    def update(self, content: str | _Content | None = None, debug: dict[str, Any] | None = None, references: List[Any] | None = None) -> "Message":
+    def update(
+        self, content: str | _Content | None = None, debug: dict[str, Any] | None = None, references: List[Any] | None = None, completed_at: datetime | None = None
+    ) -> "Message":
         """
         Updates the content of the message and optionally merges new debug information into the existing debug data.
 
@@ -325,6 +337,10 @@ class Message(Model):
 
         if references:
             args["references"] = references
+
+        if completed_at:
+            self._completed_at = completed_at
+            args["completedAt"] = self._completed_at.strftime("%Y-%m-%d %H:%M:%S.%f")
 
         if self._remote:
             self._remote._debug = (self._remote._debug or {}) | debug
@@ -398,6 +414,9 @@ class Message(Model):
         )
 
         return self
+
+    def complete(self, when: datetime = datetime.now()) -> "Message":
+        return self.update(completed_at=when)
 
     @classmethod
     def USER(  # noqa: N802
@@ -492,6 +511,7 @@ class Message(Model):
             sources=[s.copy() for s in self.sources],
             tool_calls=[tc.copy() for tc in self._tool_calls],
             logger=self.logger.getChild(self.__class__.__name__),
+            completed_at=self._completed_at.replace() if self._completed_at else None,
         )
 
     def __str__(self) -> str:
