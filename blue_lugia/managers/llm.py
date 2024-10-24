@@ -512,7 +512,6 @@ class LanguageModelManager(Manager):
             model=self._model,
             timeout=self._timeout,
             options=options,  # type: ignore
-            temperature=self._temperature,
         )
 
         completion_sources = re.findall(r"\[source\d+\]", completion.message.originalText or "", re.DOTALL)
@@ -599,7 +598,6 @@ class LanguageModelManager(Manager):
             messages=formated_messages,
             timeout=self._timeout,
             options=options,  # type: ignore
-            temperature=self._temperature,
         )
 
         completion_sources = re.findall(r"\[source\d+\]", completion.choices[0].message.content or "", re.DOTALL)
