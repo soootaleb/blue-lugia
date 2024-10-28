@@ -360,9 +360,21 @@ class LanguageModelManager(Manager):
         references = []
 
         found_sources_counter = 0
+        embedded_sources_found = 0
+        embedded_sources_to_ignore = 0  # on XML source, ignore the next X attached sources
 
         for index, message in enumerate(processed_messages):
             sources = re.findall(r"(<source\d+[^>]*>)(.*?)(</source\d+>)", message.content or "", re.DOTALL)
+
+            embedded_sources_found += len(message.sources)
+            embedded_sources_to_ignore += len(sources)  # on XML source, ignore the next X attached sources
+
+            found_sources_diff = embedded_sources_found - embedded_sources_to_ignore
+
+            if found_sources_diff > 0:
+                found_sources_counter += found_sources_diff
+                embedded_sources_found = 0
+                embedded_sources_to_ignore = 0
 
             for full_source, content, closing_tag in sources:
                 try:

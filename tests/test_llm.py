@@ -182,7 +182,7 @@ class TestState(unittest.TestCase):
                     """<source4 id="4">First</source4>
                         <source10 id="10">Second</source10>
                         <source2 id="2">Third</source2>""",
-                    tool_call_id="tool_call_id",
+                    tool_call_id="tool_call_id_1",
                 ),
                 self._get_message(
                     Role.ASSISTANT,
@@ -201,11 +201,18 @@ class TestState(unittest.TestCase):
                     """<source60 id="60">ThirdLast</source60>
                         <source20 id="20">SecondLast</source20>
                         <source49 id="49">Last</source49>""",
-                    tool_call_id="tool_call_id",
+                    tool_call_id="tool_call_id_2",
                 ),
                 self._get_message(
                     Role.ASSISTANT,
                     content="The LAST sentence is LAST [source5]",
+                    debug={
+                        "_sources": [
+                            unique_sdk.Integrated.SearchResult(id="60", chunkId="60", key="source_60", url="unique://content/60"),
+                            unique_sdk.Integrated.SearchResult(id="20", chunkId="20", key="source_20", url="unique://content/20"),
+                            unique_sdk.Integrated.SearchResult(id="49", chunkId="49", key="source_49", url="unique://content/49"),
+                        ]
+                    },
                 ),
                 Message.USER("Now make some citations with sources that will not be in the context later."),
                 self._get_message(
@@ -223,7 +230,14 @@ class TestState(unittest.TestCase):
                         ]
                     },
                 ),
-                Message.USER("Now list me the citations you made."),  # This prompt is the hardest since we must align sources for messages that have no sources in context anymore
+                Message.USER("Now generate some XML again"),
+                Message.ASSISTANT("I make a tool call to generate some XML"),
+                Message.TOOL(
+                    """<source1000 id="1000">1000</source1000>
+                        <source2000 id="2000">2000</source2000>
+                        <source3000 id="3000">3000</source3000>""",
+                    tool_call_id="tool_call_id_3",
+                ),
             ]
         )
 
@@ -231,12 +245,27 @@ class TestState(unittest.TestCase):
 
         search_context = existing_references + new_references
 
-        self.assertEqual(len(search_context), 6)
+        self.assertEqual(len(search_context), 12)
 
-        last_ass_content = rereferenced.last(lambda x: x.role == Role.ASSISTANT).content
+        last_ass_content = rereferenced.last(lambda x: x.role == Role.ASSISTANT and x.content.startswith("This message cited sources that are not anymore in context")).content
+
+        tool_call_2 = rereferenced.last(lambda x: x.tool_call_id == "tool_call_id_2").content
 
         self.assertIn("[source2]", last_ass_content or "")
         self.assertIn("[source0]", last_ass_content or "")
+
+        # test re-indexing before any citations were made out of context
+        self.assertIn("</source3>", tool_call_2 or "")
+        self.assertIn("</source4>", tool_call_2 or "")
+        self.assertIn("</source5>", tool_call_2 or "")
+
+        tool_call_3 = rereferenced.last(lambda x: x.tool_call_id == "tool_call_id_3").content
+
+        # test re-indexing after some citations were made based on out-of-context sources
+        # the difficulty is to keep the counter correct with some sources referencing in-context and out-of-context
+        self.assertIn("</source9>", tool_call_3 or "")
+        self.assertIn("</source10>", tool_call_3 or "")
+        self.assertIn("</source11>", tool_call_3 or "")
 
 
 if __name__ == "__main__":

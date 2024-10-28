@@ -416,9 +416,9 @@ class App(Flask, Generic[ConfType]):
 
         return ExternalModuleChosenEvent(
             id=event["id"],
-            version=event["version"],
+            version=event.get("version", "1.0.0"),
             event=event["event"],
-            created_at=datetime.datetime.fromtimestamp(event["createdAt"]),
+            created_at=datetime.datetime.fromtimestamp(event["createdAt"]) if "createdAt" in event else datetime.datetime.now(),
             user_id=event["userId"],
             company_id=event["companyId"],
             payload=Payload(

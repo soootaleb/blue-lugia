@@ -108,6 +108,8 @@ class Chunk(Model):
         if pages:
             key += f" : {','.join(pages)}"
 
+        key = re.sub(r"^Chat_\d{4}-\d{2}-\d{2}_\d{2}:\d{2}_", "", key)
+
         return f"""<source{i}
                     id="{escape(self.id, {"\"": "&quot;", "'": "&apos;"})}"
                     order="{self.order}"
@@ -186,6 +188,8 @@ class Chunk(Model):
 
         if pages:
             key += f" : {','.join(pages)}"
+
+        key = re.sub(r"^Chat_\d{4}-\d{2}-\d{2}_\d{2}:\d{2}_", "", key)
 
         # Setting a static title breaks sources indexes and the link because Unique groups by title
         return unique_sdk.Integrated.SearchResult(
