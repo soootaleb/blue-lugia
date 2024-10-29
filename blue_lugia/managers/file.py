@@ -437,7 +437,7 @@ class FileManager(Manager):
 
         return file_manager
 
-    def search(self, query: str = "", limit: int = 1000) -> ChunkList:
+    def search(self, query: str = "", limit: int = 100) -> ChunkList:
         found_all = []
 
         metadata_filters = self._q_to_metadata(self._query) if self._query else None
@@ -453,8 +453,10 @@ class FileManager(Manager):
         if metadata_filters:
             extra_args["metaDataFilter"] = metadata_filters
 
-        if limit < 1000:
+        if limit <= 1000:
             extra_args["limit"] = limit
+        else:
+            raise ChatFileManagerError(f"BL::Manager::ChatFile::search::LimitTooLarge::{limit}")
 
         found = unique_sdk.Search.create(
             user_id=self._event.user_id,
