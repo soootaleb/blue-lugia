@@ -231,6 +231,10 @@ class App(Flask, Generic[ConfType]):
         """
         self._module = module
         self.logger.info(f"Module {module.__name__} set.")
+
+        if os.environ.get("MOD_LUGIA_LISTEN", "false") == "true":
+            self.listen()
+
         return self
 
     def configured(self, conf: Type[ConfType]) -> "App":
