@@ -457,7 +457,7 @@ class FileManager(Manager):
             extra_args["limit"] = limit
         else:
             raise ChatFileManagerError(f"BL::Manager::ChatFile::search::LimitTooLarge::{limit}")
-        
+
         if reranker:
             extra_args["reranker"] = reranker
 
