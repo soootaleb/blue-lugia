@@ -437,7 +437,7 @@ class FileManager(Manager):
 
         return file_manager
 
-    def search(self, query: str = "", limit: int = 100) -> ChunkList:
+    def search(self, query: str = "", limit: int = 100, **kwargs) -> ChunkList:
         found_all = []
 
         metadata_filters = self._q_to_metadata(self._query) if self._query else None
@@ -458,6 +458,8 @@ class FileManager(Manager):
         else:
             raise ChatFileManagerError(f"BL::Manager::ChatFile::search::LimitTooLarge::{limit}")
 
+        extra_args = {**extra_args, **kwargs}
+
         found = unique_sdk.Search.create(
             user_id=self._event.user_id,
             company_id=self._event.company_id,
@@ -477,7 +479,6 @@ class FileManager(Manager):
             return typed_search
 
     def fetch(self) -> FileList:
-
         query = self._query or Q()
 
         if self._chat_only:
@@ -490,7 +491,6 @@ class FileManager(Manager):
 
         if self._chat_only and self._scopes:
             self.logger.warning("BL::Manager::Files::fetch::EmptyQuery::Using uploaded and scoped filters together will result in empty results")
-
 
         found = unique_sdk.Content.search(
             user_id=self._event.user_id,
