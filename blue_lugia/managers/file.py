@@ -601,7 +601,7 @@ class FileManager(Manager):
     def create(self, name: str, content: str | bytes | None, mime_type: str = "text/plain", scope: str | None = None, ingest: bool = True, **kwargs) -> File:
         file = File.create(event=self.event, name=name, content=content or "", mime_type=mime_type, **kwargs)
 
-        if content and scope:
+        if content:
             file.write(content=content, scope=scope, ingest=ingest)
 
         return file

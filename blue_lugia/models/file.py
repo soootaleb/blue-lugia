@@ -731,7 +731,7 @@ class File(Model):
 
             return file
 
-    def write(self, content: str | bytes, scope: str, ingest: bool = True) -> "File":
+    def write(self, content: str | bytes, scope: str | None, ingest: bool = True) -> "File":
         """
         Writes new content to the file and updates its chunks.
 
@@ -742,6 +742,13 @@ class File(Model):
         Returns:
             File: The current instance of File, with updated content and metadata.
         """
+        extra = {}
+
+        if scope:
+            extra["scopeId"] = scope
+        else:
+            extra["chatId"] = self._event.payload.chat_id
+
         existing = unique_sdk.Content.upsert(
             user_id=self._event.user_id,
             company_id=self._event.company_id,
@@ -749,12 +756,12 @@ class File(Model):
                 "key": self.name,
                 "title": self.name,
                 "mimeType": self.mime_type,
-            },
-            scopeId=scope,
-        )  # type: ignore
+            },  # type: ignore
+            **extra,
+        )
 
         self.id = existing.id
-        self.write_url = existing.writeUrl
+        self.write_url = existing.writeUrl  # type: ignore
 
         requests.put(
             self.write_url,
