@@ -40,7 +40,7 @@ class ModuleConfig(BaseSettings):
     FUNCTION_CALL_MAX_ITERATIONS: int = 5
 
     # Failure message
-    ON_FAILURE: str = """Sorry, I was unable to resolve your request.
+    ON_FAILURE: str = """😔 Sorry, I was unable to resolve your request.
             Please try rephrasing your question or asking another question.
             If this message persists, you may try starting a new conversation.
         """.strip()
