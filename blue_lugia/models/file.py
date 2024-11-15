@@ -781,10 +781,10 @@ class File(Model):
                     "title": self.name,
                     "mimeType": self.mime_type,
                     "byteSize": len(content),
-                },
-                scopeId=scope,
-                fileUrl=existing.readUrl,
-            )  # type: ignore
+                },  # type: ignore
+                fileUrl=existing.readUrl,  # type: ignore
+                **extra,
+            )
 
         self.chunks = ChunkList(
             [
