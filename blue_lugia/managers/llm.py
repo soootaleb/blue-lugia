@@ -462,7 +462,7 @@ class LanguageModelManager(Manager):
             tools=options.get("tools", NotGiven()),
             tool_choice=options.get("toolChoice", NotGiven()),
             max_tokens=options.get("max_tokens", NotGiven()),
-            response_format=options.get("response_format", NotGiven()),
+            response_format=options.get("responseFormat", NotGiven()),
             temperature=self._temperature,
         )
 
@@ -712,8 +712,11 @@ class LanguageModelManager(Manager):
         if output_json:
             messages_contents = "\n".join([message["content"].lower() for message in formated_messages])
 
+            if not self._use_open_ai and self._model != "AZURE_GPT_4o_2024_0806":
+                raise LanguageModelManagerError(f"BL::Manager::LLM::complete({completion_name})::UnsupportedModel::The output_json flag is only supported for GPT-4o.")
+
             if "json" in messages_contents:
-                options["response_format"] = {"type": "json_object"}
+                options["responseFormat"] = {"type": "json_object"}
             else:
                 raise LanguageModelManagerError(
                     f"BL::Manager::LLM::complete({completion_name})::JSONPromptMissing::The word 'json' must be present in the messages when you use the output_json flag."
@@ -728,7 +731,7 @@ class LanguageModelManager(Manager):
 
             json_schema = {"name": schema.__name__, "strict": bl_schema_strict, "schema": self._rm_titles(schema.model_json_schema())}
 
-            options["response_format"] = {
+            options["responseFormat"] = {
                 "type": "json_schema",
                 "json_schema": json_schema,
             }
