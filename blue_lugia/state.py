@@ -119,6 +119,7 @@ class StateManager(ABC, Generic[ConfType]):
             timeout=self.cfg.LLM_TIMEOUT,
             context_max_tokens=self.cfg.CONTEXT_WINDOW_TOKEN_LIMIT,
             logger=self.logger.getChild(self._LanguageModelManager.__name__),
+            streaming_allowed=self.cfg.LLM_ALLOW_STREAMING,
         )
 
         self._messages = self._MessageManager(
@@ -915,6 +916,7 @@ class StateManager(ABC, Generic[ConfType]):
             temperature=self.cfg.LLM_TEMPERATURE,
             context_max_tokens=self.cfg.CONTEXT_WINDOW_TOKEN_LIMIT,
             logger=self.logger.getChild(self._LanguageModelManager.__name__),
+            streaming_allowed=self.cfg.LLM_ALLOW_STREAMING,
         )
 
         self._messages = self._MessageManager(
@@ -951,3 +953,11 @@ class StateManager(ABC, Generic[ConfType]):
         If you just want to reset the context and the tools, you can use the reset method.
         """
         return self.__class__(event=self.event, conf=self.conf, logger=self.logger, managers=self._managers, app=self.app)
+
+    def prevent_streaming(self) -> "StateManager":
+        self.llm.allow_streaming()
+        return self
+
+    def allow_streaming(self) -> "StateManager":
+        self.llm.prevent_streaming()
+        return self

@@ -92,6 +92,8 @@ class LanguageModelManager(Manager):
     _use_open_ai: bool
     _open_ai_api_key: str
 
+    _streaming_allowed: bool
+
     def __init__(
         self,
         model: str,
@@ -99,6 +101,7 @@ class LanguageModelManager(Manager):
         timeout: int = 600_000,
         context_max_tokens: int | None = None,
         seed: int | None = None,
+        streaming_allowed: bool = True,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
@@ -109,6 +112,7 @@ class LanguageModelManager(Manager):
         self._timeout = timeout
         self._use_open_ai = False
         self._open_ai_api_key = ""
+        self._streaming_allowed = streaming_allowed
         self._context_max_tokens = context_max_tokens
 
     @property
@@ -811,7 +815,7 @@ class LanguageModelManager(Manager):
 
         if self._use_open_ai:
             return self._complete_openai(formated_messages=formated_messages, options=options, references=(existing_references, new_references), completion_name=completion_name)
-        elif out:
+        elif out and self._streaming_allowed:
             return self._complete_streaming(
                 formated_messages=formated_messages,
                 options=options,
@@ -834,3 +838,11 @@ class LanguageModelManager(Manager):
     def parse(self, message_or_messages: Message | List[Message] | List[dict[str, Any]], into: type[ToolType], completion_name: str = "") -> ToolType:
         messages = message_or_messages if isinstance(message_or_messages, list) else [message_or_messages]
         return into(**(self.complete(messages=messages, schema=into, completion_name=completion_name).content).json())
+
+    def prevent_streaming(self) -> "LanguageModelManager":
+        self._streaming_allowed = False
+        return self
+
+    def allow_streaming(self) -> "LanguageModelManager":
+        self._streaming_allowed = True
+        return self

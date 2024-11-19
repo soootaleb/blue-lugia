@@ -50,6 +50,7 @@ class ModuleConfig(BaseSettings):
     LLM_TIMEOUT: int = 60000
     LLM_TEMPERATURE: float = 0.0
     LLM_DEFAULT_MODEL: str = "AZURE_GPT_4_TURBO_2024_0409"
+    LLM_ALLOW_STREAMING: bool = True
 
     def model_dump(
         self,
