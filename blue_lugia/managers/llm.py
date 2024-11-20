@@ -530,7 +530,7 @@ class LanguageModelManager(Manager):
             options=options,  # type: ignore
         )
 
-        completion_sources = re.findall(r"\[source\d+\]", completion.message.originalText or "", re.DOTALL)
+        completion_sources = re.findall(r"\[source\d+\]", completion.message.originalText or completion.message.text or "", re.DOTALL)
         debug_sources = {}
         source_index = 1
         for source in completion_sources:
@@ -539,7 +539,7 @@ class LanguageModelManager(Manager):
                 source_index += 1
 
         out.content = completion.message.text
-        out.original_content = completion.message.originalText
+        out.original_content = completion.message.originalText or completion.message.text
         out._sources = new_references
         out._citations = debug_sources
         out.debug["_sources"] = new_references
@@ -568,7 +568,7 @@ class LanguageModelManager(Manager):
         typed_message = Message(
             role=completion.message.role.lower(),
             content=completion.message.text,
-            original_content=completion.message.originalText,
+            original_content=completion.message.originalText or completion.message.text,
             sources=new_references,
             citations=debug_sources,
             remote=Message._Remote(
