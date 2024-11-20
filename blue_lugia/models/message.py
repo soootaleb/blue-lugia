@@ -415,8 +415,8 @@ class Message(Model):
 
         return self
 
-    def complete(self, when: datetime = datetime.now()) -> "Message":
-        return self.update(completed_at=when)
+    def complete(self, when: datetime | Callable[[], datetime] = datetime.now) -> "Message":
+        return self.update(completed_at=when() if callable(when) else when)
 
     @classmethod
     def USER(  # noqa: N802
