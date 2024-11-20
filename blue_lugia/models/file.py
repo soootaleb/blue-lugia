@@ -50,8 +50,8 @@ class Chunk(Model):
         self.id = id
         self.order = order
         self.content = self._clean_content(content)
-        self.start_page = start_page
-        self.end_page = end_page or start_page
+        self.start_page = start_page or 0
+        self.end_page = end_page or start_page or start_page - 1
         self.created_at = created_at
         self.updated_at = updated_at
         self.metadata = metadata or {}
