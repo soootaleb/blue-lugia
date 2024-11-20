@@ -226,7 +226,7 @@ class LanguageModelManager(Manager):
         return llm
 
     def _to_dict_messages(self, messages: List[Message] | List[dict], oai: bool = False) -> List[dict]:
-        formated_messages = []
+        formatted_messages = []
 
         for message in messages:
             if isinstance(message, Message):
@@ -258,12 +258,12 @@ class LanguageModelManager(Manager):
                     key = "tool_call_id" if oai else "toolCallId"
                     message_to_append[key] = message.tool_call_id
 
-                formated_messages.append(message_to_append)
+                formatted_messages.append(message_to_append)
 
             else:
-                formated_messages.append(message)
+                formatted_messages.append(message)
 
-        return formated_messages
+        return formatted_messages
 
     def embed(self, messages: List[Message] | List[dict] | str | List[str]) -> EmbeddingList:
         texts = []
@@ -448,7 +448,7 @@ class LanguageModelManager(Manager):
 
     def _complete_openai(
         self,
-        formated_messages: List[dict],
+        formatted_messages: List[dict],
         options: dict[str, Any],
         references: Tuple[List[unique_sdk.Integrated.SearchResult], List[unique_sdk.Integrated.SearchResult]],
         completion_name: str = "",
@@ -462,7 +462,7 @@ class LanguageModelManager(Manager):
         client = OpenAI(api_key=self._open_ai_api_key)
         completion = client.chat.completions.create(
             model=self._model,
-            messages=formated_messages,  # type: ignore
+            messages=formatted_messages,  # type: ignore
             tools=options.get("tools", NotGiven()),
             tool_choice=options.get("toolChoice", NotGiven()),
             max_tokens=options.get("max_tokens", NotGiven()),
@@ -499,7 +499,7 @@ class LanguageModelManager(Manager):
 
     def _complete_streaming(
         self,
-        formated_messages: List[dict],
+        formatted_messages: List[dict],
         options: dict[str, Any],
         out: Message,
         debug_info: dict[str, Any],
@@ -520,7 +520,7 @@ class LanguageModelManager(Manager):
             assistantId=self._event.payload.assistant_id,
             assistantMessageId=out.id,
             userMessageId=self._event.payload.user_message.id,
-            messages=formated_messages,
+            messages=formatted_messages,
             chatId=self._event.payload.chat_id,
             searchContext=search_context,
             debugInfo=debug_info,
@@ -596,7 +596,7 @@ class LanguageModelManager(Manager):
 
     def _complete_basic(
         self,
-        formated_messages: List[dict],
+        formatted_messages: List[dict],
         references: Tuple[List[unique_sdk.Integrated.SearchResult], List[unique_sdk.Integrated.SearchResult]],
         options: dict[str, Any],
         completion_name: str = "",
@@ -611,7 +611,7 @@ class LanguageModelManager(Manager):
         completion = unique_sdk.ChatCompletion.create(
             company_id=self._event.company_id,
             model=self._model,
-            messages=formated_messages,
+            messages=formatted_messages,
             timeout=self._timeout,
             options=options,  # type: ignore
         )
@@ -652,7 +652,7 @@ class LanguageModelManager(Manager):
 
     def _build_options(  # noqa: C901
         self,
-        formated_messages: List[dict],
+        formatted_messages: List[dict],
         tools: List[type[BaseModel]] | None = None,
         tool_choice: type[BaseModel] | None = None,
         schema: type[BaseModel] | None = None,
@@ -714,7 +714,7 @@ class LanguageModelManager(Manager):
             options["maxTokens"] = max_tokens
 
         if output_json:
-            messages_contents = "\n".join([message["content"].lower() for message in formated_messages])
+            messages_contents = "\n".join([message["content"].lower() for message in formatted_messages])
 
             if not self._use_open_ai and self._model != "AZURE_GPT_4o_2024_0806":
                 raise LanguageModelManagerError(f"BL::Manager::LLM::complete({completion_name})::UnsupportedModel::The output_json flag is only supported for GPT-4o.")
@@ -799,10 +799,10 @@ class LanguageModelManager(Manager):
 
         context, existing_references, new_references = self._rereference(messages=context)
 
-        formated_messages = self._to_dict_messages(context, oai=self._use_open_ai)
+        formatted_messages = self._to_dict_messages(context, oai=self._use_open_ai)
 
         options = self._build_options(
-            formated_messages=formated_messages,
+            formatted_messages=formatted_messages,
             tools=tools,
             tool_choice=tool_choice,
             schema=schema,
@@ -814,10 +814,10 @@ class LanguageModelManager(Manager):
         self.logger.debug(f"BL::Manager::LLM::complete({completion_name})::Model::{self._model}")
 
         if self._use_open_ai:
-            return self._complete_openai(formated_messages=formated_messages, options=options, references=(existing_references, new_references), completion_name=completion_name)
+            return self._complete_openai(formatted_messages=formatted_messages, options=options, references=(existing_references, new_references), completion_name=completion_name)
         elif out and self._streaming_allowed:
             return self._complete_streaming(
-                formated_messages=formated_messages,
+                formatted_messages=formatted_messages,
                 options=options,
                 out=out,
                 debug_info=debug_info,
@@ -828,7 +828,7 @@ class LanguageModelManager(Manager):
             )
         else:
             return self._complete_basic(
-                formated_messages=formated_messages,
+                formatted_messages=formatted_messages,
                 options=options,
                 references=(existing_references, new_references),
                 completion_name=completion_name,

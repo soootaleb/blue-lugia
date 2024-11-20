@@ -178,9 +178,9 @@ def module(state: StateManager[ModuleConfig]) -> None:
     chunks: ChunkList = chunks.sort(lambda chunk: chunk.order)
 
     # Format the sources to be exposed to the LLM
-    formated_sources: str = chunks.xml()
+    formatted_sources: str = chunks.xml()
 
-    context.append(Message.SYSTEM(f"The available sources are: {formated_sources}"))
+    context.append(Message.SYSTEM(f"The available sources are: {formatted_sources}"))
 
     # Format the retrieved data as a search context for the frontend to create the links
     search_context = chunks.as_context()

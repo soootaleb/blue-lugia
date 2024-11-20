@@ -83,7 +83,7 @@ Here are the logs, showing a tool call in order to retrieve some information fro
                         Found 49 tokens of system messages.
                         BL::Manager::LLM::complete::NonSystemMessagesTruncatedTo::123855 tokens
                         BL::Model::MessageList::keep::123855 tokens out of 8 tokens along 1 messages.
-                        BL::Manager::LLM::complete::MessagesReformatedTo::57 tokens.
+                        BL::Manager::LLM::complete::MessagesReformattedTo::57 tokens.
                         BL::Manager::LLM::complete::Model::pictet-ptu-gpt-4o
                         BL::StateManager::complete::Appending completion to context: Role.ASSISTANT
                           
@@ -107,7 +107,7 @@ Here are the logs, showing a tool call in order to retrieve some information fro
                         Found 49 tokens of system messages.
                         BL::Manager::LLM::complete::NonSystemMessagesTruncatedTo::123855 tokens
                         BL::Model::MessageList::keep::123855 tokens out of 1356 tokens along 3 messages.
-                        BL::Manager::LLM::complete::MessagesReformatedTo::1405 tokens.
+                        BL::Manager::LLM::complete::MessagesReformattedTo::1405 tokens.
                         BL::Manager::LLM::complete::Model::pictet-ptu-gpt-4o
                         BL::StateManager::complete::Appending completion to context: Role.ASSISTANT
 
@@ -150,7 +150,7 @@ This time, we don't want any tool call to retrieve new sources, we want the assi
                           Found 49 tokens of system messages.
                           BL::Manager::LLM::complete::NonSystemMessagesTruncatedTo::123855 tokens
                           BL::Model::MessageList::keep::123855 tokens out of 1425 tokens along 5 messages.
-                          BL::Manager::LLM::complete::MessagesReformatedTo::1474 tokens.
+                          BL::Manager::LLM::complete::MessagesReformattedTo::1474 tokens.
                           BL::Manager::LLM::complete::Model::pictet-ptu-gpt-4o
                           BL::StateManager::complete::Appending completion to context: Role.ASSISTANT
 
