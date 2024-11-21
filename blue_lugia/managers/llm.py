@@ -827,13 +827,18 @@ class LanguageModelManager(Manager):
                 search_context=search_context,
             )
         else:
-            return self._complete_basic(
+            completion = self._complete_basic(
                 formatted_messages=formatted_messages,
                 options=options,
                 references=(existing_references, new_references),
                 completion_name=completion_name,
                 search_context=search_context,
             )
+
+            if out:
+                out.update(content=(start_text or "") + (completion.content or ""))
+
+            return completion
 
     def parse(self, message_or_messages: Message | List[Message] | List[dict[str, Any]], into: type[ToolType], completion_name: str = "") -> ToolType:
         messages = message_or_messages if isinstance(message_or_messages, list) else [message_or_messages]
