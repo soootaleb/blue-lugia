@@ -261,17 +261,41 @@ class Message(Model):
 
     @property
     def language(self) -> str:
-        chosen_module_response: str = self.debug.get("chosenModuleResponse", "")
-        params = re.search(r"\{.*\}", chosen_module_response.replace("\n", ""))
-        params = params.group() if params else "{}"
-        params = json.loads(params)
+        """
+        Returns the language of the message based on the chosen module response.
 
-        if "language" in params:
-            return params.get("language", "English")
-        elif "Language: " in chosen_module_response:
-            return chosen_module_response.split("Language: ")[1]
+        If the chosen module response contains a tool parameters, it will use the language from there.
+        Otherwise, it will use the language from the chosen module response.
+
+        If the chosen module response is not a valid JSON, it will use the default language.
+        If the chosen module response does not contain a language, it will use the default language.
+        If the chosen module response contains multiple tools, it will use the last language found.
+
+        Returns:
+            str: The language of the message.
+        """
+        tool_parameters = self.debug.get("toolParameters", {})
+
+        if "language" in tool_parameters:
+            return tool_parameters.get("language", "English")
         else:
-            return "English"
+            try:
+                params = {}
+                chosen_module_response: str = self.debug.get("chosenModuleResponse", "")
+
+                for called_tool in re.findall(r"\{.*?\}", chosen_module_response.replace("\n", "")):
+                    params |= json.loads(called_tool)
+
+            except Exception:
+                self.logger.warning("BL::Model::Message::language::FailedParsingChosenModuleResponse::Using English as default language.")
+                return "English"
+            else:
+                if "language" in params:
+                    return params.get("language", "English")
+                elif "Language: " in chosen_module_response:
+                    return chosen_module_response.split("Language: ")[1]
+                else:
+                    return "English"
 
     def _ingest_image(self, image: str | bytes | File | None) -> Optional[str]:
         if isinstance(image, str):

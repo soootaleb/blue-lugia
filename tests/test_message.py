@@ -186,6 +186,18 @@ class TestMessage(unittest.TestCase):
     def test_language_base(self) -> None:
         message_without_lang = Message(role=Role.USER, content="What's the weather in Bangkok?")
 
+        message_without_lang_debug = Message(
+            role=Role.USER,
+            content="What's the weather in Bangkok?",
+            remote=Message._Remote(
+                id="1",
+                event=self.event,
+                debug={
+                    "chosenModuleResponse": "ExternalModule {}",
+                },
+            ),
+        )
+
         message_with_lang = Message(
             role=Role.USER,
             content="Quelle est la météo à Bangkok?",
@@ -199,6 +211,44 @@ class TestMessage(unittest.TestCase):
         )
 
         self.assertEqual(message_with_lang.language, "French")
+        self.assertEqual(message_without_lang.language, "English")
+        self.assertEqual(message_without_lang_debug.language, "English")
+
+    def test_language_multiple(self) -> None:
+        message_without_lang = Message(role=Role.USER, content="What's the weather in Bangkok?")
+
+        message_with_lang = Message(
+            role=Role.USER,
+            content="Quelle est la météo à Bangkok?",
+            remote=Message._Remote(
+                id="1",
+                event=self.event,
+                debug={
+                    "chosenModuleResponse": 'ExternalModule { "language": "Italian" }\nExternalModule { "language": "French" }',
+                },
+            ),
+        )
+
+        self.assertEqual(message_with_lang.language, "French")
+        self.assertEqual(message_without_lang.language, "English")
+
+    def test_language_tool_parameters(self) -> None:
+        message_without_lang = Message(role=Role.USER, content="What's the weather in Bangkok?")
+
+        message_with_lang = Message(
+            role=Role.USER,
+            content="Quelle est la météo à Bangkok?",
+            remote=Message._Remote(
+                id="1",
+                event=self.event,
+                debug={
+                    "toolParameters": {"language": "German"},
+                    "chosenModuleResponse": 'ExternalModule { "language": "French" }\nExternalModule { "language": "French" }',
+                },
+            ),
+        )
+
+        self.assertEqual(message_with_lang.language, "German")
         self.assertEqual(message_without_lang.language, "English")
 
     def test_language_tool_selection_v0(self) -> None:
