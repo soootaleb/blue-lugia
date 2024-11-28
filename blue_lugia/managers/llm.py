@@ -271,18 +271,18 @@ class LanguageModelManager(Manager):
         flat_messages = messages if isinstance(messages, list) else [messages]
 
         for m in flat_messages:
-            if isinstance(messages, Message):
-                texts.append(messages.content)
-            elif isinstance(messages, dict):
-                dict_content = messages.get("content", messages.get("text", ""))
+            if isinstance(m, Message):
+                texts.append(m.content)
+            elif isinstance(m, dict):
+                dict_content = m.get("content", m.get("text", ""))
                 if not dict_content:
                     self.logger.warning("BL::Manager::LLM::embed::EmptyMessageContent::UsingEmptyString")
                 texts.append(dict_content)
-            elif isinstance(messages, str):
-                texts.append(messages)
+            elif isinstance(m, str):
+                texts.append(m)
             else:
                 self.logger.warning("BL::Manager::LLM::embed::InvalidMessageType::UsingStrCastedString")
-                texts.append(str(messages))
+                texts.append(str(m))
 
         embeddings = unique_sdk.Embeddings.create(
             user_id=self._event.user_id,
