@@ -29,7 +29,6 @@ class Describe(BaseModel):
 
 def module(state: StateManager[ModuleConfig]) -> None:
 
-    state.files.create(name="remove.txt", content="content to remove", scope="scope_l8d50sx1j86hjcyhydpdegsw")
     uploaded_files_names = state.files.uploaded.values("name", flat=True)
 
     state.context([Message.SYSTEM(f"Here is a list of uploaded files: {', '.join(uploaded_files_names)}")]).register(Describe).loop()
