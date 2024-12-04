@@ -756,6 +756,7 @@ class File(Model):
                 "key": self.name,
                 "title": self.name,
                 "mimeType": self.mime_type,
+                "ingestionConfig": {"uniqueIngestionMode": "INGESTION" if ingest else "SKIP_INGESTION"},
             },  # type: ignore
             **extra,
         )
@@ -772,19 +773,19 @@ class File(Model):
             },
         )
 
-        if ingest:
-            unique_sdk.Content.upsert(
-                user_id=self._event.user_id,
-                company_id=self._event.company_id,
-                input={
-                    "key": self.name,
-                    "title": self.name,
-                    "mimeType": self.mime_type,
-                    "byteSize": len(content),
-                },  # type: ignore
-                fileUrl=existing.readUrl,  # type: ignore
-                **extra,
-            )
+        unique_sdk.Content.upsert(
+            user_id=self._event.user_id,
+            company_id=self._event.company_id,
+            input={
+                "key": self.name,
+                "title": self.name,
+                "mimeType": self.mime_type,
+                "byteSize": len(content),
+                "ingestionConfig": {"uniqueIngestionMode": "INGESTION" if ingest else "SKIP_INGESTION"},
+            },  # type: ignore
+            fileUrl=existing.readUrl,  # type: ignore
+            **extra,
+        )
 
         self.chunks = ChunkList(
             [
