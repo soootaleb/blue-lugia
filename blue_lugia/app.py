@@ -459,7 +459,12 @@ class App(Flask, Generic[ConfType]):
         if not self._conf:
             self._conf = cast(ConfType, ModuleConfig())
 
-        conf = self._conf.model_copy(update=event.payload.configuration, deep=True)
+        conf = self._conf.__class__(
+            **{
+                **self._conf.model_dump(),
+                **event.payload.configuration,
+            }
+        )
 
         return self._state_manager(
             event=event,
