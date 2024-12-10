@@ -552,18 +552,26 @@ class LanguageModelManager(Manager):
         elif hasattr(completion, "tool_calls"):
             _tool_calls = completion.tool_calls
 
-        out._tool_calls = out._tool_calls + [
-            {
-                "id": call.id,
-                "type": "function",
-                "function": {
-                    "name": call.name,
-                    "arguments": json.loads(call.arguments),
-                },
-            }
-            for call in _tool_calls
-            if call.id not in [call["id"] for call in out._tool_calls]
-        ]
+        new_tool_calls = []
+
+        for call in _tool_calls:
+            if call.id not in [call["id"] for call in out._tool_calls]:
+                try:
+                    new_tool_calls.append(
+                        {
+                            "id": call.id,
+                            "type": "function",
+                            "function": {
+                                "name": call.name,
+                                "arguments": json.loads(call.arguments),
+                            },
+                        }
+                    )
+                except Exception as e:
+                    self.logger.error(f"BL::Manager::LLM::complete::InvalidToolCall::{e}")
+                    self.logger.debug(f"BL::Manager::LLM::ToolCall::{call.name}::{call.arguments}")
+
+        out._tool_calls = out._tool_calls + new_tool_calls
 
         typed_message = Message(
             role=completion.message.role.lower(),
@@ -576,17 +584,7 @@ class LanguageModelManager(Manager):
                 id=completion.message.id,
                 debug=completion.message.debugInfo,
             ),
-            tool_calls=[
-                {
-                    "id": call.id,
-                    "type": "function",
-                    "function": {
-                        "name": call.name,
-                        "arguments": json.loads(call.arguments),
-                    },
-                }
-                for call in _tool_calls
-            ],
+            tool_calls=new_tool_calls,
             logger=self.logger.getChild(Message.__name__),
         )
 
