@@ -716,7 +716,8 @@ class LanguageModelManager(Manager):
         if output_json:
             messages_contents = "\n".join([message["content"].lower() for message in formatted_messages])
 
-            if not self._use_open_ai and self._model != "AZURE_GPT_4o_2024_0806":
+            if not self._use_open_ai and "4o" not in self._model:
+                self.logger.warning("BL:Manager::LLM:Deprecated::The output_json flag should be replaced with structured output, using the schema parameter.")
                 raise LanguageModelManagerError(f"BL::Manager::LLM::complete({completion_name})::UnsupportedModel::The output_json flag is only supported for GPT-4o.")
 
             if "json" in messages_contents:
