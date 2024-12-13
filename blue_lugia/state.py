@@ -1,7 +1,7 @@
 import logging
 from abc import ABC
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Any, Callable, Generic, List, Tuple
+from typing import Any, Callable, Generic, List, Tuple, Type
 
 import unique_sdk
 from pydantic import BaseModel
@@ -695,7 +695,7 @@ class StateManager(ABC, Generic[ConfType]):
         search_context: List[unique_sdk.Integrated.SearchResult] | None = None,
         output_json: bool = False,
         completion_name: str = "",
-        raise_on_empty_completion: Exception | None = None,
+        raise_on_empty_completion: Type[Exception] | None = None,
     ) -> Message:
         """
         Completes the processing of a message or a sequence within the current context by optionally involving tool interactions and language model outputs.
@@ -765,7 +765,7 @@ class StateManager(ABC, Generic[ConfType]):
         completion_name: str = "",
         search_context: List[unique_sdk.Integrated.SearchResult] | None = None,
         run_async: bool = False,
-        raise_on_empty_completion: Exception | None = None,
+        raise_on_empty_completion: Type[Exception] | None = None,
     ) -> List[Tuple[Message, List[ToolCalled], List[ToolNotCalled]]]:
         """
         Executes a loop of message processing and tool interactions to handle complex scenarios that require iterative processing.
@@ -847,7 +847,7 @@ class StateManager(ABC, Generic[ConfType]):
         schema: type[BaseModel] | None = None,
         completion_name: str = "",
         search_context: List[unique_sdk.Integrated.SearchResult] | None = None,
-        raise_on_empty_completion: Exception | None = None,
+        raise_on_empty_completion: Type[Exception] | None = None,
     ) -> Message:
         """
         Streams processing of messages, potentially in a real-time environment, handling one message at a time.

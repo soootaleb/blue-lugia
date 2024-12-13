@@ -10,7 +10,7 @@ from openai import NotGiven
 with contextlib.suppress(ImportError):
     from openai import OpenAI
 
-from typing import Any, List, Literal, Tuple, TypeVar
+from typing import Any, List, Literal, Tuple, Type, TypeVar
 
 from pydantic import BaseModel
 
@@ -754,7 +754,7 @@ class LanguageModelManager(Manager):
         output_json: bool = False,
         completion_name: str = "",
         search_context: List[unique_sdk.Integrated.SearchResult] | None = None,
-        raise_on_empty_completion: Exception | None = None,
+        raise_on_empty_completion: Type[Exception] | None = None,
         *args,
         **kwargs,
     ) -> Message:
@@ -844,7 +844,7 @@ class LanguageModelManager(Manager):
             self.logger.warning(f"BL::Manager::LLM::complete({completion_name})::EmptyCompletion")
 
             if raise_on_empty_completion:
-                raise raise_on_empty_completion
+                raise raise_on_empty_completion(f"BL::Manager::LLM::complete({completion_name})::EmptyCompletion")
 
         return completion
 
