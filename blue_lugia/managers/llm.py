@@ -754,6 +754,7 @@ class LanguageModelManager(Manager):
         output_json: bool = False,
         completion_name: str = "",
         search_context: List[unique_sdk.Integrated.SearchResult] | None = None,
+        raise_on_empty_completion: Exception | None = None,
         *args,
         **kwargs,
     ) -> Message:
@@ -813,9 +814,11 @@ class LanguageModelManager(Manager):
         self.logger.debug(f"BL::Manager::LLM::complete({completion_name})::Model::{self._model}")
 
         if self._use_open_ai:
-            return self._complete_openai(formatted_messages=formatted_messages, options=options, references=(existing_references, new_references), completion_name=completion_name)
+            completion = self._complete_openai(
+                formatted_messages=formatted_messages, options=options, references=(existing_references, new_references), completion_name=completion_name
+            )
         elif out and self._streaming_allowed:
-            return self._complete_streaming(
+            completion = self._complete_streaming(
                 formatted_messages=formatted_messages,
                 options=options,
                 out=out,
@@ -837,7 +840,13 @@ class LanguageModelManager(Manager):
             if out:
                 out.update(content=(start_text or "") + (completion.content or ""))
 
-            return completion
+        if not completion.content and not completion.original_content and not completion.tool_calls:
+            self.logger.warning(f"BL::Manager::LLM::complete({completion_name})::EmptyCompletion")
+
+            if raise_on_empty_completion:
+                raise raise_on_empty_completion
+
+        return completion
 
     def parse(self, message_or_messages: Message | List[Message] | List[dict[str, Any]], into: type[ToolType], completion_name: str = "") -> ToolType:
         messages = message_or_messages if isinstance(message_or_messages, list) else [message_or_messages]
