@@ -369,14 +369,17 @@ class Message(Model):
         if self._remote:
             self._remote._debug = (self._remote._debug or {}) | debug
 
-            unique_sdk.Message.modify(
-                user_id=self._remote._event.user_id,
-                company_id=self._remote._event.company_id,
-                chatId=self._remote._event.payload.chat_id,
-                id=self._remote._id,
-                debugInfo=self._remote._debug,
-                **args,
-            )
+            try:
+                unique_sdk.Message.modify(
+                    user_id=self._remote._event.user_id,
+                    company_id=self._remote._event.company_id,
+                    chatId=self._remote._event.payload.chat_id,
+                    id=self._remote._id,
+                    debugInfo=self._remote._debug,
+                    **args,
+                )
+            except Exception as e:
+                self.logger.error(f"BL::Model::Message::update::ModifyError::{e}")
 
         elif debug:
             self.logger.warning("BL::Model::Message::update::NoRemoteCounterPart::Setting debug info on a message without a remote message.")

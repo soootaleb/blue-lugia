@@ -5,14 +5,14 @@ from blue_lugia.models.event import AssistantMessage, ExternalModuleChosenEvent,
 
 class MockEvent(ExternalModuleChosenEvent):
     @classmethod
-    def create(cls) -> "MockEvent":
+    def create(cls, company_id: str = "company_mock_id", user_id: str = "user_mock_id") -> "MockEvent":
         return cls(
             id="evt_mock_id",
             version="1.0.0",
             event="unique.chat.external-module.chosen",
             created_at=datetime.datetime.now(),
-            user_id="user_mock_id",
-            company_id="company_mock_id",
+            user_id=user_id,
+            company_id=company_id,
             payload=Payload(
                 name="mock_module",
                 description="Mock module",
