@@ -1,5 +1,6 @@
+from collections.abc import Iterable
 from datetime import datetime
-from typing import Any, Callable, Iterable, List
+from typing import Any, Callable
 
 import tiktoken
 import unique_sdk
@@ -53,7 +54,7 @@ class MessageManager(Manager):
                 retrieved = unique_sdk.Message.list(
                     user_id=self._event.user_id,
                     company_id=self._event.company_id,
-                    chatId=self._event.payload.chat_id,
+                    chatId=self._event.payload.chat_id or "",
                 )
 
             except Exception as e:
@@ -124,7 +125,7 @@ class MessageManager(Manager):
         retrieved = unique_sdk.Message.retrieve(
             user_id=self._event.user_id,
             company_id=self._event.company_id,
-            chatId=self._event.payload.chat_id,
+            chatId=self._event.payload.chat_id or "",
             id=message_id,
         )
 
@@ -139,7 +140,7 @@ class MessageManager(Manager):
             completed_at=datetime.fromisoformat(retrieved.completedAt) if retrieved.completedAt else None,  # type: ignore
         )
 
-    def values(self, *args, **kwargs) -> List:
+    def values(self, *args, **kwargs) -> list:
         mapped = []
 
         flat = kwargs.get("flat", False)

@@ -1,5 +1,5 @@
 import datetime
-from typing import Any, Callable, List, Tuple
+from typing import Any, Callable
 
 import tiktoken
 import unique_sdk
@@ -23,9 +23,10 @@ class FileManager(Manager):
 
     _chat_only: bool
     _search_type: SearchType
-    _scopes: List[str]
+    _scopes: list[str]
+    _ids: list[str]
 
-    _filters: List[Any]
+    _filters: list[Any]
     _filters_operator: Op
 
     _query: Q | None = None
@@ -84,7 +85,8 @@ class FileManager(Manager):
         tokenizer: str | tiktoken.Encoding,
         chat_only: bool = False,
         search_type: SearchType = SearchType.COMBINED,
-        scopes: List[str] = [],
+        scopes: list[str] = [],
+        ids: list[str] = [],
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
@@ -92,6 +94,7 @@ class FileManager(Manager):
         self._chat_only = chat_only
         self._search_type = search_type
         self._scopes = scopes if scopes else []
+        self._ids = ids if ids else []
         self._filters = []
         self._filters_operator = Op.OR
         self._tokenizer = tokenizer
@@ -118,6 +121,7 @@ class FileManager(Manager):
             chat_only=self._chat_only,
             search_type=self._search_type,
             scopes=self._scopes,
+            ids=self._ids,
             event=self._event,
             logger=self.logger,
             tokenizer=self.tokenizer,
@@ -133,7 +137,7 @@ class FileManager(Manager):
 
         return file_manager
 
-    def _cast_search(self, chunks: list[Any]) -> ChunkList:
+    def _cast_search(self, chunks: list[unique_sdk.Search]) -> ChunkList:
         files_map: dict[str, File] = {}
         all_chunks = []
 
@@ -221,7 +225,7 @@ class FileManager(Manager):
             logger=self.logger.getChild(FileList.__name__),
         )
 
-    def _kwargs_to_kov(self, full_key: str, value: Any) -> Tuple[str | list, str, Any]:
+    def _kwargs_to_kov(self, full_key: str, value: Any) -> tuple[str | list, str, Any]:
         if "__" in full_key:
             splited = full_key.split("__")
 
@@ -264,7 +268,7 @@ class FileManager(Manager):
 
         return query
 
-    def _process_metadata_condition(self, condition: Tuple[str, str, Any] | Q, negated: bool = False) -> dict[str, Any] | None:
+    def _process_metadata_condition(self, condition: tuple[str, str, Any] | Q, negated: bool = False) -> dict[str, Any] | None:
         if isinstance(condition, Q):
             return self._q_to_metadata(condition)
         else:
@@ -326,7 +330,7 @@ class FileManager(Manager):
 
         return result
 
-    def _process_content_condition(self, condition: Tuple[str, str, Any] | Q) -> dict[str, Any]:
+    def _process_content_condition(self, condition: tuple[str, str, Any] | Q) -> dict[str, Any]:
         if isinstance(condition, Q):
             # Recursive call to process nested Q objects
             return self._q_to_content_filters(condition) if len(condition.conditions) > 1 or condition.negated else self._process_content_condition(condition.conditions[0])
@@ -424,7 +428,7 @@ class FileManager(Manager):
         file_manager._search_type = search_type
         return file_manager
 
-    def scoped(self, scopes: List[str] | str) -> "FileManager":
+    def scoped(self, scopes: list[str] | str) -> "FileManager":
         file_manager = self.fork()
 
         if isinstance(scopes, str):
@@ -437,9 +441,20 @@ class FileManager(Manager):
 
         return file_manager
 
-    def search(self, query: str = "", limit: int = 100, **kwargs) -> ChunkList:
-        found_all = []
+    def contents(self, ids: list[str] | str) -> "FileManager":
+        file_manager = self.fork()
 
+        if isinstance(ids, str):
+            ids = [ids]
+
+        if file_manager._ids:
+            self.logger.warning("BL::Manager::Files::ids::ContentIDsOverwritten")
+
+        file_manager._ids = ids
+
+        return file_manager
+
+    def search(self, query: str = "", limit: int = 100, **kwargs) -> ChunkList:
         metadata_filters = self._q_to_metadata(self._query) if self._query else None
 
         extra_args = {}
@@ -450,8 +465,14 @@ class FileManager(Manager):
         if self._scopes:
             extra_args["scopeIds"] = self._scopes
 
+        if self._ids:
+            extra_args["contentIds"] = self._ids
+
         if metadata_filters:
             extra_args["metaDataFilter"] = metadata_filters
+
+        if self._event.payload.chat_id:
+            extra_args["chatId"] = self._event.payload.chat_id
 
         if limit <= 1000:
             extra_args["limit"] = limit
@@ -463,15 +484,12 @@ class FileManager(Manager):
         found = unique_sdk.Search.create(
             user_id=self._event.user_id,
             company_id=self._event.company_id,
-            chatId=self._event.payload.chat_id,
             searchString=query,
             searchType=self._search_type.value,
             **extra_args,
         )
 
-        found_all.extend(found["data"])
-
-        typed_search = self._cast_search(found_all)
+        typed_search = self._cast_search(found)
 
         if self._order_by:
             return typed_search.sort(key=self._order_by, reverse=self._order_reverse)
@@ -487,16 +505,24 @@ class FileManager(Manager):
         if self._scopes:
             query &= Q(ownerId__in=self._scopes)
 
+        if self._ids:
+            query &= Q(id__in=self._ids)
+
         wheres = self._q_to_content_filters(query)
 
         if self._chat_only and self._scopes:
             self.logger.warning("BL::Manager::Files::fetch::EmptyQuery::Using uploaded and scoped filters together will result in empty results")
 
+        extra_args = {}
+
+        if self._event.payload.chat_id:
+            extra_args["chatId"] = self._event.payload.chat_id
+
         found = unique_sdk.Content.search(
             user_id=self._event.user_id,
             company_id=self._event.company_id,
-            chatId=self._event.payload.chat_id,
             where=wheres or None,  # type: ignore
+            **extra_args,
         )
 
         typed_content = self._cast_content(found)
@@ -558,12 +584,14 @@ class FileManager(Manager):
     def last(self, lookup: Callable[[File], bool] | None = None) -> File | None:
         return self.all().last(lookup)
 
+    @deprecated("BL::API::Version::UseInstead::FileManager::contents")
     def get_by_id(self, file_id: str) -> File | None:
         try:
             return next(filter(lambda x: x.id == file_id, self.all()))  # type: ignore
         except StopIteration:
             return None
 
+    @deprecated("BL::API::Version::UseInstead::FileManager::filter")
     def get_by_name(self, name: str) -> File | None:
         try:
             return next(filter(lambda x: x.name == name, self.all()))  # type: ignore
@@ -581,7 +609,7 @@ class FileManager(Manager):
     def __len__(self) -> int:
         return self.count()
 
-    def values(self, *args, **kwargs) -> List:
+    def values(self, *args, **kwargs) -> list:
         mapped = []
 
         flat = kwargs.get("flat", False)
@@ -606,5 +634,5 @@ class FileManager(Manager):
 
         return file
 
-    def as_context(self) -> List[unique_sdk.Integrated.SearchResult]:
+    def as_context(self) -> list[unique_sdk.Integrated.SearchResult]:
         return self.all().as_context()

@@ -15,7 +15,7 @@ Initializes the `MessageManager` instance.
 Retrieves all messages and returns a `MessageList`.
 
 **Returns:**
-- `MessageList`: List of all messages.
+- `MessageList`: list of all messages.
 
 ### `filter`
 Applies a filter to the messages and returns a new `MessageManager` instance.
@@ -70,7 +70,7 @@ Returns a list of values for specified attributes.
 - `**kwargs`: Additional options.
 
 **Returns:**
-- `List`: List of values for the specified attributes.
+- `list`: list of values for the specified attributes.
 
 ### `create`
 Creates a new message.

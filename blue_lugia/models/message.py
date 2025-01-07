@@ -3,8 +3,9 @@ import json
 import logging
 import mimetypes
 import re
+from collections.abc import Iterable
 from datetime import datetime
-from typing import Any, Callable, Iterable, List, Optional, SupportsIndex, Type, TypeVar
+from typing import Any, Callable, Optional, SupportsIndex, TypeVar
 
 import tiktoken
 import unique_sdk
@@ -105,7 +106,7 @@ class Message(Model):
             self = re.sub(r"(?<=\d),(?=\d)", "", self)
             return json.loads(self)
 
-        def parse(self, into: Type[Parsed]) -> Parsed:
+        def parse(self, into: type[Parsed]) -> Parsed:
             return into(**self.json())
 
         def pprint(self, indent: int = 2) -> str:
@@ -118,10 +119,10 @@ class Message(Model):
     _content: Optional[_Content]
     _original_content: Optional[_Content]
 
-    _tool_calls: List[dict[str, Any]]
+    _tool_calls: list[dict[str, Any]]
     _tool_call_id: Optional[str]
 
-    _sources: List[unique_sdk.Integrated.SearchResult]
+    _sources: list[unique_sdk.Integrated.SearchResult]
     _citations: dict[str, int]
 
     _image: Optional[str] = None
@@ -137,9 +138,9 @@ class Message(Model):
         image: Optional[str | bytes | File] = None,
         remote: _Remote | None = None,
         tool_call_id: Optional[str] = None,
-        tool_calls: List[dict[str, Any]] | None = None,
+        tool_calls: list[dict[str, Any]] | None = None,
         citations: dict[str, int] | None = None,
-        sources: List[unique_sdk.Integrated.SearchResult] | None = None,
+        sources: list[unique_sdk.Integrated.SearchResult] | None = None,
         original_content: Optional[str | _Content] = None,
         completed_at: datetime | None = None,
         **kwargs: logging.Logger,
@@ -152,7 +153,7 @@ class Message(Model):
             content (Optional[str | _Content]): The main content of the message, which can be plain text or structured (_Content).
             remote (_Remote | None): Remote connection data, providing linkage to external events and debug information.
             tool_call_id (Optional[str]): A unique identifier for a tool interaction specific to this message.
-            tool_calls (List[dict[str, Any]] | None): Detailed records of tool interactions associated with the message.
+            tool_calls (list[dict[str, Any]] | None): Detailed records of tool interactions associated with the message.
             **kwargs: Standard logging options or other additional parameters.
 
         Raises:
@@ -206,7 +207,7 @@ class Message(Model):
             return {}
 
     @property
-    def sources(self) -> List[unique_sdk.Integrated.SearchResult]:
+    def sources(self) -> list[unique_sdk.Integrated.SearchResult]:
         return self.debug.get("_sources", []) or self._sources
 
     @property
@@ -250,7 +251,7 @@ class Message(Model):
         return self._tool_call_id
 
     @property
-    def tool_calls(self) -> List[dict]:
+    def tool_calls(self) -> list[dict]:
         return self._tool_calls
 
     @property
@@ -337,7 +338,7 @@ class Message(Model):
         return json.dumps(self.to_dict(), indent=indent, ensure_ascii=False)
 
     def update(
-        self, content: str | _Content | None = None, debug: dict[str, Any] | None = None, references: List[Any] | None = None, completed_at: datetime | None = None
+        self, content: str | _Content | None = None, debug: dict[str, Any] | None = None, references: list[Any] | None = None, completed_at: datetime | None = None
     ) -> "Message":
         """
         Updates the content of the message and optionally merges new debug information into the existing debug data.
@@ -372,7 +373,7 @@ class Message(Model):
             unique_sdk.Message.modify(
                 user_id=self._remote._event.user_id,
                 company_id=self._remote._event.company_id,
-                chatId=self._remote._event.payload.chat_id,
+                chatId=self._remote._event.payload.chat_id or "",
                 id=self._remote._id,
                 debugInfo=self._remote._debug,
                 **args,
@@ -434,7 +435,7 @@ class Message(Model):
             id=self._remote._id,
             user_id=self._remote._event.user_id,
             company_id=self._remote._event.company_id,
-            chatId=self._remote._event.payload.chat_id,
+            chatId=self._remote._event.payload.chat_id or "",
         )
 
         return self
@@ -444,7 +445,7 @@ class Message(Model):
 
     @classmethod
     def USER(  # noqa: N802
-        cls, content: str | _Content | None, sources: List[unique_sdk.Integrated.SearchResult] | None = None, image: str | bytes | File | None = None, **kwargs: Any
+        cls, content: str | _Content | None, sources: list[unique_sdk.Integrated.SearchResult] | None = None, image: str | bytes | File | None = None, **kwargs: Any
     ) -> "Message":
         """
         Factory method to create a user-type message.
@@ -460,7 +461,7 @@ class Message(Model):
 
     @classmethod
     def SYSTEM(  # noqa: N802
-        cls, content: str | _Content | None, sources: List[unique_sdk.Integrated.SearchResult] | None = None, **kwargs: Any
+        cls, content: str | _Content | None, sources: list[unique_sdk.Integrated.SearchResult] | None = None, **kwargs: Any
     ) -> "Message":
         """
         Factory method to create a system-type message.
@@ -478,8 +479,8 @@ class Message(Model):
     def ASSISTANT(  # noqa: N802
         cls,
         content: str | _Content | None,
-        tool_calls: List[dict[str, Any]] = [],
-        sources: List[unique_sdk.Integrated.SearchResult] | None = None,
+        tool_calls: list[dict[str, Any]] = [],
+        sources: list[unique_sdk.Integrated.SearchResult] | None = None,
         **kwargs: Any,
     ) -> "Message":
         """
@@ -487,7 +488,7 @@ class Message(Model):
 
         Args:
             content (str | _Content | None): The content of the message.
-            tool_calls (List[dict[str, Any]]): A list of tool interaction details.
+            tool_calls (list[dict[str, Any]]): A list of tool interaction details.
             **kwargs: Additional attributes or configurations specific to the assistant message.
 
         Returns:
@@ -501,7 +502,7 @@ class Message(Model):
         content: str | _Content | None,
         tool_call_id: str,
         citations: dict[str, int] | None = None,
-        sources: List[unique_sdk.Integrated.SearchResult] | None = None,
+        sources: list[unique_sdk.Integrated.SearchResult] | None = None,
         **kwargs: Any,
     ) -> "Message":
         """
@@ -547,7 +548,7 @@ class Message(Model):
         return f"{self.role.value.upper()}: {content[:30]}"
 
 
-class MessageList(List[Message], Model):
+class MessageList(list[Message], Model):
     """
     A specialized list for managing collections of Message objects, with added functionality
     for handling messages in a structured format.
@@ -631,7 +632,7 @@ class MessageList(List[Message], Model):
         return all_tokens
 
     @property
-    def sources(self) -> List[unique_sdk.Integrated.SearchResult]:
+    def sources(self) -> list[unique_sdk.Integrated.SearchResult]:
         return [source for message in self for source in message.sources]
 
     def to_dict(self) -> dict:

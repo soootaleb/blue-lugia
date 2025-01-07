@@ -6,7 +6,7 @@ import os
 import traceback
 from http import HTTPStatus
 from logging.config import dictConfig
-from typing import Any, Callable, Generic, List, Tuple, Type, cast
+from typing import Any, Callable, Generic, cast
 from urllib.parse import urlparse
 
 import toml
@@ -49,9 +49,9 @@ class App(Flask, Generic[ConfType]):
     Methods:
         of(module: Callable[[ExternalModuleChosenEvent], bool]) -> "App":
             Sets the module to be processed and returns the App instance.
-        configured(conf: Type[ConfType]) -> "App":
+        configured(conf: type[ConfType]) -> "App":
             Configures the module configuration and returns the App instance.
-        managed(state_manager: Type[StateManager]) -> "App":
+        managed(state_manager: type[StateManager]) -> "App":
             Sets the state manager and returns the App instance.
         threaded(threaded: bool = True) -> "App":
             Enables or disables threaded execution and returns the App instance.
@@ -65,11 +65,11 @@ class App(Flask, Generic[ConfType]):
     _executor: concurrent.futures.ThreadPoolExecutor
 
     _conf: ConfType
-    _state_manager: Type[StateManager[ConfType]] | None = None
+    _state_manager: type[StateManager[ConfType]] | None = None
 
-    _error_handlers: List[Tuple[Type[Exception], Callable[[Exception, StateManager[ConfType]], None] | None]]
+    _error_handlers: list[tuple[type[Exception], Callable[[Exception, StateManager[ConfType]], None] | None]]
 
-    _managers: dict[str, Type[Manager]]
+    _managers: dict[str, type[Manager]]
 
     _commands: dict[str, Callable[[StateManager[ConfType], list[str]], bool | None]]
 
@@ -111,7 +111,7 @@ class App(Flask, Generic[ConfType]):
 
         self.configure_logging()
 
-        self.configured(cast(Type[ConfType], ModuleConfig))
+        self.configured(cast(type[ConfType], ModuleConfig))
 
         self.route("/")(self._hello)
         self.route("/version")(self._version)
@@ -237,12 +237,12 @@ class App(Flask, Generic[ConfType]):
 
         return self
 
-    def configured(self, conf: Type[ConfType]) -> "App":
+    def configured(self, conf: type[ConfType]) -> "App":
         """
         Configures the module configuration and returns the App instance.
 
         Args:
-            conf (Type[ConfType]): The configuration class for the module.
+            conf (type[ConfType]): The configuration class for the module.
 
         Returns:
             App: The current instance of the App.
@@ -263,12 +263,12 @@ class App(Flask, Generic[ConfType]):
         self.logger.info(f"Configuration {conf.__name__} set.")
         return self
 
-    def managed(self, state_manager: Type[StateManager]) -> "App":
+    def managed(self, state_manager: type[StateManager]) -> "App":
         """
         Sets the state manager and returns the App instance.
 
         Args:
-            state_manager (Type[StateManager]): The state manager class.
+            state_manager (type[StateManager]): The state manager class.
 
         Returns:
             App: The current instance of the App.
@@ -291,7 +291,7 @@ class App(Flask, Generic[ConfType]):
         self.logger.info(f"Threaded execution set to {threaded}.")
         return self
 
-    def using(self, manager: Type[Manager]) -> "App":
+    def using(self, manager: type[Manager]) -> "App":
         if not issubclass(manager, Manager):
             raise TypeError("Manager must be a subclass of Manager")
         elif issubclass(manager, MessageManager):
@@ -311,7 +311,7 @@ class App(Flask, Generic[ConfType]):
 
     def handle(
         self,
-        exception: Type[Exception],
+        exception: type[Exception],
         handler: Callable[[Exception, StateManager[ConfType]], None] | None = None,
     ) -> "App":
         """
@@ -584,13 +584,13 @@ class App(Flask, Generic[ConfType]):
                 else:
                     self._run_module(external_event)
 
-    def _hello(self) -> Tuple[str, int]:
+    def _hello(self) -> tuple[str, int]:
         return f"Hello from the {self.name} tool! 🚀", 200
 
-    def _version(self) -> Tuple[dict, int]:
+    def _version(self) -> tuple[dict, int]:
         return self.version, 200
 
-    def _webhook(self) -> Tuple[str, int] | Tuple[Response, int] | None:
+    def _webhook(self) -> tuple[str, int] | tuple[Response, int] | None:
         event = None
         payload = request.data
 

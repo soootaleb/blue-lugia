@@ -3,9 +3,10 @@ import logging
 import random
 import re
 import string
+from collections.abc import Iterable
 from io import BytesIO
 from math import ceil
-from typing import Any, Callable, Iterable, List, Optional
+from typing import Any, Callable, Optional
 from xml.sax.saxutils import escape
 
 import requests
@@ -209,7 +210,7 @@ class Chunk(Model):
         return self.id
 
 
-class ChunkList(List[Chunk], Model):
+class ChunkList(list[Chunk], Model):
     def __init__(self, iterable: Iterable[Chunk] = [], **kwargs: Any) -> None:
         list.__init__(self, iterable)
         Model.__init__(self, **kwargs)
@@ -458,12 +459,12 @@ class ChunkList(List[Chunk], Model):
 
         return files
 
-    def as_context(self) -> List[unique_sdk.Integrated.SearchResult]:
+    def as_context(self) -> list[unique_sdk.Integrated.SearchResult]:
         """
         Converts the collection of chunks into a list of search results based on their content and metadata.
         The result is designed to be used as a search_context when using LLM.complete()
         Returns:
-            List[unique_sdk.Integrated.SearchResult]: A list of SearchResult objects that represent each chunk.
+            list[unique_sdk.Integrated.SearchResult]: A list of SearchResult objects that represent each chunk.
                                                     Each result contains the chunk's file ID, chunk ID,
                                                     a key representing the file and page range, and a URL to access the chunk.
         This method constructs a SearchResult for each chunk by forming a key from the file key and the range
@@ -768,8 +769,8 @@ class File(Model):
             self.write_url,
             data=content,
             headers={
-                "X-Ms-Blob-Content-Type": self.mime_type,
-                "X-Ms-Blob-Type": "BlockBlob",
+                "X-Ms-Blob-Content-type": self.mime_type,
+                "X-Ms-Blob-type": "BlockBlob",
             },
         )
 
@@ -809,12 +810,12 @@ class File(Model):
 
         return self
 
-    def as_context(self) -> List[unique_sdk.Integrated.SearchResult]:
+    def as_context(self) -> list[unique_sdk.Integrated.SearchResult]:
         """
         Converts the file into search results based on its chunks.
         Designed to be passed as a search_context in LLM.complete()
         Returns:
-            List[unique_sdk.Integrated.SearchResult]: A list of search results, each representing a chunk of the file.
+            list[unique_sdk.Integrated.SearchResult]: A list of search results, each representing a chunk of the file.
         """
         return self.chunks.as_context()
 
@@ -825,7 +826,7 @@ class File(Model):
         return self.name
 
 
-class FileList(List[File], Model):
+class FileList(list[File], Model):
     """
     A list structure that holds a collection of File objects, extending both Python's list and a custom Model base class.
 
@@ -1093,11 +1094,11 @@ class FileList(List[File], Model):
         else:
             return FileList([file.truncate(tokens_limit=file_token_limit, strategy=strategy, level=level) for file in self], logger=self.logger.getChild(FileList.__name__))
 
-    def as_context(self) -> List[unique_sdk.Integrated.SearchResult]:
+    def as_context(self) -> list[unique_sdk.Integrated.SearchResult]:
         """
         Converts the list of files into a list of search results based on their content and metadata.
         Returns:
-            List[unique_sdk.Integrated.SearchResult]: A list of search results, each representing a file in the list.
+            list[unique_sdk.Integrated.SearchResult]: A list of search results, each representing a file in the list.
         """
         results = []
 

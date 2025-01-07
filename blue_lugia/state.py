@@ -1,7 +1,7 @@
 import logging
 from abc import ABC
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Any, Callable, Generic, List, Tuple, Type
+from typing import Any, Callable, Generic
 
 import unique_sdk
 from pydantic import BaseModel
@@ -32,7 +32,7 @@ class StateManager(ABC, Generic[ConfType]):
         _files (FileManager): Handles file-based operations.
         _storage (StorageManager): Manages data persistence and retrieval.
         _extra (dict[str, Any]): Extra parameters that might be needed during processing.
-        _tools (List[type[BaseModel]]): Registered tools for processing.
+        _tools (list[type[BaseModel]]): Registered tools for processing.
         _ctx (MessageList): The current context of messages being processed.
         _logger (logging.Logger | None): Logger for logging activities, optional.
         _managers (dict[str, type[Manager]]): Dictionary mapping manager types to their instances.
@@ -76,7 +76,7 @@ class StateManager(ABC, Generic[ConfType]):
     _storage: StorageManager
 
     _extra: dict[str, Any]
-    _tools: List[type[BaseModel]]
+    _tools: list[type[BaseModel]]
     _ctx: MessageList
 
     _logger: logging.Logger | None = None
@@ -189,7 +189,7 @@ class StateManager(ABC, Generic[ConfType]):
         return self._ctx
 
     @property
-    def tools(self) -> List[type[BaseModel]]:
+    def tools(self) -> list[type[BaseModel]]:
         return self._tools
 
     @property
@@ -265,7 +265,7 @@ class StateManager(ABC, Generic[ConfType]):
 
     def context(
         self,
-        messages: (List[Message] | File | FileManager | FileList | Message | MessageList | MessageManager),
+        messages: (list[Message] | File | FileManager | FileList | Message | MessageList | MessageManager),
         append: bool = False,
         prepend: bool = False,
     ) -> "StateManager[ConfType]":
@@ -273,7 +273,7 @@ class StateManager(ABC, Generic[ConfType]):
         Sets or modifies the current context for processing messages.
 
         Args:
-            messages (Union[List[Message], File, FileManager, FileList, Message, MessageList, MessageManager]): The new context or additional messages to set or add.
+            messages (Union[list[Message], File, FileManager, FileList, Message, MessageList, MessageManager]): The new context or additional messages to set or add.
             append (bool): If True, adds the provided messages to the end of the current context.
             prepend (bool): If True, adds the provided messages to the beginning of the current context.
 
@@ -325,7 +325,7 @@ class StateManager(ABC, Generic[ConfType]):
 
     def set_context(
         self,
-        messages: (List[Message] | File | FileManager | FileList | Message | MessageList | MessageManager),
+        messages: (list[Message] | File | FileManager | FileList | Message | MessageList | MessageManager),
         append: bool = False,
         prepend: bool = False,
     ) -> "StateManager[ConfType]":
@@ -333,7 +333,7 @@ class StateManager(ABC, Generic[ConfType]):
         Sets or modifies the current context for processing messages.
 
         Args:
-            messages (Union[List[Message], File, FileManager, FileList, Message, MessageList, MessageManager]): The new context or additional messages to set or add.
+            messages (Union[list[Message], File, FileManager, FileList, Message, MessageList, MessageManager]): The new context or additional messages to set or add.
             append (bool): If True, adds the provided messages to the end of the current context.
             prepend (bool): If True, adds the provided messages to the beginning of the current context.
 
@@ -349,12 +349,12 @@ class StateManager(ABC, Generic[ConfType]):
         """
         return self.context(messages=messages, append=append, prepend=prepend)
 
-    def register(self, tools: type[BaseModel] | List[type[BaseModel]]) -> "StateManager":
+    def register(self, tools: type[BaseModel] | list[type[BaseModel]]) -> "StateManager":
         """
         Registers one or more new tools to be used in processing.
 
         Args:
-            tools (Union[type[BaseModel], List[type[BaseModel]]]): The tool or list of tools to register.
+            tools (Union[type[BaseModel], list[type[BaseModel]]]): The tool or list of tools to register.
 
         Returns:
             StateManager: The current instance of StateManager with the new tools registered.
@@ -362,7 +362,7 @@ class StateManager(ABC, Generic[ConfType]):
         Usage:
             This method is used to add new tools to the StateManager's toolkit, expanding its capabilities for handling various tasks related to message and data processing.
         """
-        tools_as_list = tools if isinstance(tools, List) else [tools]
+        tools_as_list = tools if isinstance(tools, list) else [tools]
 
         for tool in tools_as_list:
             if tool not in self._tools:
@@ -381,7 +381,7 @@ class StateManager(ABC, Generic[ConfType]):
         extra: dict[str, Any],
         raise_on_missing_tool: bool = False,
         out: Message | None = None,
-    ) -> Tuple[ToolCalled | ToolNotCalled, bool]:
+    ) -> tuple[ToolCalled | ToolNotCalled, bool]:
         self.logger.debug(f"BL::StateManager::_execute_tool::{tc_index} - Calling tool {tc['function']['name']}")
 
         tool_name = tc["function"]["name"]
@@ -488,9 +488,9 @@ class StateManager(ABC, Generic[ConfType]):
 
     def _call_tools(
         self, message: Message, extra: dict | None = None, out: Message | None = None, raise_on_missing_tool: bool = False, run_async: bool = False
-    ) -> Tuple[List[ToolCalled], List[ToolNotCalled]]:
-        tools_called: List[ToolCalled] = []
-        tools_not_called: List[ToolNotCalled] = []
+    ) -> tuple[list[ToolCalled], list[ToolNotCalled]]:
+        tools_called: list[ToolCalled] = []
+        tools_not_called: list[ToolNotCalled] = []
 
         tools_routes = {tool.__name__: tool for tool in self.tools}
 
@@ -531,7 +531,7 @@ class StateManager(ABC, Generic[ConfType]):
 
         return tools_called, tools_not_called
 
-    def _process_tools_called(self, message: Message, tools_called: List[ToolCalled], tools_not_called: List[ToolNotCalled]) -> bool:  # noqa: C901
+    def _process_tools_called(self, message: Message, tools_called: list[ToolCalled], tools_not_called: list[ToolNotCalled]) -> bool:  # noqa: C901
         complete = True
 
         extension = MessageList(
@@ -659,7 +659,7 @@ class StateManager(ABC, Generic[ConfType]):
         out: Message | None = None,
         raise_on_missing_tool: bool = False,
         run_async: bool = False,
-    ) -> Tuple[List[ToolCalled], List[ToolNotCalled], bool]:
+    ) -> tuple[list[ToolCalled], list[ToolNotCalled], bool]:
         """
         Facilitates calling registered tools with a given message.
 
@@ -670,7 +670,7 @@ class StateManager(ABC, Generic[ConfType]):
             raise_on_missing_tool (bool): If True, raises an exception when a required tool is missing.
 
         Returns:
-            Tuple[List[ToolCalled], List[ToolNotCalled], bool]: A tuple containing lists of tools that were called and not called,
+            tuple[list[ToolCalled], list[ToolNotCalled], bool]: A tuple containing lists of tools that were called and not called,
             and a boolean indicating if the process should continue.
 
         Usage:
@@ -692,10 +692,10 @@ class StateManager(ABC, Generic[ConfType]):
         start_text: str = "",
         tool_choice: type[BaseModel] | None = None,
         schema: type[BaseModel] | None = None,
-        search_context: List[unique_sdk.Integrated.SearchResult] | None = None,
+        search_context: list[unique_sdk.Integrated.SearchResult] | None = None,
         output_json: bool = False,
         completion_name: str = "",
-        raise_on_empty_completion: Type[Exception] | None = None,
+        raise_on_empty_completion: type[Exception] | None = None,
     ) -> Message:
         """
         Completes the processing of a message or a sequence within the current context by optionally involving tool interactions and language model outputs.
@@ -707,7 +707,7 @@ class StateManager(ABC, Generic[ConfType]):
             tool_choice (type[BaseModel] | None): If specified, forces the use of a particular tool for this operation.
             output_json (bool): If True, returns the output in JSON format. Passed to LLM.complete()
             completion_name (str): The name of the completion for logging purposes.
-            search_context (List[unique_sdk.Integrated.SearchResult] | None): The search context to use for the completion.
+            search_context (list[unique_sdk.Integrated.SearchResult] | None): The search context to use for the completion.
 
         Returns:
             Message: The message generated or modified as a result of the completion process.
@@ -763,10 +763,10 @@ class StateManager(ABC, Generic[ConfType]):
         raise_on_missing_tool: bool = False,
         output_json: bool = False,
         completion_name: str = "",
-        search_context: List[unique_sdk.Integrated.SearchResult] | None = None,
+        search_context: list[unique_sdk.Integrated.SearchResult] | None = None,
         run_async: bool = False,
-        raise_on_empty_completion: Type[Exception] | None = None,
-    ) -> List[Tuple[Message, List[ToolCalled], List[ToolNotCalled]]]:
+        raise_on_empty_completion: type[Exception] | None = None,
+    ) -> list[tuple[Message, list[ToolCalled], list[ToolNotCalled]]]:
         """
         Executes a loop of message processing and tool interactions to handle complex scenarios that require iterative processing.
 
@@ -781,7 +781,7 @@ class StateManager(ABC, Generic[ConfType]):
             completion_name (str): The name of the completion for logging purposes.
 
         Returns:
-            List[Tuple[Message, List[ToolCalled], List[ToolNotCalled]]]: A list of results from each iteration, including messages and tool interaction outcomes.
+            list[tuple[Message, list[ToolCalled], list[ToolNotCalled]]]: A list of results from each iteration, including messages and tool interaction outcomes.
 
         Usage:
             This method is designed for scenarios where a single pass through the system's processing capabilities is insufficient, allowing for dynamic adjustments
@@ -791,7 +791,7 @@ class StateManager(ABC, Generic[ConfType]):
 
         loop_iteration = 0
 
-        completions: List[Tuple[Message, List[ToolCalled], List[ToolNotCalled]]] = []
+        completions: list[tuple[Message, list[ToolCalled], list[ToolNotCalled]]] = []
 
         self.logger.debug(
             f"""BL::StateManager::loop::Starting completion loop with message {message.role if message else "None"}. Max {self.config.FUNCTION_CALL_MAX_ITERATIONS} iterations."""
@@ -846,8 +846,8 @@ class StateManager(ABC, Generic[ConfType]):
         output_json: bool = False,
         schema: type[BaseModel] | None = None,
         completion_name: str = "",
-        search_context: List[unique_sdk.Integrated.SearchResult] | None = None,
-        raise_on_empty_completion: Type[Exception] | None = None,
+        search_context: list[unique_sdk.Integrated.SearchResult] | None = None,
+        raise_on_empty_completion: type[Exception] | None = None,
     ) -> Message:
         """
         Streams processing of messages, potentially in a real-time environment, handling one message at a time.

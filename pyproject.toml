@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "blue-lugia"
-version = "0.35.1"
+version = "0.36.0"
 description = "Unique SDK Wrapper"
 authors = ["Sofiane TALEB <sofiane.ext@unique.ch>"]
 readme = "README.md"
@@ -8,7 +8,7 @@ packages = [{ include = "blue_lugia" },]
 
 [tool.poetry.dependencies]
 python = "^3.12"
-unique-sdk = "^0.9.12"
+unique-sdk = "^0.9.17"
 flask = "^3.0"
 pydantic = "^2.7.4"
 tiktoken = "^0.7.0"
@@ -83,7 +83,7 @@ select = [
     # mccabe -- code complexity
     "C90",
 ]
-ignore = ["ANN002", "ANN003", "ANN101", "ANN102", "ANN401"]
+ignore = ["ANN002", "ANN003", "ANN401"]
 
 [tool.ruff.format]
 # Like Black, use double quotes for strings.

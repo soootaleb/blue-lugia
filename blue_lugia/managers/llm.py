@@ -10,7 +10,7 @@ from openai import NotGiven
 with contextlib.suppress(ImportError):
     from openai import OpenAI
 
-from typing import Any, List, Literal, Tuple, Type, TypeVar
+from typing import Any, Literal, TypeVar
 
 from pydantic import BaseModel
 
@@ -137,7 +137,7 @@ class LanguageModelManager(Manager):
         return models
 
     @property
-    def models_names(self) -> List[str]:
+    def models_names(self) -> list[str]:
         return list(self.models.keys())
 
     def _rm_titles(self, kv: dict[str, Any], prev_key: str = "") -> dict[str, Any]:
@@ -154,7 +154,7 @@ class LanguageModelManager(Manager):
                 new_kv[k] = v
         return new_kv
 
-    def _to_typed_messages(self, messages: List[dict[str, Any]] | List[Message]) -> MessageList:
+    def _to_typed_messages(self, messages: list[dict[str, Any]] | list[Message]) -> MessageList:
         typed_messages = MessageList(
             [],
             tokenizer=self.tokenizer,
@@ -225,7 +225,7 @@ class LanguageModelManager(Manager):
         llm._open_ai_api_key = self._open_ai_api_key
         return llm
 
-    def _to_dict_messages(self, messages: List[Message] | List[dict], oai: bool = False) -> List[dict]:
+    def _to_dict_messages(self, messages: list[Message] | list[dict], oai: bool = False) -> list[dict]:
         formatted_messages = []
 
         for message in messages:
@@ -265,7 +265,7 @@ class LanguageModelManager(Manager):
 
         return formatted_messages
 
-    def embed(self, messages: List[Message] | List[dict] | str | List[str]) -> EmbeddingList:
+    def embed(self, messages: list[Message] | list[dict] | str | list[str]) -> EmbeddingList:
         texts = []
 
         flat_messages = messages if isinstance(messages, list) else [messages]
@@ -359,7 +359,7 @@ class LanguageModelManager(Manager):
 
         return history
 
-    def _rereference(self, messages: MessageList) -> Tuple[MessageList, List[unique_sdk.Integrated.SearchResult], List[unique_sdk.Integrated.SearchResult]]:
+    def _rereference(self, messages: MessageList) -> tuple[MessageList, list[unique_sdk.Integrated.SearchResult], list[unique_sdk.Integrated.SearchResult]]:
         processed_messages = messages.fork()
         references = []
 
@@ -422,7 +422,7 @@ class LanguageModelManager(Manager):
 
         return processed_messages, messages.sources, references
 
-    def _verify_tools(self, tools: List[type[BaseModel]]) -> List[type[BaseModel]]:
+    def _verify_tools(self, tools: list[type[BaseModel]]) -> list[type[BaseModel]]:
         # must inherit base model
         for tool in tools:
             if not issubclass(tool, BaseModel):
@@ -448,9 +448,9 @@ class LanguageModelManager(Manager):
 
     def _complete_openai(
         self,
-        formatted_messages: List[dict],
+        formatted_messages: list[dict],
         options: dict[str, Any],
-        references: Tuple[List[unique_sdk.Integrated.SearchResult], List[unique_sdk.Integrated.SearchResult]],
+        references: tuple[list[unique_sdk.Integrated.SearchResult], list[unique_sdk.Integrated.SearchResult]],
         completion_name: str = "",
     ) -> Message:
         existing_references, new_references = references
@@ -499,14 +499,14 @@ class LanguageModelManager(Manager):
 
     def _complete_streaming(
         self,
-        formatted_messages: List[dict],
+        formatted_messages: list[dict],
         options: dict[str, Any],
         out: Message,
         debug_info: dict[str, Any],
         start_text: str,
-        references: Tuple[List[unique_sdk.Integrated.SearchResult], List[unique_sdk.Integrated.SearchResult]],
+        references: tuple[list[unique_sdk.Integrated.SearchResult], list[unique_sdk.Integrated.SearchResult]],
         completion_name: str = "",
-        search_context: List[unique_sdk.Integrated.SearchResult] | None = None,
+        search_context: list[unique_sdk.Integrated.SearchResult] | None = None,
     ) -> Message:
         existing_references, new_references = references
 
@@ -594,11 +594,11 @@ class LanguageModelManager(Manager):
 
     def _complete_basic(
         self,
-        formatted_messages: List[dict],
-        references: Tuple[List[unique_sdk.Integrated.SearchResult], List[unique_sdk.Integrated.SearchResult]],
+        formatted_messages: list[dict],
+        references: tuple[list[unique_sdk.Integrated.SearchResult], list[unique_sdk.Integrated.SearchResult]],
         options: dict[str, Any],
         completion_name: str = "",
-        search_context: List[unique_sdk.Integrated.SearchResult] | None = None,
+        search_context: list[unique_sdk.Integrated.SearchResult] | None = None,
     ) -> Message:
         existing_references, new_references = references
 
@@ -650,8 +650,8 @@ class LanguageModelManager(Manager):
 
     def _build_options(  # noqa: C901
         self,
-        formatted_messages: List[dict],
-        tools: List[type[BaseModel]] | None = None,
+        formatted_messages: list[dict],
+        tools: list[type[BaseModel]] | None = None,
         tool_choice: type[BaseModel] | None = None,
         schema: type[BaseModel] | None = None,
         max_tokens: int | Literal["auto"] | None = None,
@@ -743,8 +743,8 @@ class LanguageModelManager(Manager):
 
     def complete(
         self,
-        messages: List[Message] | List[dict[str, Any]],
-        tools: List[type[BaseModel]] | None = None,
+        messages: list[Message] | list[dict[str, Any]],
+        tools: list[type[BaseModel]] | None = None,
         tool_choice: type[BaseModel] | None = None,
         schema: type[BaseModel] | None = None,
         max_tokens: int | Literal["auto"] | None = None,
@@ -753,8 +753,8 @@ class LanguageModelManager(Manager):
         start_text: str = "",
         output_json: bool = False,
         completion_name: str = "",
-        search_context: List[unique_sdk.Integrated.SearchResult] | None = None,
-        raise_on_empty_completion: Type[Exception] | None = None,
+        search_context: list[unique_sdk.Integrated.SearchResult] | None = None,
+        raise_on_empty_completion: type[Exception] | None = None,
         *args,
         **kwargs,
     ) -> Message:
@@ -765,8 +765,8 @@ class LanguageModelManager(Manager):
         and internal configurations.
 
         Args:
-            messages (List[Message] | List[dict[str, Any]]): The list of messages or structured message data to process.
-            tools (List[type[BaseModel]] | None): Optional list of tools (as model classes) to apply during the completion process.
+            messages (list[Message] | list[dict[str, Any]]): The list of messages or structured message data to process.
+            tools (list[type[BaseModel]] | None): Optional list of tools (as model classes) to apply during the completion process.
             tool_choice (type[BaseModel] | None): Specific tool (model class) selected for applying in the completion process.
             max_tokens (int | Literal["auto"] | None): The maximum number of tokens to generate or process; 'auto' for automatic determination based on context.
             out (Message | None): Optional existing message object to update with the completion result.
@@ -848,7 +848,7 @@ class LanguageModelManager(Manager):
 
         return completion
 
-    def parse(self, message_or_messages: Message | List[Message] | List[dict[str, Any]], into: type[ToolType], completion_name: str = "") -> ToolType:
+    def parse(self, message_or_messages: Message | list[Message] | list[dict[str, Any]], into: type[ToolType], completion_name: str = "") -> ToolType:
         messages = message_or_messages if isinstance(message_or_messages, list) else [message_or_messages]
         return into(**(self.complete(messages=messages, schema=into, completion_name=completion_name).content).json())
 

@@ -1,5 +1,5 @@
 from pprint import pprint
-from typing import Any, List, Tuple
+from typing import Any, Union
 
 from blue_lugia.enums import Op
 
@@ -13,7 +13,7 @@ class Q:
     composed of simple key-value pairs or nested Q objects.
 
     Attributes:
-        _conditions (List[Tuple[str, str, Any] | "Q"]): A list of conditions and/or nested Q objects.
+        _conditions (list[tuple[str, str, Any] | "Q"]): A list of conditions and/or nested Q objects.
         _connector (Op): The logical operator that connects conditions (AND, OR).
         _negated (bool): Flag indicating if the query expression is negated.
 
@@ -27,7 +27,7 @@ class Q:
         Q(name__startswith='J', age__lt=50) & ~Q(status='inactive')
     """
 
-    _conditions: List[Tuple[str, str, Any] | "Q"]
+    _conditions: list[Union[tuple[str, str, Any], "Q"]]
     _connector: Op
     _negated: bool
 
@@ -59,7 +59,7 @@ class Q:
             self._negated = sub_condition.negated
 
     @property
-    def conditions(self) -> List[Tuple[str, str, Any] | "Q"]:
+    def conditions(self) -> list[Union[tuple[str, str, Any], "Q"]]:
         return self._conditions
 
     @property
@@ -70,7 +70,7 @@ class Q:
     def negated(self) -> bool:
         return self._negated
 
-    def _kwargs_to_kov(self, **kwargs: dict[str, Any]) -> List[Tuple[str, str, Any]]:
+    def _kwargs_to_kov(self, **kwargs: dict[str, Any]) -> list[tuple[str, str, Any]]:
         kov = []
 
         for key, value in kwargs.items():

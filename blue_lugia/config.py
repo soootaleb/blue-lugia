@@ -1,4 +1,4 @@
-from typing import Any, Dict, Literal, Set, TypeVar
+from typing import Any, Literal, TypeVar
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -56,8 +56,8 @@ class ModuleConfig(BaseSettings):
         self,
         *,
         mode: str = "python",
-        include: Set[int] | Set[str] | Dict[int, Any] | Dict[str, Any] | None = None,
-        exclude: Set[int] | Set[str] | Dict[int, Any] | Dict[str, Any] | None = {
+        include: set[int] | set[str] | dict[int, Any] | dict[str, Any] | None = None,
+        exclude: set[int] | set[str] | dict[int, Any] | dict[str, Any] | None = {
             "API_KEY",
             "ENDPOINT_SECRET",
         },
@@ -88,8 +88,8 @@ class ModuleConfig(BaseSettings):
         self,
         *,
         indent: int | None = None,
-        include: Set[int] | Set[str] | Dict[int, Any] | Dict[str, Any] | None = None,
-        exclude: Set[int] | Set[str] | Dict[int, Any] | Dict[str, Any] | None = {
+        include: set[int] | set[str] | dict[int, Any] | dict[str, Any] | None = None,
+        exclude: set[int] | set[str] | dict[int, Any] | dict[str, Any] | None = {
             "API_KEY",
             "ENDPOINT_SECRET",
         },

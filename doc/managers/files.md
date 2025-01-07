@@ -17,7 +17,7 @@ Initializes the `FileManager` instance.
 - `tokenizer` (tiktoken.Encoding): Tokenizer to be used. Default is `DEFAULTS.tokenizer`.
 - `chat_only` (bool): If true, restricts the search to chat files only. Default is False.
 - `search_type` (SearchType): Defines the type of search to be performed. Default is SearchType.COMBINED.
-- `scopes` (List[str]): List of scopes to be used in searches. Default is an empty list.
+- `scopes` (list[str]): list of scopes to be used in searches. Default is an empty list.
 
 ## Properties
 
@@ -34,13 +34,13 @@ Performs a search based on either a string query or a `Q` object and returns a `
 - `limit` (int): The maximum number of results to return. Default is 1000.
 
 **Returns:**
-- `FileList`: List of files matching the search criteria.
+- `FileList`: list of files matching the search criteria.
 
 ### `fetch`
 Fetches content based on the current filters, which can be defined using `Q` objects, and returns a `FileList`.
 
 **Returns:**
-- `FileList`: List of files matching the current filters.
+- `FileList`: list of files matching the current filters.
 
 ### `filter`
 Applies filters to the search using a `Q` object and returns a new `FileManager` instance.
@@ -64,7 +64,7 @@ Sets the search type and returns a new `FileManager` instance.
 Sets the scopes and returns a new `FileManager` instance.
 
 **Parameters:**
-- `scopes` (List[str] | str): List of scopes to be used.
+- `scopes` (list[str] | str): list of scopes to be used.
 
 **Returns:**
 - `FileManager`: A new instance of `FileManager` with the specified scopes.
@@ -73,7 +73,7 @@ Sets the scopes and returns a new `FileManager` instance.
 Retrieves all files and returns a `FileList`.
 
 **Returns:**
-- `FileList`: List of all files.
+- `FileList`: list of all files.
 
 ### `first`
 Returns the first file in the list.

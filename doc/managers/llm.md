@@ -31,8 +31,8 @@ Sets up the manager to use OpenAI with the provided API key.
 Completes the response using the language model.
 
 **Parameters:**
-- `messages` (List[Message] | List[dict]): List of messages to send to the model.
-- `tools` (List[Tool]): List of tools to be used by the model. Default is an empty list.
+- `messages` (list[Message] | list[dict]): list of messages to send to the model.
+- `tools` (list[Tool]): list of tools to be used by the model. Default is an empty list.
 - `tool_choice` (list): Optional tool choice settings. Default is an empty list.
 - `max_tokens` (int | Literal["auto"]): Maximum number of tokens for the response. Default is None.
 
@@ -53,7 +53,7 @@ Sets the language model to be used.
 Sets the schema to be used by the parser.
 
 **Parameters:**
-- `schema` (Type[BaseModel]): The schema to be used.
+- `schema` (type[BaseModel]): The schema to be used.
 
 **Returns:**
 - `Parser`: The current instance of `Parser` with the specified schema.
@@ -62,7 +62,7 @@ Sets the schema to be used by the parser.
 Sets the instructions to be followed by the parser.
 
 **Parameters:**
-- `instructions` (List[Message._Content | str | Message] | Message._Content | str | Message): The instructions to be followed.
+- `instructions` (list[Message._Content | str | Message] | Message._Content | str | Message): The instructions to be followed.
 
 **Returns:**
 - `Parser`: The current instance of `Parser` with the specified instructions.
@@ -71,7 +71,7 @@ Sets the instructions to be followed by the parser.
 Sets the assertions to be checked by the parser.
 
 **Parameters:**
-- `assertions` (List[Tuple[Callable[[dict], bool], str] | Callable[[dict], bool]]): The assertions to be checked.
+- `assertions` (list[tuple[Callable[[dict], bool], str] | Callable[[dict], bool]]): The assertions to be checked.
 
 **Returns:**
 - `Parser`: The current instance of `Parser` with the specified assertions.
