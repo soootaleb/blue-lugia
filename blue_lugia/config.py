@@ -52,6 +52,8 @@ class ModuleConfig(BaseSettings):
     LLM_DEFAULT_MODEL: str = "AZURE_GPT_4_TURBO_2024_0409"
     LLM_ALLOW_STREAMING: bool = True
 
+    REF_USE_URL: bool = True
+
     def model_dump(
         self,
         *,

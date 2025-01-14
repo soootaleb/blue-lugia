@@ -88,6 +88,7 @@ class LanguageModelManager(Manager):
     _timeout: int
     _temperature: float
     _context_max_tokens: int | None
+    _ref_use_url: bool
 
     _use_open_ai: bool
     _open_ai_api_key: str
@@ -102,6 +103,7 @@ class LanguageModelManager(Manager):
         context_max_tokens: int | None = None,
         seed: int | None = None,
         streaming_allowed: bool = True,
+        ref_use_url: bool = True,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
@@ -114,6 +116,7 @@ class LanguageModelManager(Manager):
         self._open_ai_api_key = ""
         self._streaming_allowed = streaming_allowed
         self._context_max_tokens = context_max_tokens
+        self._ref_use_url = ref_use_url
 
     @property
     def tokenizer(self) -> tiktoken.Encoding:
@@ -219,8 +222,23 @@ class LanguageModelManager(Manager):
         llm._temperature = temperature
         return llm
 
+    def ref_use_url(self, ref_use_url: bool) -> "LanguageModelManager":
+        llm = self.fork()
+        llm._ref_use_url = ref_use_url
+        return llm
+
     def fork(self) -> "LanguageModelManager":
-        llm = self.__class__(event=self._event, model=self._model, temperature=self._temperature, timeout=self._timeout, logger=self.logger)
+        llm = self.__class__(
+            event=self._event,
+            model=self._model,
+            temperature=self._temperature,
+            timeout=self._timeout,
+            context_max_tokens=self._context_max_tokens,
+            seed=self._seed,
+            streaming_allowed=self._streaming_allowed,
+            ref_use_url=self._ref_use_url,
+            logger=self.logger,
+        )
         llm._use_open_ai = self._use_open_ai
         llm._open_ai_api_key = self._open_ai_api_key
         return llm
@@ -389,6 +407,9 @@ class LanguageModelManager(Manager):
                     raise LanguageModelManagerError("BL::Manager::LLM::rereference::InvalidSourceXML::use from xml.sax.saxutils import escape to escape the source attributes")
 
                 elem.tag = f"source{found_sources_counter}"
+
+                if not self._ref_use_url and elem.get('id'):
+                    elem.set("url", f"unique://content/{elem.get('id')}")
 
                 if message.content:
                     # message.content = message.content.replace(source, ET.tostring(elem, encoding="unicode"))

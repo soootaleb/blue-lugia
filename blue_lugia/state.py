@@ -120,6 +120,7 @@ class StateManager(ABC, Generic[ConfType]):
             context_max_tokens=self.cfg.CONTEXT_WINDOW_TOKEN_LIMIT,
             logger=self.logger.getChild(self._LanguageModelManager.__name__),
             streaming_allowed=self.cfg.LLM_ALLOW_STREAMING,
+            ref_use_url=self.cfg.REF_USE_URL,
         )
 
         self._messages = self._MessageManager(
@@ -923,6 +924,7 @@ class StateManager(ABC, Generic[ConfType]):
             context_max_tokens=self.cfg.CONTEXT_WINDOW_TOKEN_LIMIT,
             logger=self.logger.getChild(self._LanguageModelManager.__name__),
             streaming_allowed=self.cfg.LLM_ALLOW_STREAMING,
+            ref_use_url=self.cfg.REF_USE_URL,
         )
 
         self._messages = self._MessageManager(
