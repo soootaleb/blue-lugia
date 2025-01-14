@@ -233,7 +233,8 @@ class LanguageModelManager(Manager):
                 if message.image:
                     message_content = [{"type": "text", "text": message.original_content or message.content or ""}, {"type": "image_url", "image_url": {"url": message.image}}]
                 else:
-                    message_content = message.original_content or message.content or ""
+                    # We may encounter tool messages with no content, but we need to set it because Unique API requires it
+                    message_content = message.original_content or message.content or ("None" if message.role == Role.TOOL and not oai else "")
 
                 message_to_append = {
                     "role": message.role.value,
@@ -352,7 +353,8 @@ class LanguageModelManager(Manager):
         self.logger.debug(f"BL::Manager::LLM::reformat::ContextTruncatedTo::{len(history.tokens)} tokens.")
 
         # Remove messages with empty content & without image nor tool calls, since it's not accepted by Unique API
-        history = history.filter(lambda x: bool(x.content) or bool(x.original_content) or bool(x.image) or bool(x.tool_calls))
+        # We keep TOOL messages because they are required after a tool call, even if they have no content
+        history = history.filter(lambda x: (bool(x.content) or x.role == Role.TOOL) or bool(x.original_content) or bool(x.image) or bool(x.tool_calls))
 
         if not history:
             raise LanguageModelManagerError("BL::Manager::LLM::reformat::EmptyContext::After reformatting context, no messages remain.")
