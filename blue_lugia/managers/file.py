@@ -20,6 +20,7 @@ from blue_lugia.models import (
 class FileManager(Manager):
     _all: FileList
     _retrieved: bool
+    _ref_use_url: bool
 
     _chat_only: bool
     _search_type: SearchType
@@ -87,6 +88,7 @@ class FileManager(Manager):
         search_type: SearchType = SearchType.COMBINED,
         scopes: list[str] = [],
         ids: list[str] = [],
+        ref_use_url: bool = True,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
@@ -98,6 +100,7 @@ class FileManager(Manager):
         self._filters = []
         self._filters_operator = Op.OR
         self._tokenizer = tokenizer
+        self._ref_use_url = ref_use_url
         self._all = FileList([], tokenizer=self.tokenizer, logger=self.logger.getChild(FileList.__name__))
 
     @property
@@ -109,12 +112,9 @@ class FileManager(Manager):
 
     @property
     def uploaded(self) -> "FileManager":
-        return FileManager(
-            event=self._event,
-            tokenizer=self.tokenizer,
-            chat_only=True,
-            logger=self.logger.getChild(FileManager.__name__),
-        )
+        fm = self.fork()
+        fm._chat_only = True
+        return fm
 
     def fork(self) -> "FileManager":
         file_manager = self.__class__(
@@ -125,6 +125,7 @@ class FileManager(Manager):
             event=self._event,
             logger=self.logger,
             tokenizer=self.tokenizer,
+            ref_use_url=self._ref_use_url,
         )
 
         file_manager._filters = self._filters.copy()
@@ -166,7 +167,7 @@ class FileManager(Manager):
                 created_at=datetime.datetime.fromisoformat(chunk["createdAt"]),
                 updated_at=datetime.datetime.fromisoformat(chunk["updatedAt"]),
                 metadata=chunk.get("metadata", {}),
-                url=chunk.get("url"),
+                url=chunk.get("url") if self._ref_use_url else None,
                 tokenizer=self.tokenizer,
                 logger=self.logger.getChild(Chunk.__name__),
                 file=files_map[file_id],
@@ -213,7 +214,7 @@ class FileManager(Manager):
                     created_at=datetime.datetime.now(),
                     updated_at=datetime.datetime.now(),
                     metadata=chunk.get("metadata", {}),
-                    url=chunk.get("url"),
+                    url=chunk.get("url") if self._ref_use_url else None,
                     tokenizer=self.tokenizer,
                     logger=self.logger.getChild(Chunk.__name__),
                     file=files_map[file_id],
@@ -426,6 +427,11 @@ class FileManager(Manager):
     def using(self, search_type: SearchType) -> "FileManager":
         file_manager = self.fork()
         file_manager._search_type = search_type
+        return file_manager
+
+    def ref_use_url(self, ref_use_url: bool) -> "FileManager":
+        file_manager = self.fork()
+        file_manager._ref_use_url = ref_use_url
         return file_manager
 
     def scoped(self, scopes: list[str] | str) -> "FileManager":

@@ -37,6 +37,8 @@ def lib(state: StateManager[ModuleConfig], args: list[str]) -> None:
     state.context(
         [
             Message.SYSTEM("Your role is to help the user use the blue_lugia python library"),
+            Message.SYSTEM("You should consider that the user is evolving in the 'module' function provided for the webhook endpoint"),
+            Message.SYSTEM("Unless asked explicitly, provide your explanations and examples with a fully built state object, not detailing the dependencies injection etc"),
             Message.SYSTEM("The code of the library is:"),
             Message.SYSTEM(content),
         ],
