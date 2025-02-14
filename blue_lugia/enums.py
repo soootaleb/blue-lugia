@@ -5,6 +5,7 @@ class Role(Enum):
     USER = "user"
     TOOL = "tool"
     SYSTEM = "system"
+    DEVELOPER = "developer"
     ASSISTANT = "assistant"
 
 

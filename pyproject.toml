@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "blue-lugia"
-version = "0.37.1"
+version = "0.38.0"
 description = "Unique SDK Wrapper"
 authors = ["Sofiane TALEB <sofiane.ext@unique.ch>"]
 readme = "README.md"
@@ -11,7 +11,7 @@ python = "^3.12"
 unique-sdk = "^0.9.17"
 flask = "^3.0"
 pydantic = "^2.7.4"
-tiktoken = "^0.7.0"
+tiktoken = "^0.9.0"
 pydantic-settings = "^2.3.3"
 openai = "^1.34.0"
 sseclient = "^0.0.27"

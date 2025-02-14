@@ -1,289 +1,200 @@
-# LanguageModelManager Library Documentation
+# LanguageModelManager
 
 ## Overview
-The `LanguageModelManager` class is designed to manage interactions with language models, including OpenAI's models and custom models from `unique_sdk`. It provides functionalities to set up, call, and parse responses from these models. This documentation provides a detailed overview of the methods and properties available in the `LanguageModelManager` class.
+`LanguageModelManager` is a class that facilitates interaction with various language models, supporting multiple configurations, tokenization, embedding, and response generation. It abstracts underlying model complexities, offering functionalities such as:
 
-## Initialization
-### `__init__`
-Initializes the `LanguageModelManager` instance.
+- Tokenization handling
+- Context window size management
+- Model registration and selection
+- Message formatting and reformatting
+- Tool integration and execution
+- Streaming and non-streaming completions
+- Embedding generation
 
-**Parameters:**
-- `event` (ExternalModuleChosenEvent): The event object containing user and company information.
-- `model` (Model): The language model to be used. Default is `DEFAULTS.llm_model`.
-- `temperature` (float): The temperature setting for the language model. Default is 0.0.
-- `timeout` (int): The timeout setting for the language model. Default is `DEFAULTS.llm_timeout`.
+## Class Definition
+```python
+class LanguageModelManager(Manager)
+```
+This class extends `Manager` and provides functionalities for managing and interfacing with language models.
 
-## Properties
-### `parser`
-Returns a new `Parser` instance for parsing model responses.
+## Attributes
+
+### Static Attributes
+- `DEV_MESSAGE_MODELS`: List of models using developer-specific message formats.
+- `CONTEXT_WINDOW_SIZES`: Dictionary mapping model names to their respective context window sizes.
+- `OUTPUT_MAX_TOKENS`: Dictionary mapping model names to their maximum output token limits.
+- `AZURE_TO_CANONICAL_MODEL_NAME`: Mapping between Azure model names and their canonical names.
+
+### Instance Attributes
+- `_model` (str): The model in use.
+- `_seed` (int | None): Seed for randomization.
+- `_timeout` (int): Timeout for model interactions.
+- `_temperature` (float): Temperature for response generation.
+- `_context_max_tokens` (int | None): Maximum context tokens.
+- `_use_open_ai` (bool): Whether OpenAI API is used.
+- `_open_ai_api_key` (str): API key for OpenAI.
+- `_streaming_allowed` (bool): Whether streaming responses are allowed.
 
 ## Methods
-### `oai`
-Sets up the manager to use OpenAI with the provided API key.
 
-**Parameters:**
-- `key` (str): The OpenAI API key.
+### Initialization
+```python
+__init__(
+    self,
+    model: str,
+    temperature: float = 0.0,
+    timeout: int = 600_000,
+    context_max_tokens: int | None = None,
+    seed: int | None = None,
+    streaming_allowed: bool = True,
+    **kwargs,
+) -> None
+```
+Initializes an instance of `LanguageModelManager` with the specified model and configurations.
 
-**Returns:**
-- `LanguageModelManager`: A new instance of `LanguageModelManager` with OpenAI configured.
-
-### `complete`
-Completes the response using the language model.
-
-**Parameters:**
-- `messages` (list[Message] | list[dict]): list of messages to send to the model.
-- `tools` (list[Tool]): list of tools to be used by the model. Default is an empty list.
-- `tool_choice` (list): Optional tool choice settings. Default is an empty list.
-- `max_tokens` (int | Literal["auto"]): Maximum number of tokens for the response. Default is None.
-
-**Returns:**
-- `Message`: The completed message response from the model.
-
-### `using`
-Sets the language model to be used.
-
-**Parameters:**
-- `model` (Model): The language model to be used.
-
-**Returns:**
-- `LanguageModelManager`: The current instance of `LanguageModelManager` with the specified model.
-
-## Parser Class
-### `into`
-Sets the schema to be used by the parser.
-
-**Parameters:**
-- `schema` (type[BaseModel]): The schema to be used.
-
-**Returns:**
-- `Parser`: The current instance of `Parser` with the specified schema.
-
-### `following`
-Sets the instructions to be followed by the parser.
-
-**Parameters:**
-- `instructions` (list[Message._Content | str | Message] | Message._Content | str | Message): The instructions to be followed.
-
-**Returns:**
-- `Parser`: The current instance of `Parser` with the specified instructions.
-
-### `asserting`
-Sets the assertions to be checked by the parser.
-
-**Parameters:**
-- `assertions` (list[tuple[Callable[[dict], bool], str] | Callable[[dict], bool]]): The assertions to be checked.
-
-**Returns:**
-- `Parser`: The current instance of `Parser` with the specified assertions.
-
-### `parse`
-Parses the query using the set schema, instructions, and assertions.
-
-**Parameters:**
-- `query` (Message._Content | str | Message): The query to be parsed.
-
-**Returns:**
-- `BaseModel`: The parsed response according to the set schema.
-
-# Tool Calling
-
-## Defining a tool
-
-Tools are pydantic BaseModel
-
-- The tool name is the class name
-- The tool description is the docstring
-- The tool arguments are the fields, their types and descriptions
+### Properties
+```python
+@property
+def tokenizer(self) -> tiktoken.Encoding
+```
+Returns the tokenizer associated with the current model.
 
 ```python
-class SumTool(BaseModel):
-    """Add two numbers"""
-    x: int = Field(..., description="first value")
-    y: int = Field(..., description="second value")
+@property
+def models(self) -> dict[str, Any]
 ```
-
-## Configure the tool
-
-You can configure the tool with the `Config` inner class.
-
-
-- `bl_fc_strict` will allow you to set `strict: False` when passing the tool schema to OpenAI.
-- `bl_schema_strict` will allow you to set `strict: False` when using `response_format: json_schema`.
-
+Returns metadata of supported models.
 
 ```python
-class SumTool(BaseModel):
-    """Add two numbers"""
-
-    class Config:
-        bl_fc_strict = False
+@property
+def models_names(self) -> list[str]
 ```
+Returns a list of available model names.
 
-## Running a tool
-
-Create a `run` method in the tool class in order to execute it with the parameters
+### Message Handling
+```python
+def _to_typed_messages(self, messages: list[dict[str, Any]] | list[Message]) -> MessageList
+```
+Converts raw messages to `MessageList` with appropriate typing.
 
 ```python
-...
-    # The run method is executed by state.call(completion). The tool call formulated by the LLM results in an instance of the tool, so you can access arguments with self.x
-    # What's returned by this method is considered the "tool response", so the state.call() will append a message { role: TOOL, content: run() } to the context
-    def run(self, call_id: str, state: StateManager, *args, **kwargs) -> int:
-        # state.last_ass_message.update(f"The sum of {self.x} and {self.y} is {self.x + self.y}")
-        return self.x + self.y
+def _to_dict_messages(self, messages: list[Message] | list[dict], oai: bool = False) -> list[dict]
 ```
-
-## Using a tool
-
-You need to register it with the state first
+Formats messages for API consumption.
 
 ```python
-state.register(SumTool)
+def _reformat(self, messages: MessageList) -> MessageList
 ```
-
-Then it's passed when completing
+Processes messages by deduplicating system messages, truncating context to fit model constraints, and removing empty messages.
 
 ```python
-state.complete(message)
+def _rereference(self, messages: MessageList) -> tuple[MessageList, list, list]
 ```
+Handles message citations and source references.
 
-You can force its use with `tool_choice`
+### Model Configuration
+```python
+def register(self, model: str, input_max_tokens: int, output_max_tokens: int, canonical_name: str, uses_dev_messages: bool = False, in_place: bool = False) -> "LanguageModelManager"
+```
+Registers a new model with specified parameters.
 
 ```python
-completion = state.complete(messages, tool_choice=SumTool)
+def fork(self) -> "LanguageModelManager"
 ```
+Creates a copy of the current `LanguageModelManager` instance.
 
-When you get a completion, it may have tool calls. You can run the associated tools with their arguments
+### Model Interaction
+```python
+def complete(
+    self,
+    messages: list[Message] | list[dict[str, Any]],
+    tools: list[type[BaseModel]] | None = None,
+    tool_choice: type[BaseModel] | None = None,
+    schema: type[BaseModel] | None = None,
+    max_tokens: int | Literal["auto"] | None = None,
+    out: Message | None = None,
+    debug_info: dict[str, Any] | None = None,
+    start_text: str = "",
+    output_json: bool = False,
+    completion_name: str = "",
+    search_context: list | None = None,
+    raise_on_empty_completion: type[Exception] | None = None,
+    *args,
+    **kwargs,
+) -> Message
+```
+Processes and completes a set of input messages using the configured model.
 
 ```python
-tools_called, tools_not_called, complete = state.call(completion)
+def parse(self, message_or_messages: Message | list[Message] | list[dict[str, Any]], into: type[ToolType], completion_name: str = "") -> ToolType
 ```
+Parses messages into a structured tool output.
 
-## Forcing json output
-
-You can force json output from OpenAI messages if you don't need to run a tool
+### Streaming and Tool Handling
+```python
+def prevent_streaming(self) -> "LanguageModelManager"
+```
+Disables streaming responses.
 
 ```python
-completion = state.complete(messages, output_json=True)
+def allow_streaming(self) -> "LanguageModelManager"
 ```
-
-The json is in the message content, you can structure it
+Enables streaming responses.
 
 ```python
-data = completion.content.json()
+def _verify_tools(self, tools: list[type[BaseModel]]) -> list[type[BaseModel]]
 ```
+Validates the list of tools to be used in message processing.
 
-> Beware that the messages you pass MUST include the "json" keyword as a prompt, or OpenAI will return an error.
+## Usage Examples
 
-## JSON Schema
-
-A more reliable way to get json output is to use the `response_format: json_schema` option from OpenAI.
-
-You can leverage it by passing a pydantic BaseModel to the completion method `schema` argument
-
+### Simple Completion
 ```python
-completion = state.complete(messages, schema=SumTool)
+response = state.llm.complete(messages=[{"role": "user", "content": "Hello!"}])
+print(response.content)
 ```
 
-By default you're guaranteed to get a string respecting the schema, but you can smooth this by configuring your tool / schema
-
+### Streaming Completion
 ```python
-class SumTool(BaseModel):
-    """Add two numbers"""
-
-    class Config:
-        bl_schema_strict = False
+out_message = Message(role="assistant", content="")
+state.llm.complete(messages=[{"role": "user", "content": "Tell me a story."}], out=out_message)
+print(out_message.content)
 ```
 
-Then you can retrieve the data from the content
-
+### Registering a New Model
 ```python
-data = completion.content.json()
+state.llm.register("custom-gpt", input_max_tokens=2048, output_max_tokens=512, canonical_name="gpt-4")
 ```
 
-## LLM Parse
-
-LLM exposes a utility method to get a pydantic model from a completion
-
+### Registering the Latest Models
 ```python
-parsed = state.llm.parse(completion, schema=SumTool)
+state.llm.register("AZURE_GPT_o1_2024_1217", input_max_tokens=200_000, output_max_tokens=100_000, canonical_name="gpt-o1", uses_dev_messages=True)
 ```
 
-# Usage Examples
+> The latest model use a "developer" role instead of a "system" role. You can tune this with the uses_dev_messages arguments. Source: [OpenAI Changelog](https://platform.openai.com/docs/changelog)
 
-## Example 1: Basic Initialization
-
+### Changing Model Configuration
 ```python
-from blue_lugia.models import ExternalModuleChosenEvent
-from blue_lugia.enums import Model
-from blue_lugia.config import DEFAULTS
-
-event = ExternalModuleChosenEvent(userId="user123", companyId="company123", payload={"chatId": "chat123"})
-llm_manager = LanguageModelManager(event)
+state.llm = state.llm.using("gpt-4-turbo").tmp(temperature=0.7).seed(42)
 ```
 
-## Example 2: Calling the Language Model
-
+### Disabling and Enabling Streaming
 ```python
-from blue_lugia.models import Message, Tool
-from blue_lugia.enums import Role
-
-messages = [
-    Message(role=Role.USER, content="What is the weather like today?")
-]
-tools = []
-
-response = llm_manager.call(messages, tools)
-for call in response:
-    print(f"Tool Name: {call.name}, Arguments: {call.arguments}")
+state.llm = state.llm.prevent_streaming()
+state.llm = state.llm.allow_streaming()
 ```
 
-## Example 3: Using OpenAI
+## Exception Handling
+- `LanguageModelManagerError`: Raised for general errors.
+- `ValueError`: Raised when an unsupported model is specified.
 
-```python
-llm_manager_oai = llm_manager.oai(key="your_openai_api_key")
-messages = [
-    Message(role=Role.USER, content="Tell me a joke.")
-]
-response = llm_manager_oai.complete(messages)
-print(f"Response: {response.content}")
-```
+## Dependencies
+- `tiktoken`
+- `unique_sdk`
+- `pydantic`
+- `openai`
+- `blue_lugia` modules
 
-## Example 4: Using a Specific Model
+## Conclusion
+The `LanguageModelManager` class provides a robust and extensible interface for interacting with language models. It abstracts complexities while allowing fine-grained control over model behaviors, making it suitable for production-level deployments requiring advanced language processing capabilities.
 
-```python
-from blue_lugia.enums import Model
-
-llm_manager_custom = llm_manager.using(model=Model.GPT3)
-messages = [
-    Message(role=Role.USER, content="Summarize the latest news.")
-]
-response = llm_manager_custom.complete(messages)
-print(f"Response: {response.content}")
-```
-
-## Example 5: Parsing a Response
-
-```python
-from pydantic import BaseModel
-
-class MySchema(BaseModel):
-    summary: str
-
-parser = llm_manager.parser.into(MySchema).following("Please summarize the following text.").asserting([
-    (lambda x: 'summary' in x, "Summary field is missing.")
-])
-
-query = Message.USER("Here is a long text to be summarized...")
-parsed_response = parser.parse(query)
-print(f"Parsed Summary: {parsed_response.summary}")
-```
-
-## Example 6: Streaming a Response
-
-```python
-messages = [
-    Message(role=Role.USER, content="Continue writing this story.")
-]
-response = llm_manager.stream(messages)
-print(f"Streamed Response: {response.content}")
-```

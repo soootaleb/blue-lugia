@@ -23,6 +23,8 @@ ToolType = TypeVar("ToolType", bound=BaseModel)
 
 
 class LanguageModelManager(Manager):
+    DEV_MESSAGE_MODELS = []
+
     CONTEXT_WINDOW_SIZES = {
         "AZURE_GPT_4_0613": 8_192,
         "AZURE_GPT_4_0613_32K": 32_768,
@@ -219,6 +221,34 @@ class LanguageModelManager(Manager):
         llm._temperature = temperature
         return llm
 
+    def register(
+        self, model: str, input_max_tokens: int, output_max_tokens: int, canonical_name: str, uses_dev_messages: bool = False, in_place: bool = False
+    ) -> "LanguageModelManager":
+        """
+        Register a new model ready to be used.
+        After registering you could select it with the LanguageModelManager#using() method
+
+        - model (str): name of the model, will be used when calling the API (you may have to adapt the name to Azure or Unique)
+        - input_max_tokens (int): context window size
+        - output_max_tokens (int): max tokens returned by the model
+        - canonical_name (str): it's used to retrieve the tiktoken tokenizer; generally a "family" name, must be accepted by tiktoken.encoding_for_model()
+        - uses_dev_messages (bool): the latest model must use the Role.DEVELOPER instead of Role.SYSTEM messages, provide True if your model must adapt
+        """
+
+        if in_place:
+            self.CONTEXT_WINDOW_SIZES[model] = input_max_tokens
+            self.OUTPUT_MAX_TOKENS[model] = output_max_tokens
+            self.AZURE_TO_CANONICAL_MODEL_NAME[model] = canonical_name
+
+            if uses_dev_messages:
+                self.DEV_MESSAGE_MODELS.append(model)
+
+            return self
+        else:
+            return self.fork().register(
+                model=model, input_max_tokens=input_max_tokens, output_max_tokens=output_max_tokens, canonical_name=canonical_name, system_message=system_message, in_place=True
+            )
+
     def fork(self) -> "LanguageModelManager":
         llm = self.__class__(
             event=self._event,
@@ -245,8 +275,10 @@ class LanguageModelManager(Manager):
                     # We may encounter tool messages with no content, but we need to set it because Unique API requires it
                     message_content = message.original_content or message.content or ("None" if message.role == Role.TOOL and not oai else "")
 
+                role = (Role.DEVELOPER if self._model in self.DEV_MESSAGE_MODELS else Role.SYSTEM) if message.role in [Role.DEVELOPER, Role.SYSTEM] else message.role
+
                 message_to_append = {
-                    "role": message.role.value,
+                    "role": role.value,
                     "content": message_content,
                 }
 
@@ -415,7 +447,7 @@ class LanguageModelManager(Manager):
                             id=elem.get("id", f"source_{found_sources_counter}"),
                             chunkId=elem.get("chunkId", elem.get("id", f"source_{found_sources_counter}")),
                             key=elem.get("label", elem.get("display", elem.get("key", elem.get("title", f"source_{found_sources_counter}")))),
-                            url=elem.get("url", f'unique://content/{elem.get("id", f"source_{found_sources_counter}")}'),
+                            url=elem.get("url", f"unique://content/{elem.get('id', f'source_{found_sources_counter}')}"),
                         )
                     )
 
