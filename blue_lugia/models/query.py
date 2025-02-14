@@ -126,43 +126,22 @@ class Q:
 
     def _combine(self, other: "Q", connector: Op) -> "Q":
         query = Q()
-        query._connector = connector
 
-        # Handle self conditions, respecting negation
-        if self._connector == connector:
-            if self._negated:
-                self_wrapped = Q()
-                self_wrapped._conditions = self._conditions
-                self_wrapped._connector = self._connector
-                self_wrapped._negated = True
-                query._conditions.append(self_wrapped)
-            else:
-                query._conditions.extend(self._conditions)
+        if self._negated or other._negated:
+            # If either query is negated, we need to preserve their negation states
+            query._conditions = [self, other]
+            query._connector = connector
+        elif self._connector == connector and other._connector == connector:
+            # Both queries have the same connector and are not negated
+            query._conditions = self._conditions + other._conditions
+            query._connector = connector
         else:
-            self_wrapped = Q()
-            self_wrapped._conditions = self._conditions
-            self_wrapped._connector = self._connector
-            self_wrapped._negated = self._negated
-            query._conditions.append(self_wrapped)
-
-        # Handle other conditions, respecting negation
-        if other._connector == connector:
-            if other._negated:
-                other_wrapped = Q()
-                other_wrapped._conditions = other._conditions
-                other_wrapped._connector = other._connector
-                other_wrapped._negated = True
-                query._conditions.append(other_wrapped)
-            else:
-                query._conditions.extend(other._conditions)
-        else:
-            other_wrapped = Q()
-            other_wrapped._conditions = other._conditions
-            other_wrapped._connector = other._connector
-            other_wrapped._negated = other._negated
-            query._conditions.append(other_wrapped)
+            # Combine queries without flattening
+            query._conditions = [self, other]
+            query._connector = connector
 
         return query
+
 
     def __repr__(self) -> str:
         op = "NOT " + self._connector.value if self._negated else self._connector.value
